@@ -1,0 +1,875 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  name          String
+  role          String         @default("admin")
+  createdAt     DateTime @map("created_at")       @default(now())
+  updatedAt     DateTime @map("updated_at")       @updatedAt
+  refreshTokens RefreshToken[]
+  sessions      Session[]
+  userRoles     UserRole[]
+
+  @@map("eservice_users")
+}
+
+model Subscriber {
+  id           String     @id(map: "subscribers_new_pkey") @default(dbgenerated("(gen_random_uuid())::text"))
+  type         PersonType
+  citizenId    String? @map("citizen_id")    @unique(map: "subscribers_new_citizenId_key")
+  nonCitizenId String? @map("non_citizen_id")    @unique(map: "subscribers_new_nonCitizenId_key")
+  password     String?
+  googleId     String? @map("google_id")    @unique(map: "subscribers_new_googleId_key")
+  googleEmail  String? @map("google_email")
+  createdAt    DateTime @map("created_at")   @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime @map("updated_at")   @default(now()) @updatedAt @db.Timestamp(6)
+
+  // Relations
+  citizen                     Citizen?                     @relation("CitizenSubscriber", fields: [citizenId], references: [id])
+  nonCitizen                  NonCitizen?                  @relation("NonCitizenSubscriber", fields: [nonCitizenId], references: [id])
+  refreshTokens               RefreshToken[]
+  sessions                    Session[]
+  Transaction                 Transaction[]
+  citizenRegistrationRequests CitizenRegistrationRequest[]
+
+  @@map("subscribers")
+}
+
+// Registration Workflow - tracks the review process for citizen self-registration
+// Links to Citizen record which stores all personal info and ID documents
+model CitizenRegistrationRequest {
+  id String @id @default(uuid())
+
+  // ─────────────────────────────────────────────────────────────
+  // WORKFLOW FIELDS
+  // ─────────────────────────────────────────────────────────────
+  status     RegistrationStatus @default(PENDING)
+  adminNotes String? @map("admin_notes")
+  reviewedBy String? @map("reviewed_by")
+  reviewedAt DateTime? @map("reviewed_at")
+
+  // ─────────────────────────────────────────────────────────────
+  // CITIZEN LINK - Required for new registrations
+  // ─────────────────────────────────────────────────────────────
+  citizenId String @map("citizen_id") @unique
+
+  // ─────────────────────────────────────────────────────────────
+  // SELFIE (kept for admin verification during review)
+  // ─────────────────────────────────────────────────────────────
+  selfieUrl String? @map("selfie_url")
+
+  // ─────────────────────────────────────────────────────────────
+  // SUBMITTER LINK (who submitted this request)
+  // ─────────────────────────────────────────────────────────────
+  subscriberId String? @map("subscriber_id")
+  subscriber   Subscriber? @relation(fields: [subscriberId], references: [id])
+
+  createdAt DateTime @map("created_at") @default(now())
+  updatedAt DateTime @map("updated_at") @updatedAt
+
+  // ─────────────────────────────────────────────────────────────
+  // RELATIONS
+  // ─────────────────────────────────────────────────────────────
+  citizen Citizen? @relation(fields: [citizenId], references: [id])
+
+  @@index([status])
+  @@index([citizenId])
+  @@index([subscriberId])
+  @@map("citizen_registration_requests")
+}
+
+model NonCitizen {
+  id              String           @id @default(uuid())
+  firstName       String @map("first_name")
+  middleName      String? @map("middle_name")
+  lastName        String @map("last_name")
+  extensionName   String? @map("extension_name")
+  email           String?
+  phoneNumber     String @map("phone_number")           @unique
+  residentId      String? @map("resident_id")          @unique
+  residencyStatus String? @map("residency_status")
+  profilePicture  String? @map("profile_picture")
+  birthDate       DateTime? @map("birth_date")
+  civilStatus     String? @map("civil_status")
+  sex             String?
+  residentAddress String? @map("resident_address")
+  createdAt       DateTime @map("created_at")         @default(now())
+  updatedAt       DateTime @map("updated_at")         @updatedAt
+  status          SubscriberStatus @default(PENDING)
+  residencyType   ResidencyType? @map("residency_type")
+
+  // Relations
+  placeOfBirth PlaceOfBirth?
+  motherInfo   MotherInfo?
+  subscriber   Subscriber?   @relation("NonCitizenSubscriber")
+
+  @@index([createdAt])
+  @@index([status])
+  @@map("non_citizens")
+}
+
+model Citizen {
+  id                          String                      @id @default(uuid())
+  firstName                   String @map("first_name")
+  middleName                  String? @map("middle_name")
+  lastName                    String @map("last_name")
+  extensionName               String? @map("extension_name")
+  email                       String?
+  phoneNumber                 String? @map("phone_number")
+  citizenPicture              String? @map("citizen_picture")
+  birthDate                   DateTime @map("birth_date")
+  civilStatus                 String @map("civil_status")
+  sex                         String
+  username                    String?                     @unique
+  pin                         String?
+  residentId                  String? @map("resident_id")                     @unique
+  residencyStatus             CitizenStatus @map("residency_status")               @default(PENDING)
+  residencyApplicationRemarks String? @map("residency_application_remarks")
+  isResident                  Boolean @map("is_resident")                     @default(false)
+  isVoter                     Boolean @map("is_voter")                     @default(false)
+  proofOfIdentification       String? @map("proof_of_identification")
+  address                     String?
+  isEmployed                  Boolean @map("is_employed")                     @default(false)
+  citizenship                 String?
+  acrNo                       String? @map("acr_no")
+  profession                  String?
+  height                      String?
+  weight                      String?
+  createdAt                   DateTime @map("created_at")                    @default(now())
+  updatedAt                   DateTime @map("updated_at")                    @updatedAt
+  addressBarangay             String? @map("address_barangay")
+  addressMunicipality         String? @map("address_municipality")
+  addressPostalCode           String? @map("address_postal_code")
+  addressProvince             String? @map("address_province")
+  addressRegion               String? @map("address_region")
+  addressStreetAddress        String? @map("address_street_address")
+  emergencyContactNumber      String? @map("emergency_contact_number")
+  emergencyContactPerson      String? @map("emergency_contact_person")
+  idType                      String? @map("id_type")
+  idDocumentNumber            String? @map("id_document_number")
+  spouseName                  String? @map("spouse_name")
+  placeOfBirth                PlaceOfBirth[]
+  pwdBeneficiary              PWDBeneficiary?
+  seniorCitizenBeneficiary    SeniorCitizenBeneficiary?
+  soloParentBeneficiary       SoloParentBeneficiary?
+  studentBeneficiary          StudentBeneficiary?
+  subscriber                  Subscriber?                 @relation("CitizenSubscriber")
+  citizenRegistrationRequest  CitizenRegistrationRequest?
+
+  @@index([createdAt])
+  @@index([residencyStatus])
+  @@map("citizens")
+}
+
+model PlaceOfBirth {
+  id           String      @id @default(uuid())
+  region       String
+  province     String
+  municipality String
+  createdAt    DateTime @map("created_at")    @default(now())
+  updatedAt    DateTime @map("updated_at")    @updatedAt
+  citizenId    String? @map("citizen_id")
+  nonCitizenId String? @map("non_citizen_id")     @unique
+  citizen      Citizen?    @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+  nonCitizen   NonCitizen? @relation(fields: [nonCitizenId], references: [id], onDelete: Cascade)
+
+  @@index([citizenId])
+  @@index([nonCitizenId])
+  @@map("place_of_birth")
+}
+
+model MotherInfo {
+  id           String     @id @default(uuid())
+  firstName    String? @map("first_name")
+  middleName   String? @map("middle_name")
+  lastName     String? @map("last_name")
+  createdAt    DateTime @map("created_at")   @default(now())
+  updatedAt    DateTime @map("updated_at")   @updatedAt
+  nonCitizenId String @map("non_citizen_id")     @unique
+  nonCitizen   NonCitizen @relation(fields: [nonCitizenId], references: [id], onDelete: Cascade)
+
+  @@map("mother_info")
+}
+
+model Service {
+  id                      String        @id @default(uuid())
+  code                    String        @unique
+  name                    String
+  description             String?
+  category                String?
+  icon                    String?
+  order                   Int           @default(0)
+  isActive                Boolean @map("is_active")       @default(true)
+  requiresPayment         Boolean @map("requires_payment")       @default(true)
+  defaultAmount           Decimal? @map("default_amount")
+  paymentStatuses         Json? @map("payment_statuses")
+  formFields              Json? @map("form_fields")
+  displayInSidebar        Boolean @map("display_in_sidebar")       @default(true)
+  displayInSubscriberTabs Boolean @map("display_in_subscriber_tabs")       @default(true)
+  createdAt               DateTime @map("created_at")      @default(now())
+  updatedAt               DateTime @map("updated_at")      @updatedAt
+  appointmentDuration     Int? @map("appointment_duration")
+  requiresAppointment     Boolean @map("requires_appointment")       @default(false)
+  transactions            Transaction[]
+  taxProfiles             TaxProfile[]
+
+  @@index([isActive])
+  @@index([category])
+  @@map("services")
+}
+
+model AppointmentNote {
+  id            String              @id @default(uuid())
+  transactionId String @map("transaction_id")
+  type          AppointmentNoteType
+  note          String
+  createdBy     String? @map("created_by")
+  createdAt     DateTime @map("created_at")            @default(now())
+  updatedAt     DateTime @map("updated_at")            @updatedAt
+  transaction   Transaction         @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([type])
+  @@map("appointment_notes")
+}
+
+model Transaction {
+  id                            String              @id @default(uuid())
+  subscriberId                  String @map("subscriber_id")
+  transactionId                 String @map("transaction_id")              @unique
+  referenceNumber               String @map("reference_number")              @unique
+  paymentStatus                 String @map("payment_status")              @default("PENDING")
+  paymentAmount                 Decimal @map("payment_amount")             @default(0)
+  transmitalNo                  String? @map("transmital_no")
+  referenceNumberGeneratedAt    DateTime? @map("reference_number_generated_at")
+  isResidentOfBorongan          Boolean @map("is_resident_of_borongan")             @default(false)
+  permitType                    String? @map("permit_type")
+  status                        String?
+  isPosted                      Boolean @map("is_posted")             @default(false)
+  validIdToPresent              String? @map("valid_id_to_present")
+  remarks                       String?
+  createdAt                     DateTime @map("created_at")            @default(now())
+  updatedAt                     DateTime @map("updated_at")            @updatedAt
+  serviceId                     String @map("service_id")
+  serviceData                   Json? @map("service_data")
+  applicationDate               DateTime? @map("application_date") // Date application was actually submitted
+  preferredAppointmentDate      DateTime? @map("preferred_appointment_date")
+  scheduledAppointmentDate      DateTime? @map("scheduled_appointment_date")
+  appointmentStatus             AppointmentStatus? @map("appointment_status")  @default(PENDING)
+  appointmentNotes              AppointmentNote[]
+  transactionNotes              TransactionNote[]
+  taxComputations               TaxComputation[]
+  exemptions                    Exemption[]
+  payments                      Payment[]
+  // Update request fields
+  updateRequestStatus           UpdateRequestStatus @map("update_request_status") @default(NONE)
+  updateRequestDescription      String? @map("update_request_description")
+  updateRequestedBy             UpdateRequestedBy? @map("update_requested_by")
+  pendingServiceData            Json? @map("pending_service_data")
+  adminUpdateRequestDescription String? @map("admin_update_request_description")
+  subscriber                    Subscriber          @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  service                       Service             @relation(fields: [serviceId], references: [id])
+
+  @@index([subscriberId])
+  @@index([serviceId])
+  @@index([paymentStatus])
+  @@index([status])
+  @@index([updateRequestStatus])
+  @@index([createdAt])
+  @@index([applicationDate])
+  @@map("transactions")
+}
+
+model Role {
+  id              String           @id @default(uuid())
+  name            String           @unique
+  description     String?
+  createdAt       DateTime @map("created_at")         @default(now())
+  updatedAt       DateTime @map("updated_at")         @updatedAt
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  resource        String
+  action          PermissionAction
+  createdAt       DateTime @map("created_at")         @default(now())
+  updatedAt       DateTime @map("updated_at")         @updatedAt
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+  createdAt    DateTime @map("created_at")   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String @map("user_id")
+  roleId    String @map("role_id")
+  createdAt DateTime @map("created_at") @default(now())
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model GovernmentProgram {
+  id                  String                    @id @default(uuid())
+  name                String
+  description         String?
+  type                GovernmentProgramType
+  isActive            Boolean @map("is_active")                   @default(true)
+  createdAt           DateTime @map("created_at")                  @default(now())
+  updatedAt           DateTime @map("updated_at")                  @updatedAt
+  beneficiaryPrograms BeneficiaryProgramPivot[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("government_programs")
+}
+
+model SocialAmeliorationSetting {
+  id                        String                          @id @default(uuid())
+  type                      SocialAmeliorationSettingType
+  name                      String
+  description               String?
+  isActive                  Boolean @map("is_active")                         @default(true)
+  createdAt                 DateTime @map("created_at")                        @default(now())
+  updatedAt                 DateTime @map("updated_at")                        @updatedAt
+  pwdDisabilityTypes        PWDBeneficiary[]
+  seniorCitizenPensionTypes SeniorCitizenPensionTypePivot[]
+  soloParentCategories      SoloParentBeneficiary[]
+  studentGradeLevels        StudentBeneficiary[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("social_amelioration_settings")
+}
+
+model SeniorCitizenBeneficiary {
+  id              String                          @id @default(uuid())
+  citizenId       String @map("citizen_id")                          @unique
+  status          BeneficiaryStatus               @default(ACTIVE)
+  remarks         String?
+  createdAt       DateTime @map("created_at")                        @default(now())
+  updatedAt       DateTime @map("updated_at")                        @updatedAt
+  seniorCitizenId String @map("senior_citizen_id")                          @unique
+  citizen         Citizen                         @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+  pensionTypes    SeniorCitizenPensionTypePivot[]
+
+  @@map("senior_citizen_beneficiaries")
+}
+
+model SeniorCitizenPensionTypePivot {
+  id            String                    @id @default(uuid())
+  beneficiaryId String @map("beneficiary_id")
+  settingId     String @map("setting_id")
+  beneficiary   SeniorCitizenBeneficiary  @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  setting       SocialAmeliorationSetting @relation(fields: [settingId], references: [id], onDelete: Cascade)
+
+  @@unique([beneficiaryId, settingId])
+  @@map("senior_citizen_pension_type_pivots")
+}
+
+model PWDBeneficiary {
+  id                String                    @id @default(uuid())
+  citizenId         String @map("citizen_id")                    @unique
+  disabilityLevel   String @map("disability_level")
+  monetaryAllowance Boolean @map("monetary_allowance")                   @default(false)
+  assistedDevice    Boolean @map("assisted_device")                   @default(false)
+  donorDevice       String? @map("donor_device")
+  status            BeneficiaryStatus         @default(ACTIVE)
+  remarks           String?
+  createdAt         DateTime @map("created_at")                  @default(now())
+  updatedAt         DateTime @map("updated_at")                  @updatedAt
+  pwdId             String @map("pwd_id")                    @unique
+  disabilityTypeId  String @map("disability_type_id")
+  citizen           Citizen                   @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+  disabilityType    SocialAmeliorationSetting @relation(fields: [disabilityTypeId], references: [id])
+
+  @@map("pwd_beneficiaries")
+}
+
+model StudentBeneficiary {
+  id           String                    @id @default(uuid())
+  citizenId    String @map("citizen_id")                    @unique
+  status       BeneficiaryStatus         @default(ACTIVE)
+  remarks      String?
+  createdAt    DateTime @map("created_at")                  @default(now())
+  updatedAt    DateTime @map("updated_at")                  @updatedAt
+  studentId    String @map("student_id")                    @unique
+  gradeLevelId String @map("grade_level_id")
+  citizen      Citizen                   @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+  gradeLevel   SocialAmeliorationSetting @relation(fields: [gradeLevelId], references: [id])
+
+  @@map("student_beneficiaries")
+}
+
+model SoloParentBeneficiary {
+  id           String                    @id @default(uuid())
+  citizenId    String @map("citizen_id")                    @unique
+  status       BeneficiaryStatus         @default(ACTIVE)
+  remarks      String?
+  createdAt    DateTime @map("created_at")                  @default(now())
+  updatedAt    DateTime @map("updated_at")                  @updatedAt
+  soloParentId String @map("solo_parent_id")                    @unique
+  categoryId   String @map("category_id")
+  category     SocialAmeliorationSetting @relation(fields: [categoryId], references: [id])
+  citizen      Citizen                   @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+
+  @@map("solo_parent_beneficiaries")
+}
+
+model BeneficiaryProgramPivot {
+  id              String            @id @default(uuid())
+  beneficiaryType BeneficiaryType @map("beneficiary_type")
+  beneficiaryId   String @map("beneficiary_id")
+  programId       String @map("program_id")
+  createdAt       DateTime @map("created_at")          @default(now())
+  program         GovernmentProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([beneficiaryType, beneficiaryId, programId])
+  @@index([beneficiaryType, beneficiaryId])
+  @@index([programId])
+  @@map("beneficiary_program_pivots")
+}
+
+model RefreshToken {
+  id            String      @id @default(uuid())
+  userId        String? @map("user_id")
+  subscriberId  String? @map("subscriber_id")
+  token         String
+  deviceInfo    String? @map("device_info")
+  ipAddress     String? @map("ip_address")
+  userAgent     String? @map("user_agent")
+  expiresAt     DateTime @map("expires_at")
+  revokedAt     DateTime? @map("revoked_at")
+  revokedReason String? @map("revoked_reason")
+  createdAt     DateTime @map("created_at")    @default(now())
+  updatedAt     DateTime @map("updated_at")    @updatedAt
+  subscriber    Subscriber? @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  user          User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions      Session[]
+
+  @@index([userId])
+  @@index([subscriberId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Session {
+  id             String       @id @default(uuid())
+  userId         String? @map("user_id")
+  subscriberId   String? @map("subscriber_id")
+  refreshTokenId String @map("refresh_token_id")
+  ipAddress      String? @map("ip_address")
+  userAgent      String? @map("user_agent")
+  deviceInfo     String? @map("device_info")
+  lastActivityAt DateTime @map("last_activity_at")     @default(now())
+  createdAt      DateTime @map("created_at")     @default(now())
+  expiresAt      DateTime @map("expires_at")
+  refreshToken   RefreshToken @relation(fields: [refreshTokenId], references: [id], onDelete: Cascade)
+  subscriber     Subscriber?  @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([subscriberId])
+  @@index([refreshTokenId])
+  @@index([expiresAt])
+  @@index([lastActivityAt])
+  @@map("sessions")
+}
+
+enum AppointmentStatus {
+  PENDING
+  ACCEPTED
+  REQUESTED_UPDATE
+  DECLINED
+  CANCELLED
+
+  @@map("appointment_status")
+}
+
+enum AppointmentNoteType {
+  GENERAL
+  DATE_CHANGE_REASON
+  FOLLOW_UP
+  INTERNAL
+
+  @@map("appointment_note_type")
+}
+
+enum TransactionNoteSenderType {
+  ADMIN
+  SUBSCRIBER
+
+  @@map("transaction_note_sender_type")
+}
+
+enum UpdateRequestStatus {
+  NONE
+  PENDING_PORTAL
+  PENDING_ADMIN
+  APPROVED
+  REJECTED
+
+  @@map("update_request_status")
+}
+
+enum UpdateRequestedBy {
+  PORTAL
+  ADMIN
+
+  @@map("update_requested_by")
+}
+
+model TransactionNote {
+  id            String                    @id @default(uuid())
+  transactionId String @map("transaction_id")
+  message       String
+  senderType    TransactionNoteSenderType @map("sender_type")
+  senderId      String @map("sender_id")
+  isInternal    Boolean @map("is_internal")                   @default(false)
+  isRead        Boolean @map("is_read")                   @default(false)
+  createdAt     DateTime @map("created_at")                  @default(now())
+  updatedAt     DateTime @map("updated_at")                  @updatedAt
+  transaction   Transaction               @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([isRead])
+  @@index([senderType])
+  @@map("transaction_notes")
+}
+
+enum PersonType {
+  CITIZEN
+  SUBSCRIBER
+
+  @@map("person_type")
+}
+
+enum SubscriberStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  BLOCKED
+
+  @@map("subscriber_status")
+}
+
+enum RegistrationStatus {
+  PENDING
+  UNDER_REVIEW
+  REQUIRES_RESUBMISSION
+  APPROVED
+  REJECTED
+
+  @@map("registration_status")
+}
+
+enum ResidencyType {
+  RESIDENT
+  NON_RESIDENT
+
+  @@map("residency_type")
+}
+
+enum PermissionAction {
+  READ
+  ALL
+
+  @@map("permission_action")
+}
+
+enum CitizenStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  REJECTED
+
+  @@map("citizen_status")
+}
+
+enum BeneficiaryStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+
+  @@map("beneficiary_status")
+}
+
+enum GovernmentProgramType {
+  SENIOR_CITIZEN
+  PWD
+  STUDENT
+  SOLO_PARENT
+  ALL
+
+  @@map("government_program_type")
+}
+
+enum SocialAmeliorationSettingType {
+  PENSION_TYPE
+  DISABILITY_TYPE
+  GRADE_LEVEL
+  SOLO_PARENT_CATEGORY
+
+  @@map("social_amelioration_setting_type")
+}
+
+enum BeneficiaryType {
+  SENIOR_CITIZEN
+  PWD
+  STUDENT
+  SOLO_PARENT
+
+  @@map("beneficiary_type")
+}
+
+enum TaxVersionStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+
+  @@map("tax_version_status")
+}
+
+enum ExemptionType {
+  SENIOR_CITIZEN
+  PWD
+  SOLO_PARENT
+  OTHER
+
+  @@map("exemption_type")
+}
+
+enum ExemptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("exemption_status")
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  ONLINE
+  BANK_TRANSFER
+  GCASH
+  PAYMAYA
+  OTHER
+
+  @@map("payment_method")
+}
+
+model Address {
+  id            String   @id @default(uuid())
+  region        String
+  province      String
+  municipality  String
+  barangay      String
+  postalCode    String @map("postal_code")
+  streetAddress String? @map("street_address")
+  isActive      Boolean @map("is_active")  @default(true)
+  createdAt     DateTime @map("created_at") @default(now())
+  updatedAt     DateTime @map("updated_at") @updatedAt
+
+  @@index([region])
+  @@index([province])
+  @@index([municipality])
+  @@index([isActive])
+  @@map("addresses")
+}
+
+model OtpVerification {
+  id          String   @id @default(uuid())
+  phoneNumber String @map("phone_number")
+  code        String
+  expiresAt   DateTime @map("expires_at")
+  isUsed      Boolean @map("is_used")  @default(false)
+  attempts    Int      @default(0)
+  maxAttempts Int @map("max_attempts")      @default(3)
+  createdAt   DateTime @map("created_at") @default(now())
+  updatedAt   DateTime @map("updated_at") @updatedAt
+
+  @@index([phoneNumber])
+  @@index([expiresAt])
+  @@index([isUsed])
+  @@map("otp_verifications")
+}
+
+model Faq {
+  id        String   @id @default(uuid())
+  question  String
+  answer    String
+  order     Int      @default(0)
+  isActive  Boolean @map("is_active")  @default(true)
+  createdAt DateTime @map("created_at") @default(now())
+  updatedAt DateTime @map("updated_at") @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+  @@map("faqs")
+}
+
+model EService {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  category    String?
+  icon        String?
+  order       Int      @default(0)
+  isActive    Boolean @map("is_active")  @default(true)
+  requiresPayment Boolean @map("requires_payment") @default(false)
+  defaultAmount    Decimal? @map("default_amount")
+  createdAt   DateTime @map("created_at") @default(now())
+  updatedAt   DateTime @map("updated_at") @updatedAt
+
+  @@index([isActive])
+  @@index([category])
+  @@map("eservices")
+}
+
+model TaxProfile {
+  id        String              @id @default(uuid())
+  serviceId String @map("service_id")
+  name      String
+  variant   String? // Residential, Commercial, etc.
+  isActive  Boolean @map("is_active")             @default(true)
+  createdAt DateTime @map("created_at")            @default(now())
+  updatedAt DateTime @map("updated_at")            @updatedAt
+  service   Service             @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  versions  TaxProfileVersion[]
+
+  @@index([serviceId])
+  @@index([isActive])
+  @@map("tax_profiles")
+}
+
+model TaxProfileVersion {
+  id            String           @id @default(uuid())
+  taxProfileId  String @map("tax_profile_id")
+  version       String // Semantic versioning: "1.0.0", "2.0.0"
+  effectiveFrom DateTime @map("effective_from") // When this version becomes active
+  effectiveTo   DateTime? @map("effective_to") // When this version is superseded (null = current)
+  status        TaxVersionStatus @default(DRAFT)
+  changeReason  String @map("change_reason") // Required: Why was this version created?
+  configuration Json // Full tax rule configuration
+  createdBy     String @map("created_by") // User ID who created this version
+  createdAt     DateTime @map("created_at")         @default(now())
+  taxProfile    TaxProfile       @relation(fields: [taxProfileId], references: [id], onDelete: Cascade)
+  computations  TaxComputation[]
+
+  @@unique([taxProfileId, version])
+  @@index([taxProfileId])
+  @@index([effectiveFrom, effectiveTo])
+  @@index([status])
+  @@map("tax_profile_versions")
+}
+
+model TaxComputation {
+  id                    String            @id @default(uuid())
+  transactionId         String @map("transaction_id")
+  taxProfileVersionId   String @map("tax_profile_version_id")
+  isActive              Boolean @map("is_active")           @default(true) // Only one active per transaction
+  inputs                Json // Field values used
+  derivedValues         Json @map("derived_values") // Intermediate calculations
+  breakdown             Json // Step-by-step breakdown
+  totalTax              Decimal @map("total_tax")
+  adjustedTax           Decimal? @map("adjusted_tax") // Final tax after adjustments
+  isReassessment        Boolean @map("is_reassessment")           @default(false)
+  reassessmentReason    String? @map("reassessment_reason")
+  previousComputationId String? @map("previous_computation_id") // FK to previous computation (for reassessments)
+  differenceAmount      Decimal? @map("difference_amount") // newTax - oldTax (for reassessments)
+  exemptionsApplied     Json? @map("exemptions_applied") // Array of applied exemption IDs
+  discountsApplied      Json? @map("discounts_applied") // Array of applied discount rule IDs
+  penaltiesApplied      Json? @map("penalties_applied") // Array of applied penalty rule IDs
+  computedAt            DateTime @map("computed_at")          @default(now())
+  computedBy            String? @map("computed_by") // Admin who triggered computation (if manual)
+  transaction           Transaction       @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  taxProfileVersion     TaxProfileVersion @relation(fields: [taxProfileVersionId], references: [id])
+  previousComputation   TaxComputation?   @relation("TaxComputationReassessment", fields: [previousComputationId], references: [id])
+  reassessments         TaxComputation[]  @relation("TaxComputationReassessment")
+  exemptions            Exemption[]
+  payments              Payment[]
+
+  @@index([transactionId, isActive])
+  @@index([taxProfileVersionId])
+  @@index([previousComputationId])
+  @@map("tax_computations")
+}
+
+model Exemption {
+  id                  String          @id @default(uuid())
+  transactionId       String @map("transaction_id")
+  taxComputationId    String? @map("tax_computation_id") // Nullable for pending exemptions
+  exemptionType       ExemptionType @map("exemption_type")
+  status              ExemptionStatus @default(PENDING)
+  requestedBy         String @map("requested_by") // Subscriber ID
+  approvedBy          String? @map("approved_by") // User ID (nullable)
+  requestReason       String @map("request_reason")
+  rejectionReason     String? @map("rejection_reason")
+  supportingDocuments Json? @map("supporting_documents") // Array of file paths
+  exemptionAmount     Decimal? @map("exemption_amount") // Calculated on approval
+  approvedAt          DateTime? @map("approved_at")
+  rejectedAt          DateTime? @map("rejected_at")
+  createdAt           DateTime @map("created_at")        @default(now())
+  updatedAt           DateTime @map("updated_at")        @updatedAt
+  transaction         Transaction     @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  taxComputation      TaxComputation? @relation(fields: [taxComputationId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId])
+  @@index([status])
+  @@index([taxComputationId])
+  @@map("exemptions")
+}
+
+model Payment {
+  id               String         @id @default(uuid())
+  transactionId    String @map("transaction_id")
+  taxComputationId String @map("tax_computation_id")
+  amount           Decimal
+  paymentMethod    PaymentMethod @map("payment_method")
+  paymentDate      DateTime @map("payment_date")       @default(now())
+  receivedBy       String @map("received_by") // User ID
+  referenceNumber  String? @map("reference_number") // For check/online payments
+  notes            String?
+  createdAt        DateTime @map("created_at")       @default(now())
+  updatedAt        DateTime @map("updated_at")       @updatedAt
+  transaction      Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  taxComputation   TaxComputation @relation(fields: [taxComputationId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([taxComputationId])
+  @@index([paymentDate])
+  @@map("payments")
+}
