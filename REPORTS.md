@@ -1700,3 +1700,182 @@ The `Transaction` type still exposes `subscriberId`. It should be `residentId` t
 ---
 
 *Section 11 added: 2026-03-25 20:46 | Vex 🔬*
+
+---
+
+## Section 12 — Gap Audit: Dashboard Contract, Pet/Stats Services, AC2–AC4 Pages, Registration Flow (2026-03-25 21:04)
+
+---
+
+### 12.1 — Dashboard Backend vs Frontend Contract Mismatch
+
+The E-Services dashboard is a 3-way mismatch: the **backend type** (`admin.service.ts`), the **backend response** (actual return values), and the **frontend interface** (`dashboard.service.ts`) are all inconsistent with each other.
+
+#### 🔴 CRITICAL-1: `subscriberGrowthTrends` Field Names Mismatch — Chart Is Permanently Empty
+
+**Backend returns** (`admin.service.ts` line 377):
+```ts
+Array<{ date: string; active: number; pending: number }>
+```
+
+**Frontend reads** (`SubscriberAnalytics.tsx` lines 37–38):
+```ts
+residents: item.residents,
+nonResidents: item.nonResidents,
+```
+
+The frontend maps `.residents` and `.nonResidents` from each trend item — but the backend sends `.active` and `.pending`. Both fields arrive as `undefined`. The resident growth line chart renders two flat zero lines.
+
+---
+
+#### 🔴 CRITICAL-2: `recentTransactions[].subscriberName` — Field Never Populated
+
+**Backend returns** (`admin.service.ts` line 172, 389):
+```ts
+residentName: t.resident ? `${t.resident.firstName} ${t.resident.lastName}` : 'Unknown'
+```
+
+**Frontend reads** (`RecentActivity.tsx` line 111):
+```ts
+{transaction.subscriberName}
+```
+
+`subscriberName` is `undefined` — the recent transactions list shows a blank name for every transaction.
+
+**Frontend interface definition** (`dashboard.service.ts` line 31):
+```ts
+subscriberName: string;   // ← stale; backend returns residentName
+```
+
+---
+
+#### 🟠 MAJOR-1: `dashboard.service.ts` Declares `totalSubscribers` — Backend Does Not Return It
+
+**Frontend interface** (line 9): `totalSubscribers: number`
+**Backend returns** (line 413): `totalResidents` only. No `totalSubscribers` field.
+
+Any UI component reading `statistics.totalSubscribers` gets `undefined`. `SubscriberAnalytics.tsx` (line 66) uses `statistics.totalSubscribers ?? 0` as fallback, so it silently shows 0 rather than crash.
+
+---
+
+#### 🟠 MAJOR-2: `subscriberGrowthTrends` — Backend Type Defines `active`/`pending`, Frontend Type Defines `citizens`/`nonCitizens`
+
+Three separate definitions of the same structure, all inconsistent:
+
+| Location | Field names |
+|---|---|
+| `admin.service.ts` backend type (line 161) | `{ date, active, pending }` |
+| `admin.service.ts` actual return (line 377) | `{ date, active, pending }` |
+| `dashboard.service.ts` frontend type (line 20) | `{ date, citizens, nonCitizens }` |
+| `SubscriberAnalytics.tsx` actual read (lines 37–38) | `.residents`, `.nonResidents` |
+
+None of the three match.
+
+---
+
+### 12.2 — `statisticsServices.js`: `purok_id` in Active Statistic Queries
+
+#### 🔴 CRITICAL-3: 24 Active `h.purok_id` References in Statistics Service — Guarded But Armed
+
+**File:** `server/src/services/statisticsServices.js`
+
+All 24 occurrences of `h.purok_id` are inside conditional blocks (`if (purokId) { ... }`). This means they only execute when a `purokId` filter is passed as a query parameter. They do **not** crash on every request — but they **will** crash if any caller passes `purokId`.
+
+**Current situation:** Frontend `PetsPage.jsx` and `UnemployedHouseholdStats.jsx` still pass `purokId` to API endpoints (Section 11 findings 11 and 13). Those values are empty strings or `undefined` after puroks were removed from state — but the parameter is still appended to requests. Whether they trigger the `if (purokId)` branch depends on truthiness evaluation in the service layer.
+
+**Affected stat methods** (all follow the same pattern):
+- `getAgeDemographics`
+- `getGenderDemographics`
+- `getCivilStatusDemographics`
+- `getEducationAttainmentDemographics`
+- `getEmploymentStatusDemographics`
+- `getHouseholdSizeDemographics`
+- And related household/population methods
+
+**Impact:** If any frontend component passes a non-empty `purokId` to any statistics endpoint, the query will attempt `WHERE h.purok_id = $N` — which throws `column h.purok_id does not exist` against the v2 schema.
+
+---
+
+### 12.3 — `certificateService.js`: Non-Existent Schema Columns Referenced
+
+#### 🟠 MAJOR-3: `r.nationality` and `r.religion` Queried — Columns Do Not Exist in Schema v2
+
+**File:** `server/src/services/certificateService.js` (lines 166–167)
+
+```js
+data['resident.nationality'] = r.nationality || 'Filipino';
+data['resident.religion']    = r.religion || '';
+```
+
+The service does `SELECT r.*` from `residents`, then reads `r.nationality` and `r.religion`. Neither column exists in the v2 `residents` table. They will always be `undefined`, silently falling back to `'Filipino'` and `''` respectively.
+
+**Impact:** Certificate templates using `{{ resident.nationality }}` or `{{ resident.religion }}` will always output the hardcoded fallback, never actual data. Not a crash — a silent data accuracy failure.
+
+---
+
+### 12.4 — AC2 / AC3 / AC4 Implementation Verification
+
+#### ✅ AC2 — Guest Application Flow: IMPLEMENTED
+
+- `PortalGuestApply.tsx` exists at `multysis-frontend/src/pages/portal/PortalGuestApply.tsx`
+- `PortalTrack.tsx` exists at `multysis-frontend/src/pages/portal/PortalTrack.tsx`
+- Both routed in `routes/index.tsx`: `/portal/apply-as-guest` and `/portal/track`
+- E-Services backend `portal-registration.service.ts` correctly handles guest transaction path
+
+#### ✅ AC3 — Unified Certificate Queue: IMPLEMENTED
+
+- `CertificatesPage.jsx` exists at `client/src/pages/admin/barangay/CertificatesPage.jsx`
+- Routed in `App.jsx` at path `/admin/barangay/certificates`
+- `certificateRoutes.js` registered in `app.js` at `/api/certificates`
+
+#### ✅ AC4 — Template-Based Certificate Generation: IMPLEMENTED
+
+- `CertificateTemplatesPage.jsx` and `TemplateEditorPage.jsx` exist in `client/src/pages/admin/certificates/`
+- Both routed in `App.jsx` at `/certificate-templates` and `/certificate-templates/:id`
+- `certificateService.js` implements token resolution and Puppeteer PDF generation
+
+#### ✅ AC2 — Portal Registration Flow: IMPLEMENTED
+
+- `PortalMyID.tsx` and `PortalMyHousehold.tsx` exist and are routed
+- `RegistrationApprovalsPage.jsx` exists and routed at `/admin/.../registrations`
+- `BulkIDPage.jsx` and `GeoSetupPage.jsx` exist and are routed
+
+---
+
+### 12.5 — Registration Approval Flow: Column Usage Verified
+
+#### ✅ BIMS Backend (`registrationRoutes.js`) — CLEAN
+
+Approval flow uses `UPDATE residents SET status = 'active', resident_id = $1` — correct v2 column names. Reject flow uses `status = 'rejected'`. No references to `resident_status`, `birthplace`, or `purok_id`.
+
+#### ✅ E-Services Backend (`portal-registration.service.ts`) — CLEAN
+
+`tx.resident.create({...})` uses Prisma camelCase mappings: `birthRegion`, `birthProvince`, `birthMunicipality`, `status: 'pending'`. All correct v2 field names via Prisma model.
+
+---
+
+### 12.6 — Pet Backend: Purok Filter Confirmed Contained
+
+#### 🟢 PASS: `petsServices.js` and `pets.queries.js` — No Purok SQL
+
+Neither file contains any reference to `purok_id`, `puroks`, or `purok_name`. Pet backend queries are clean against v2 schema. The live purok fetch in `PetsPage.jsx` hits a backend stub that returns `[]` — no crash, but an unnecessary API call on every page load.
+
+---
+
+### 12.7 — Summary of New Findings
+
+| # | Finding | System | Severity |
+|---|---|---|---|
+| 1 | `subscriberGrowthTrends` items: backend sends `{active, pending}`, frontend reads `{residents, nonResidents}` — chart permanently empty | E-Services Dashboard | 🔴 CRITICAL |
+| 2 | `recentTransactions[].subscriberName`: backend sends `residentName`, frontend renders `subscriberName` — all names blank | E-Services Dashboard | 🔴 CRITICAL |
+| 3 | `statisticsServices.js` — 24 `h.purok_id` references inside `if (purokId)` guards; frontend still sends `purokId` param from some paths — conditional crash | BIMS Backend | 🔴 CRITICAL |
+| 4 | `totalSubscribers` declared in frontend interface but never returned by backend — silently 0 | E-Services Dashboard | 🟠 MAJOR |
+| 5 | `subscriberGrowthTrends` type defined 3 different ways across backend type, backend return, and frontend type — none match | E-Services Dashboard | 🟠 MAJOR |
+| 6 | `certificateService.js` reads `r.nationality` and `r.religion` — neither column exists in v2 `residents` table; always falls back to hardcoded default | BIMS Backend | 🟠 MAJOR |
+| 7 | AC2 guest flow, AC3 certificate queue, AC4 template generation: all pages exist and are routed | All | ✅ PASS |
+| 8 | Registration approval SQL uses correct v2 column names (`status`, not `resident_status`) | BIMS Backend | ✅ PASS |
+| 9 | Pet backend has no purok column references | BIMS Backend | ✅ PASS |
+
+---
+
+*Section 12 added: 2026-03-25 21:04 | Vex 🔬*
