@@ -1133,4 +1133,135 @@ Lists `src/features/barangay/puroks/README.md` as targeted for removal. The puro
 
 ---
 
-*Report updated: 2026-03-25 11:40 | Vex 🔬*
+---
+
+## Section 10 — Full Status Update (2026-03-25 20:00)
+
+*Complete re-verification pass. Every finding from Sections 1–4 re-checked against current codebase.*
+
+---
+
+### BIMS Frontend — Current Status
+
+| Finding | Original Severity | Status |
+|---|---|---|
+| CRITICAL-1: Purok required form field (household creation) | 🔴 | **OPEN** — `HouseholdsPage.jsx` still fetches puroks on mount (`GET /list/{id}/purok`, lines 225–233), maintains `puroks` state, and passes `purokId` in filter (lines 544, 761). Will silently fail when purok endpoint returns empty. |
+| CRITICAL-2: Dashboard per-purok API iteration | 🔴 | ✅ Resolved — no purok iteration in dashboard hooks |
+| CRITICAL-3: ResidentIDCard crash on `purok_name` | 🔴 | ✅ Resolved — null-safe, no crash |
+| CRITICAL-4: GuidePage links to `/admin/barangay/puroks` | 🔴 | ✅ Resolved — section removed |
+| CRITICAL-5: AddResidentDialog mounted (R2 violation) | 🔴 | ✅ Resolved — commented out with R2 note |
+| MAJOR-1: Purok column in tables and view dialogs | 🟠 | Partially resolved — `ResidentViewDialog.jsx` line 670 has comment stub. `HouseholdsPage.jsx` still passes puroks to child components. |
+| MAJOR-2: Purok filter active in list pages | 🟠 | **OPEN** — `HouseholdsPage.jsx` still fetches and passes puroks to filter. `ResidentStats.jsx` still sends `purokId` param (line 32). `FilterControls.jsx` — verify separately. |
+| MAJOR-3: BarangaySetupForm creates puroks | 🟠 | ✅ Resolved — puroks step removed, commented with v2 note |
+| MAJOR-4: MainApp.jsx broken import | 🟠 | ✅ Resolved |
+| MEDIUM-1: Hardcoded Borongan references | 🟡 | ✅ Resolved |
+| MEDIUM-2: `routes.js` PUROKS constant | 🟡 | ✅ Resolved — constant removed |
+| MEDIUM-3: Map popups render purok | 🟡 | ✅ Resolved |
+| MEDIUM-4: Household import template lists `purok_name` as required | 🟡 | **OPEN** — `HouseholdsPage.jsx` line 1215 still has hardcoded `purok_name: "Purok 1"` in sample data. |
+
+---
+
+### BIMS Backend — Current Status
+
+| Finding | Original Severity | Status |
+|---|---|---|
+| CRITICAL-1: Statistics SQL JOINs `puroks` | 🔴 | ✅ Resolved — stub methods return empty arrays |
+| CRITICAL-2: Household Excel import queries `puroks` | 🔴 | ✅ Resolved |
+| CRITICAL-3: Purok CRUD stack live | 🔴 | ✅ Resolved — all stubs returning null/[] |
+| MAJOR-1: `purokId` passed through all controllers | 🟠 | **OPEN** — Backend accepts `purokId` query param in household filters and passes it through. Dead at DB layer (no matching column), but dead param handling is still untidy. |
+| MAJOR-2: Rate limiter never applied | 🟠 | **PARTIAL** — `authRateLimiter` on `/api/auth`, `apiRateLimiter` on `municipalityRouter` only. Routes 91–106 (`/api/openapi`, `/api/setup`, `/api/portal/household`, `/api/certificates`, `/api/portal-registration`) and routes 108–123 (user, barangay, resident, household, logs, statistics, pets, vaccine, archives, inventories, requests, gis, counter, redis, monitoring, system-management) have **no rate limiter**. |
+| MAJOR-3: Internal error messages exposed | 🟠 | Not re-verified this pass — carried forward |
+| MAJOR-4: `smartCache.js` dead purok rules | 🟠 | ✅ Resolved |
+| MEDIUM-1: Hardcoded `password=1234` in scripts | 🟡 | Not re-verified this pass — carried forward |
+| MEDIUM-2: `purokInfo` returns error not `next(error)` | 🟡 | ✅ Resolved — stubbed out |
+| MEDIUM-3: Orphaned migration scripts targeting puroks | 🟡 | Not re-verified this pass — carried forward |
+
+---
+
+### E-Services (Multysis) — Current Status
+
+| Finding | Original Severity | Status |
+|---|---|---|
+| CRITICAL-1: `upload.routes.ts` Prisma `nonCitizen` include | 🔴 | ✅ Resolved — zero occurrences of `nonCitizen` in route file |
+| CRITICAL-2: FAQ seed wrong login instructions | 🔴 | ✅ Resolved |
+| MAJOR-1: Upload routes use `/subscribers/:id/` URL pattern | 🟠 | Not re-verified this pass — carried forward |
+| MAJOR-2: Dashboard stats use `totalCitizens` / `totalNonCitizens` | 🟠 | **PARTIAL** — `OverviewCards.tsx` now uses `totalResidents` (line 40) ✅. However `dashboard.service.ts` TypeScript interface still declares `totalCitizens?: number` and `totalNonCitizens?: number` on lines 12–13 alongside `totalResidents`. Old fields remain in the type definition. |
+| MAJOR-3: Deprecated modal directories present | 🟠 | Not re-verified this pass — carried forward |
+| MAJOR-4: Audit middleware tracks non-existent paths | 🟠 | ✅ Resolved — audit.ts now tracks `/api/residents` and `/api/admin/residents` |
+| MAJOR-5: Sidebar routes reference old paths | 🟠 | ✅ Resolved — sidebar clean |
+| MAJOR-6: PortalSignupSheet old citizen/non-citizen model | 🟠 | ✅ Resolved |
+| MEDIUM-1: `.env` committed to repo | 🟡 | **OPEN** — `.env` file still present and tracked. Contains live values (not just placeholders as originally assessed). |
+| MEDIUM-2: Dead OTP/SMS service files | 🟡 | ✅ Resolved — no OTP routes active |
+| MEDIUM-3: `admin-resources.ts` lists `subscribers`/`citizens` as RBAC resources | 🟡 | ✅ Resolved |
+| MEDIUM-4: `displayInSubscriberTabs` field name | 🟡 | **PARTIAL** — Prisma schema now maps correctly (`@map("display_in_subscriber_tabs")`) using `displayInResidentTabs` as the Prisma field name. Old DB column name remains via `@map` but Prisma access is clean. Acceptable. |
+
+---
+
+### Database Schema — Current Status
+
+| Finding | Original Severity | Status |
+|---|---|---|
+| CRITICAL-1: Production credentials in test script | 🔴 | ✅ **RESOLVED** — `test_fuzzy_match.sh` deleted 2026-03-25 |
+| CRITICAL-2: Test script references dropped tables | 🔴 | ✅ **RESOLVED** — `test_fuzzy_match.sh` deleted 2026-03-25 |
+| MAJOR-1: Missing FK constraints | 🟠 | ✅ Resolved — confirmed in schema.sql |
+| MAJOR-2: No unique constraint on `resident_classifications` | 🟠 | ✅ Resolved — confirmed in schema.sql |
+| MAJOR-3: Audit triggers missing | 🟠 | ✅ Resolved — confirmed in schema.sql |
+| MAJOR-4: Data loss risks in migration | 🟠 | Not re-verified — carried forward |
+| MAJOR-5: `MIGRATION_PLAN.md` stale | 🟠 | **PARTIAL** — Header updated to "Schema v2 deployed — go-live ready". Puroks listed as "Dropped" (line 18). However Phase 1–4 still describe v1 `citizens`/`citizen_resident_mapping` migration flow, and the original target says "Borongan". Not fully current. |
+| MAJOR-6: Missing index on `audit_logs.changed_by` | 🟠 | ✅ Resolved — confirmed in schema.sql |
+| MEDIUM-1: `resident_classifications.resident_id` nullable | 🟡 | ✅ Resolved |
+| MEDIUM-2: Missing index on `audit_logs.changed_by` | 🟡 | ✅ Resolved |
+
+---
+
+### New Findings — This Pass
+
+#### 🔴 CRITICAL-NEW-1: HouseholdsPage Still Has Live Purok API Call
+
+**File:** `client/src/pages/admin/shared/HouseholdsPage.jsx` (lines 82, 225–233, 544, 761)
+
+Despite puroks being removed from the schema and backend, `HouseholdsPage.jsx` still:
+- Maintains `puroks` state with `useState([])`
+- Fetches `GET /list/{target_id}/purok` on mount inside a `useEffect`
+- Passes `puroks` list as prop to child filter components
+- Sends `purokId` as a filter parameter in household list queries
+
+The API call will not crash (endpoint returns 404/empty), but the filter UI will silently malfunction and the API call fires on every page load. This was flagged as MAJOR-2 in the original report and was **not resolved**.
+
+---
+
+#### 🟠 MAJOR-NEW-1: `dashboard.service.ts` TypeScript Interface Retains Old Field Names
+
+**File:** `multysis-frontend/src/services/api/dashboard.service.ts` (lines 12–13)
+
+```ts
+totalResidents: number;      // ✅ new field
+totalCitizens?: number;      // ❌ still declared
+totalNonCitizens?: number;   // ❌ still declared
+```
+
+Old fields are marked optional but still present in the type definition. Any code that still references `totalCitizens` will compile without error, silently returning `undefined`. The UI is functionally fixed (uses `totalResidents`) but the interface is stale and will confuse future developers.
+
+---
+
+### Summary — Open Items as of 2026-03-25 20:00
+
+| # | Finding | System | Severity |
+|---|---|---|---|
+| 1 | Rate limiter: only `municipalityRouter` covered; 15+ route groups unprotected | BIMS Backend | 🔴 CRITICAL |
+| 2 | `HouseholdsPage.jsx` still fetches puroks on mount + passes `purokId` in filters | BIMS Frontend | 🔴 CRITICAL |
+| 3 | `seed_gis.sql` missing from deployment docs — fresh install has broken GeoMap + registration | Database/Docs | 🔴 CRITICAL |
+| 4 | `.env` committed to repo (live values present) | E-Services Backend | 🟠 MAJOR |
+| 5 | `dashboard.service.ts` TypeScript interface retains `totalCitizens`/`totalNonCitizens` | E-Services Frontend | 🟠 MAJOR |
+| 6 | `MIGRATION_PLAN.md` Phase 1–4 still describe v1 migration flow | Database | 🟠 MAJOR |
+| 7 | GIS data scoped to Eastern Samar only — no procedure for other provinces | Database | 🟠 MAJOR |
+| 8 | `HouseholdsPage.jsx` sample data still has hardcoded `purok_name: "Purok 1"` | BIMS Frontend | 🟡 MEDIUM |
+| 9 | `ResidentStats.jsx` still passes `purokId` param to stats API | BIMS Frontend | 🟡 MEDIUM |
+| 10 | `docs/DATABASE.md`, `RESIDENT_AND_HOUSEHOLD_PROCESS_FLOW.md`, `db.docs.txt` describe v1 schema | BIMS Docs | 🔴 CRITICAL (docs) |
+| 11 | `README.md` project status table is stale | Docs | 🟠 MAJOR (docs) |
+| 12 | `PERFORMANCE_OPTIMIZATION_PLAN.md` recommends index on non-existent `purok_id` | BIMS Docs | 🟠 MAJOR (docs) |
+| 13 | Flutter `bimsApp` — purok sync service, management screen, usage examples all active | Mobile | 🟡 MEDIUM |
+
+---
+
+*Report updated: 2026-03-25 20:00 | Vex 🔬*
