@@ -12,12 +12,12 @@ import { useDashboardStatistics } from '@/hooks/admin/useDashboardStatistics';
 import { Cell, Line, LineChart, Pie, PieChart, XAxis, YAxis } from 'recharts';
 
 const chartConfig = {
-  citizens: {
-    label: 'Citizens',
+  residents: {
+    label: 'Residents',
     color: 'rgb(59, 130, 246)',
   },
   nonCitizens: {
-    label: 'Non-Citizens',
+    label: 'Non-Residents',
     color: 'rgb(34, 197, 94)',
   },
 };
@@ -34,8 +34,8 @@ export const SubscriberAnalytics: React.FC = () => {
         month: 'short',
         day: 'numeric',
       }),
-      citizens: item.citizens,
-      nonCitizens: item.nonCitizens,
+      residents: item.active,
+      nonResidents: item.pending,
     }));
   }, [statistics]);
 
@@ -59,27 +59,20 @@ export const SubscriberAnalytics: React.FC = () => {
       .filter(item => item.value > 0);
   }, [statistics]);
 
-  // Prepare subscriber type distribution pie chart data
+  // Prepare resident distribution pie chart data
   const subscriberTypeData = useMemo(() => {
     if (!statistics) return [];
 
-    const colors = [
-      'rgb(59, 130, 246)',   // Blue - Citizens
-      'rgb(34, 197, 94)',    // Green - Non-Citizens
-    ];
+    const total = statistics.totalResidents ?? statistics.totalSubscribers ?? 0;
+    if (!total) return [];
 
     return [
       {
-        name: 'Citizens',
-        value: statistics.totalCitizens,
-        color: colors[0],
+        name: 'Residents',
+        value: total,
+        color: 'rgb(59, 130, 246)',
       },
-      {
-        name: 'Non-Citizens',
-        value: statistics.totalNonCitizens,
-        color: colors[1],
-      },
-    ].filter(item => item.value > 0);
+    ];
   }, [statistics]);
 
   if (isLoading) {
@@ -124,19 +117,19 @@ export const SubscriberAnalytics: React.FC = () => {
                 <ChartLegend content={<ChartLegendContent />} />
                 <Line 
                   type="monotone" 
-                  dataKey="citizens" 
-                  stroke="var(--color-citizens)" 
+                  dataKey="residents" 
+                  stroke="var(--color-residents)" 
                   strokeWidth={2}
                   dot={{ r: 4 }}
-                  name="Citizens"
+                  name="Residents"
                 />
                 <Line 
                   type="monotone" 
-                  dataKey="nonCitizens" 
+                  dataKey="nonResidents" 
                   stroke="var(--color-nonCitizens)" 
                   strokeWidth={2}
                   dot={{ r: 4 }}
-                  name="Non-Citizens"
+                  name="Non-Residents"
                 />
               </LineChart>
             </ChartContainer>

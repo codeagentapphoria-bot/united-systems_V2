@@ -4,7 +4,7 @@ import { useToast } from './use-toast';
 import { handleError } from '@/utils/errorHandler';
 import logger from '@/utils/logger';
 
-export const useClassificationTypes = () => {
+export const useClassificationTypes = (municipalityId) => {
   const [classificationTypes, setClassificationTypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -12,11 +12,16 @@ export const useClassificationTypes = () => {
 
   // Fetch classification types
   const fetchClassificationTypes = async () => {
+    if (!municipalityId) {
+      setError('municipalityId is required');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       logger.debug('Fetching classification types...');
-      const response = await classificationTypeService.getClassificationTypes();
+      const response = await classificationTypeService.getClassificationTypes(municipalityId);
       logger.debug('Classification types response:', response);
       setClassificationTypes(response.data || []);
     } catch (err) {
@@ -30,7 +35,7 @@ export const useClassificationTypes = () => {
   // Create classification type
   const createClassificationType = async (data) => {
     try {
-      const response = await classificationTypeService.createClassificationType(data);
+      const response = await classificationTypeService.createClassificationType({ ...data, municipalityId });
       setClassificationTypes(prev => [...prev, response.data]);
       toast({
         title: "Success",
@@ -114,8 +119,10 @@ export const useClassificationTypes = () => {
   };
 
   useEffect(() => {
-    fetchClassificationTypes();
-  }, []);
+    if (municipalityId) {
+      fetchClassificationTypes();
+    }
+  }, [municipalityId]);
 
   return {
     classificationTypes,

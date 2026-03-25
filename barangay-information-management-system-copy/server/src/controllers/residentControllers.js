@@ -1,279 +1,161 @@
+/**
+ * residentControllers.js — v2 (Unified Schema)
+ *
+ * BIMS Resident controllers — READ ONLY + Classification management.
+ * Registration is handled through the portal (E-Services system).
+ *
+ * REMOVED: upsertResident, deleteResident, syncResident, syncClassification
+ */
+
 import logger from "../utils/logger.js";
 import { ApiError } from "../utils/apiError.js";
 import Resident from "../services/residentServices.js";
+import { pool } from "../config/db.js";
 
-export const upsertResident = async (req, res, next) => {
-  let {
-    barangayId,
-    lastName,
-    firstName,
-    middleName,
-    suffix,
-    sex,
-    civilStatus,
-    birthdate,
-    birthplace,
-    contactNumber,
-    email,
-    occupation,
-    monthlyIncome,
-    monthly_income, // Support both naming conventions
-    employmentStatus,
-    educationAttainment,
-    residentStatus,
-    indigenousPerson,
-    classifications,
-  } = req.body;
-
-  // Use the correct field name (prioritize camelCase, fallback to snake_case)
-  const actualMonthlyIncome = monthlyIncome !== undefined ? monthlyIncome : monthly_income;
-
-  // If barangayId not supplied, use from token
-  if (!barangayId) barangayId = req.user?.target_id;
-
-  // Handle picturePath from file upload
-  const picturePath = req.files?.picturePath?.[0]?.path;
-  const { residentId } = req.params;
-
-  // Debug logging
-  console.log({
-    body: req.body,
-    file: picturePath,
-  });
-
-  // Parse classifications if it came as a string (form-data case)
-  if (!Array.isArray(classifications)) {
-    try {
-      classifications = JSON.parse(classifications || "[]");
-    } catch (err) {
-      classifications = [];
-    }
-  }
-
-  if (!barangayId) {
-    logger.error("Missing barangayId from user token");
-    return next(
-      new ApiError(400, "Invalid user token - missing barangay information")
-    );
-  }
-
-  try {
-    let result;
-    if (!residentId) {
-      result = await Resident.insertResident({
-        barangayId,
-        lastName,
-        firstName,
-        middleName,
-        suffix,
-        sex,
-        civilStatus,
-        birthdate,
-        birthplace,
-        contactNumber,
-        email,
-        occupation,
-        monthlyIncome: actualMonthlyIncome,
-        employmentStatus,
-        educationAttainment,
-        residentStatus,
-        picturePath,
-        indigenousPerson,
-        classifications,
-      });
-    } else {
-      result = await Resident.updateResident({
-        residentId,
-        barangayId,
-        lastName,
-        firstName,
-        middleName,
-        suffix,
-        sex,
-        civilStatus,
-        birthdate,
-        birthplace,
-        contactNumber,
-        email,
-        occupation,
-        monthlyIncome: actualMonthlyIncome,
-        employmentStatus,
-        educationAttainment,
-        residentStatus,
-        picturePath,
-        indigenousPerson,
-        classifications,
-      });
-    }
-
-    return res.status(200).json({
-      message: "Successfully upserted resident",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in upsertResident: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
-
-export const deleteResident = async (req, res, next) => {
-  const { residentId } = req.params;
-  try {
-    const checkResult = await Resident.residentInfo(residentId);
-
-    if (!checkResult) {
-      return next(
-        new ApiError(404, `Resident with ID: ${residentId} does not exist`)
-      );
-    }
-
-    const result = await Resident.deleteResident(residentId);
-
-    return res.status(200).json({
-      message: "Successfully deleted resident",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in deleteResident: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
-
+// =============================================================================
+// READ: List residents
+// =============================================================================
 export const residentList = async (req, res, next) => {
-  let { barangayId, purokId, classificationType, search, page, perPage } =
-    req.query;
-
-  // For municipality users, don't filter by barangayId unless explicitly provided
-  // This allows them to see all residents across all barangays
-  if (!barangayId && req.user?.target_type === "barangay") {
-    barangayId = req.user?.target_id;
-  }
-
   try {
-    const result = await Resident.residentList({
+    const {
       barangayId,
-      purokId,
       classificationType,
       search,
+      status: statusFilter,
       page,
       perPage,
-      userTargetType: req.user?.target_type,
-      userTargetId: req.user?.target_id,
+    } = req.query;
+
+    const userTargetType = req.user?.target_type;
+    const userTargetId = req.user?.target_id;
+
+    const result = await Resident.residentList({
+      barangayId: barangayId ? parseInt(barangayId) : undefined,
+      classificationType,
+      search,
+      statusFilter,
+      page: parseInt(page) || 1,
+      perPage: parseInt(perPage) || 10,
+      userTargetType,
+      userTargetId,
     });
 
-    return res.status(200).json({
-      message: "Successfully fetch resident list",
-      data: result,
+    res.json({
+      message: "Residents retrieved successfully",
+      data: result.residents,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        perPage: result.perPage,
+        totalPages: result.totalPages,
+      },
     });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in residentList", error.message);
-
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error fetching resident list:", error);
+    next(error);
   }
 };
 
+// =============================================================================
+// READ: Single resident profile
+// =============================================================================
 export const residentInfo = async (req, res, next) => {
-  const { residentId } = req.params;
   try {
-    const result = await Resident.residentInfo(residentId);
+    const { residentId } = req.params;
+    const resident = await Resident.residentInfo({ residentId });
 
-    return res.status(200).json({
-      message: "Successfully fetch resident information",
-      data: result,
-    });
+    if (!resident) {
+      return next(new ApiError(404, "Resident not found"));
+    }
+
+    res.json({ message: "Resident retrieved successfully", data: resident });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in residentInfo: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error fetching resident info:", error);
+    next(error);
   }
 };
 
+// =============================================================================
+// READ: QR code scan (authenticated — returns more data than public QR)
+// =============================================================================
 export const residentInfoForQR = async (req, res, next) => {
-  const { residentId } = req.params;
   try {
-    const result = await Resident.residentInfo(residentId);
+    const { residentId } = req.params;
+    const resident = await Resident.residentInfo({ residentId });
 
-    // For QR code searches, return 404 if resident not found
-    if (!result) {
+    if (!resident) {
       return next(new ApiError(404, "Resident not found"));
     }
 
-    return res.status(200).json({
-      message: "Successfully fetch resident information",
-      data: result,
-    });
+    res.json({ message: "Resident retrieved successfully", data: resident });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in residentInfoForQR: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error fetching resident for QR:", error);
+    next(error);
   }
 };
 
+// =============================================================================
+// READ: Public QR scan (no auth — masked name only)
+// =============================================================================
 export const publicResidentInfoForQR = async (req, res, next) => {
-  const { residentId } = req.params;
-  
   try {
-    const result = await Resident.publicResidentInfo(residentId);
+    const { residentId } = req.params;
+    const resident = await Resident.publicResidentInfo({ residentId });
 
-    // For QR code searches, return 404 if resident not found
-    if (!result) {
+    if (!resident) {
       return next(new ApiError(404, "Resident not found"));
     }
 
-    return res.status(200).json({
-      message: "Successfully fetch public resident information",
-      data: result,
+    res.json({ message: "Resident retrieved successfully", data: resident });
+  } catch (error) {
+    logger.error("Error fetching public resident info:", error);
+    next(error);
+  }
+};
+
+// =============================================================================
+// CLASSIFICATIONS
+// =============================================================================
+
+export const classificationList = async (req, res, next) => {
+  try {
+    const { barangayId } = req.query;
+    const userTargetType = req.user?.target_type;
+    const userTargetId = req.user?.target_id;
+
+    const classifications = await Resident.classificationList({
+      barangayId: barangayId ? parseInt(barangayId) : undefined,
+      userTargetType,
+      userTargetId,
+    });
+
+    res.json({
+      message: "Classifications retrieved successfully",
+      data: classifications,
     });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in publicResidentInfoForQR: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error fetching classifications:", error);
+    next(error);
   }
 };
 
 export const insertClassification = async (req, res, next) => {
-  const { residentId, classificationType, classificationDetails } = req.body;
   try {
-    if (!classificationType) {
-      return next(new ApiError(400, "Classification type is required"));
-    }
-    if (!residentId) {
-      return next(new ApiError(400, "residentId is required"));
-    }
+    const { residentId, classificationType, classificationDetails } = req.body;
 
-    const result = await Resident.insertClassification({
+    const classification = await Resident.insertClassification({
       residentId,
       classificationType,
       classificationDetails,
     });
 
-    return res.status(201).json({
-      message: "Successfully created classification",
-      data: result,
+    res.status(201).json({
+      message: "Classification added successfully",
+      data: classification,
     });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in insertClassification: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
-
-export const classificationList = async (req, res, next) => {
-  try {
-    const result = await Resident.classificationList();
-
-    return res.status(200).json({
-      message: "Successfully fetch classification list",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in classification list: ", error.message);
-
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error inserting classification:", error);
+    next(error);
   }
 };
 
@@ -282,133 +164,103 @@ export const updateClassification = async (req, res, next) => {
     const { classificationId } = req.params;
     const { classificationType, classificationDetails } = req.body;
 
-    const result = await Resident.updateClassification({
+    const classification = await Resident.updateClassification({
       classificationId,
       classificationType,
       classificationDetails,
     });
 
-    return res.status(200).json({
-      message: "Successfully updated classification",
-      data: result,
+    if (!classification) {
+      return next(new ApiError(404, "Classification not found"));
+    }
+
+    res.json({
+      message: "Classification updated successfully",
+      data: classification,
     });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in update classification: ", error.message);
-
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error updating classification:", error);
+    next(error);
   }
 };
 
-// Classification Types Controllers
+export const deleteClassification = async (req, res, next) => {
+  try {
+    const { classificationId } = req.params;
+    const result = await Resident.deleteClassification({ classificationId });
+
+    if (!result) {
+      return next(new ApiError(404, "Classification not found"));
+    }
+
+    res.json({ message: "Classification deleted successfully" });
+  } catch (error) {
+    logger.error("Error deleting classification:", error);
+    next(error);
+  }
+};
+
+// =============================================================================
+// CLASSIFICATION TYPES
+// =============================================================================
+
 export const getClassificationTypes = async (req, res, next) => {
   try {
-    const targetId = req.user.target_id;
-    const targetType = req.user.target_type;
-    
-    let municipalityId;
-    
-    if (targetType === 'municipality') {
-      // For municipality users, target_id is already the municipality_id
-      municipalityId = targetId;
-    } else if (targetType === 'barangay') {
-      // For barangay users, get municipality_id from barangay
-      const barangay = await Resident.getBarangayById(targetId);
-      if (!barangay) {
-        return next(new ApiError(404, "Barangay not found"));
-      }
-      municipalityId = barangay.municipality_id;
-    } else {
-      return next(new ApiError(400, "Invalid user target type"));
+    const municipalityId =
+      req.query.municipalityId ||
+      (req.user?.target_type === "municipality" ? req.user.target_id : null);
+
+    if (!municipalityId) {
+      return next(new ApiError(400, "municipalityId is required"));
     }
-    
-    const result = await Resident.getClassificationTypes(municipalityId);
 
-    return res.status(200).json({
-      message: "Successfully fetched classification types",
-      data: result,
-    });
+    const types = await Resident.getClassificationTypes({ municipalityId });
+    res.json({ message: "Classification types retrieved", data: types });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in get classification types: ", error.message);
-
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error fetching classification types:", error);
+    next(error);
   }
 };
 
 export const getClassificationTypeById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const targetId = req.user.target_id;
-    const targetType = req.user.target_type;
-    
-    let municipalityId;
-    
-    if (targetType === 'municipality') {
-      // For municipality users, target_id is already the municipality_id
-      municipalityId = targetId;
-    } else if (targetType === 'barangay') {
-      // For barangay users, get municipality_id from barangay
-      const barangay = await Resident.getBarangayById(targetId);
-      if (!barangay) {
-        return next(new ApiError(404, "Barangay not found"));
-      }
-      municipalityId = barangay.municipality_id;
-    } else {
-      return next(new ApiError(400, "Invalid user target type"));
-    }
-    
-    const result = await Resident.getClassificationTypeById(id, municipalityId);
-    
-    if (!result) {
-      return next(new ApiError(404, "Classification type not found"));
-    }
+    const municipalityId = req.user?.target_id;
 
-    return res.status(200).json({
-      message: "Successfully fetched classification type",
-      data: result,
-    });
+    const type = await Resident.getClassificationTypeById({ id, municipalityId });
+    if (!type) return next(new ApiError(404, "Classification type not found"));
+
+    res.json({ message: "Classification type retrieved", data: type });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in get classification type by id: ", error.message);
-
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error fetching classification type:", error);
+    next(error);
   }
 };
 
 export const createClassificationType = async (req, res, next) => {
   try {
-    const targetId = req.user.target_id;
-    const targetType = req.user.target_type;
+    let municipalityId = null;
+    
+    if (req.user?.target_type === "municipality") {
+      municipalityId = req.user.target_id;
+    } else if (req.user?.target_type === "barangay") {
+      // Get municipality_id from barangay
+      const barangayResult = await pool.query(
+        'SELECT municipality_id FROM barangays WHERE id = $1',
+        [req.user.target_id]
+      );
+      if (barangayResult.rows.length > 0) {
+        municipalityId = barangayResult.rows[0].municipality_id;
+      }
+    }
+    
+    if (!municipalityId) {
+      return next(new ApiError(400, "Unable to determine municipality"));
+    }
+    
     const { name, description, color, details } = req.body;
 
-    console.log('Creating classification type with data:', { targetId, targetType, name, description, color, details });
-
-    if (!targetId) {
-      return next(new ApiError(400, "Target ID is required"));
-    }
-
-    if (!name) {
-      return next(new ApiError(400, "Classification name is required"));
-    }
-
-    let municipalityId;
-    
-    if (targetType === 'municipality') {
-      // For municipality users, target_id is already the municipality_id
-      municipalityId = targetId;
-    } else if (targetType === 'barangay') {
-      // For barangay users, get municipality_id from barangay
-      const barangay = await Resident.getBarangayById(targetId);
-      if (!barangay) {
-        return next(new ApiError(404, "Barangay not found"));
-      }
-      municipalityId = barangay.municipality_id;
-    } else {
-      return next(new ApiError(400, "Invalid user target type"));
-    }
-
-    const result = await Resident.insertClassificationType({
+    const type = await Resident.createClassificationType({
       municipalityId,
       name,
       description,
@@ -416,56 +268,37 @@ export const createClassificationType = async (req, res, next) => {
       details,
     });
 
-    return res.status(201).json({
-      message: "Successfully created classification type",
-      data: result,
-    });
+    res.status(201).json({ message: "Classification type created", data: type });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in create classification type: ", error.message);
-
-    if (error.message === "Classification type already exists") {
-      return next(new ApiError(409, "Classification type already exists"));
-    }
-
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error creating classification type:", error);
+    next(error);
   }
 };
 
 export const updateClassificationType = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const targetId = req.user.target_id;
-    const targetType = req.user.target_type;
+    let municipalityId = null;
+    
+    if (req.user?.target_type === "municipality") {
+      municipalityId = req.user.target_id;
+    } else if (req.user?.target_type === "barangay") {
+      const barangayResult = await pool.query(
+        'SELECT municipality_id FROM barangays WHERE id = $1',
+        [req.user.target_id]
+      );
+      if (barangayResult.rows.length > 0) {
+        municipalityId = barangayResult.rows[0].municipality_id;
+      }
+    }
+    
+    if (!municipalityId) {
+      return next(new ApiError(400, "Unable to determine municipality"));
+    }
+    
     const { name, description, color, details } = req.body;
 
-    console.log('Updating classification type with data:', { id, targetId, targetType, name, description, color, details });
-
-    if (!targetId) {
-      return next(new ApiError(400, "Target ID is required"));
-    }
-
-    if (!name) {
-      return next(new ApiError(400, "Classification name is required"));
-    }
-
-    let municipalityId;
-    
-    if (targetType === 'municipality') {
-      // For municipality users, target_id is already the municipality_id
-      municipalityId = targetId;
-    } else if (targetType === 'barangay') {
-      // For barangay users, get municipality_id from barangay
-      const barangay = await Resident.getBarangayById(targetId);
-      if (!barangay) {
-        return next(new ApiError(404, "Barangay not found"));
-      }
-      municipalityId = barangay.municipality_id;
-    } else {
-      return next(new ApiError(400, "Invalid user target type"));
-    }
-
-    const result = await Resident.updateClassificationType({
+    const type = await Resident.updateClassificationType({
       id,
       municipalityId,
       name,
@@ -474,206 +307,41 @@ export const updateClassificationType = async (req, res, next) => {
       details,
     });
 
-    if (!result) {
-      return next(new ApiError(404, "Classification type not found"));
-    }
-
-    return res.status(200).json({
-      message: "Successfully updated classification type",
-      data: result,
-    });
+    if (!type) return next(new ApiError(404, "Classification type not found"));
+    res.json({ message: "Classification type updated", data: type });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in update classification type: ", error.message);
-
-    if (error.message === "Classification type already exists") {
-      return next(new ApiError(409, "Classification type already exists"));
-    }
-
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error updating classification type:", error);
+    next(error);
   }
 };
 
 export const deleteClassificationType = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const targetId = req.user.target_id;
-    const targetType = req.user.target_type;
-
-    if (!targetId) {
-      return next(new ApiError(400, "Target ID is required"));
-    }
-
-    let municipalityId;
+    let municipalityId = null;
     
-    if (targetType === 'municipality') {
-      // For municipality users, target_id is already the municipality_id
-      municipalityId = targetId;
-    } else if (targetType === 'barangay') {
-      // For barangay users, get municipality_id from barangay
-      const barangay = await Resident.getBarangayById(targetId);
-      if (!barangay) {
-        return next(new ApiError(404, "Barangay not found"));
+    if (req.user?.target_type === "municipality") {
+      municipalityId = req.user.target_id;
+    } else if (req.user?.target_type === "barangay") {
+      const barangayResult = await pool.query(
+        'SELECT municipality_id FROM barangays WHERE id = $1',
+        [req.user.target_id]
+      );
+      if (barangayResult.rows.length > 0) {
+        municipalityId = barangayResult.rows[0].municipality_id;
       }
-      municipalityId = barangay.municipality_id;
-    } else {
-      return next(new ApiError(400, "Invalid user target type"));
+    }
+    
+    if (!municipalityId) {
+      return next(new ApiError(400, "Unable to determine municipality"));
     }
 
-    const result = await Resident.deleteClassificationType(id, municipalityId);
+    const type = await Resident.deleteClassificationType({ id, municipalityId });
+    if (!type) return next(new ApiError(404, "Classification type not found"));
 
-    if (!result) {
-      return next(new ApiError(404, "Classification type not found"));
-    }
-
-    return res.status(200).json({
-      message: "Successfully deleted classification type",
-      data: result,
-    });
+    res.json({ message: "Classification type deactivated", data: type });
   } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in delete classification type: ", error.message);
-
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
-
-export const deleteClassification = async (req, res, next) => {
-  const { classificationId } = req.params;
-
-  try {
-    const result = await Resident.deleteClassification(classificationId);
-
-    return res.status(200).json({
-      message: "Successfully deleted classification",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in deleteClassification: ", error.message);
-
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
-
-export const syncResident = async (req, res, next) => {
-  let {
-    id,
-    barangayId,
-    lastName,
-    firstName,
-    middleName,
-    suffix,
-    sex,
-    civilStatus,
-    birthdate,
-    birthplace,
-    contactNumber,
-    email,
-    occupation,
-    monthlyIncome,
-    employmentStatus,
-    educationAttainment,
-    residentStatus,
-    indigenousPerson,
-    picturePath, // Add picturePath to destructuring
-  } = req.body;
-
-  // If barangayId not supplied, use from token
-  if (!barangayId) barangayId = req.user?.target_id;
-
-  // Input validation
-  if (contactNumber && contactNumber.length > 50) {
-    logger.warn(`Contact number too long: ${contactNumber.length} characters. Truncating to 50 characters.`);
-    contactNumber = contactNumber.substring(0, 50);
-  }
-
-  if (residentStatus && residentStatus.length > 20) {
-    logger.warn(`Resident status too long: ${residentStatus.length} characters. Truncating to 20 characters.`);
-    residentStatus = residentStatus.substring(0, 20);
-  }
-
-  // Handle picturePath from file upload OR JSON payload
-  const finalPicturePath = picturePath || req.files?.picturePath?.[0]?.path;
-
-  // Debug logging
-  console.log({
-    body: req.body,
-    file: finalPicturePath,
-    picturePathFromBody: picturePath,
-    picturePathFromFile: req.files?.picturePath?.[0]?.path,
-  });
-
-  if (!barangayId) {
-    logger.error("Missing barangayId from user token");
-    return next(
-      new ApiError(400, "Invalid user token - missing barangay information")
-    );
-  }
-
-  if (!id) {
-    return next(new ApiError(400, "Resident ID is required for sync"));
-  }
-
-  try {
-    const result = await Resident.syncResident({
-      id,
-      barangayId,
-      lastName,
-      firstName,
-      middleName,
-      suffix,
-      sex,
-      civilStatus,
-      birthdate,
-      birthplace,
-      contactNumber,
-      email,
-      occupation,
-      monthlyIncome,
-      employmentStatus,
-      educationAttainment,
-      residentStatus,
-      picturePath: finalPicturePath, // Use the final picture path
-      indigenousPerson,
-    });
-
-    return res.status(200).json({
-      message: "Successfully synced resident",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in syncResident: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
-
-export const syncClassification = async (req, res, next) => {
-  const { residentId, classificationType, classificationDetails } = req.body;
-
-  if (!residentId) {
-    return next(new ApiError(400, "Resident ID is required"));
-  }
-
-  if (!classificationType) {
-    return next(new ApiError(400, "Classification type is required"));
-  }
-
-  try {
-    const result = await Resident.syncClassification({
-      residentId,
-      classificationType,
-      classificationDetails,
-    });
-
-    return res.status(200).json({
-      message: "Successfully synced classification",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return next(error);
-    logger.error("Controller error in syncClassification: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
+    logger.error("Error deleting classification type:", error);
+    next(error);
   }
 };

@@ -1,3 +1,8 @@
+// =============================================================================
+// DEPRECATED — References puroks, citizens, and citizen_resident_mapping
+// tables that no longer exist in the v2 schema. Running this against a
+// v2 database WILL FAIL. Keep only for v1 rollback reference.
+// =============================================================================
 import pg from 'pg';
 import fs from 'fs';
 import path from 'path';

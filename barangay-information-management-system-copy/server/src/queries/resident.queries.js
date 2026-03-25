@@ -1,80 +1,68 @@
-export const INSERT_RESIDENT = `
-INSERT INTO residents (
-  id,
-  barangay_id,
-  last_name,
-  first_name,
-  middle_name,
-  suffix,
-  sex,
-  civil_status,
-  birthdate,
-  birthplace,
-  contact_number,
-  email,
-  occupation,
-  monthly_income,
-  employment_status,
-  education_attainment,
-  resident_status,
-  picture_path,
-  indigenous_person
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-RETURNING id;
-`;
+// =============================================================================
+// RESIDENT QUERIES — Updated for Unified Schema v2
+//
+// KEY SCHEMA CHANGES:
+//   - residents.id is now UUID text (not custom varchar)
+//   - residents.resident_id is the human-readable display ID (BIMS-YYYY-NNNNNNN)
+//   - residents.status (was resident_status)
+//   - residents.extension_name (was extension_name)
+//   - residents.street_address (new — replaces household street at person level)
+//   - No more puroks table
+//   - No more INSERT_RESIDENT / UPDATE_RESIDENT (residents created via portal only)
+// =============================================================================
 
-export const UPDATE_RESIDENT = `
-UPDATE residents SET
-  barangay_id = $2,
-  last_name = $3,
-  first_name = $4,
-  middle_name = $5,
-  suffix = $6,
-  sex = $7,
-  civil_status = $8,
-  birthdate = $9,
-  birthplace = $10,
-  contact_number = $11,
-  email = $12,
-  occupation = $13,
-  monthly_income = $14,
-  employment_status = $15,
-  education_attainment = $16,
-  resident_status = $17,
-  picture_path = COALESCE(NULLIF($18, ''), picture_path),
-  indigenous_person = $19
-WHERE id = $1
-RETURNING id;
-`;
+// =============================================================================
+// READ: Full resident profile
+// =============================================================================
 
 export const VIEW_RESIDENT_INFORMATION = `
 SELECT
-  r.id AS resident_id,
+  r.id,
+  r.resident_id,
   r.barangay_id,
   r.last_name,
   r.first_name,
   r.middle_name,
-  r.suffix,
+  r.extension_name,
   r.sex,
   r.civil_status,
   r.birthdate,
-  r.birthplace,
+  r.birth_region,
+  r.birth_province,
+  r.birth_municipality,
+  r.citizenship,
   r.contact_number,
   r.email,
   r.occupation,
+  r.profession,
   r.monthly_income,
   r.employment_status,
   r.education_attainment,
-  r.resident_status,
+  r.status,
   r.picture_path,
   r.indigenous_person,
-  h.house_number,
-  h.street,
-  p.purok_name,
-  p.id AS purok_id,
+  r.is_voter,
+  r.is_employed,
+  r.username,
+  r.street_address,
+  r.id_type,
+  r.id_document_number,
+  r.emergency_contact_person,
+  r.emergency_contact_number,
+  r.spouse_name,
   b.barangay_name,
-  h.id AS household_id,
   m.municipality_name,
+  m.province,
+  m.region,
+  -- Household info (if registered via portal)
+  h.house_number,
+  h.street AS household_street,
+  h.id AS household_id,
+  h.housing_type,
+  h.electricity,
+  h.water_source,
+  h.toilet_facility,
+  -- Classifications
   COALESCE(
     jsonb_agg(
       DISTINCT jsonb_build_object(
@@ -86,21 +74,52 @@ SELECT
     '[]'::jsonb
   )::json AS classifications
 FROM residents r
+LEFT JOIN barangays b ON r.barangay_id = b.id
+LEFT JOIN municipalities m ON b.municipality_id = m.id
+-- Find household (as head, family head, or member)
 LEFT JOIN family_members fm ON r.id = fm.family_member
 LEFT JOIN families f ON (fm.family_id = f.id) OR (r.id = f.family_head)
 LEFT JOIN households h ON (f.household_id = h.id) OR (r.id = h.house_head)
-LEFT JOIN puroks p ON h.purok_id = p.id
-LEFT JOIN barangays b ON r.barangay_id = b.id
-LEFT JOIN municipalities m ON b.municipality_id = m.id
 LEFT JOIN resident_classifications rc ON r.id = rc.resident_id
 WHERE r.id = $1
 GROUP BY
-  r.id, r.last_name, r.first_name, r.middle_name, r.suffix, r.sex, r.civil_status, r.birthdate, r.birthplace, r.contact_number, r.email, r.occupation, r.monthly_income, r.employment_status, r.education_attainment, r.resident_status, r.picture_path, r.indigenous_person,
-  h.house_number, h.street, h.id,
-  p.purok_name, p.id,
-  b.barangay_name,
-  m.municipality_name;
+  r.id, r.resident_id, r.barangay_id,
+  r.last_name, r.first_name, r.middle_name, r.extension_name,
+  r.sex, r.civil_status, r.birthdate,
+  r.birth_region, r.birth_province, r.birth_municipality,
+  r.citizenship, r.contact_number, r.email,
+  r.occupation, r.profession, r.monthly_income,
+  r.employment_status, r.education_attainment,
+  r.status, r.picture_path, r.indigenous_person,
+  r.is_voter, r.is_employed, r.username, r.street_address,
+  r.id_type, r.id_document_number,
+  r.emergency_contact_person, r.emergency_contact_number,
+  r.spouse_name,
+  b.barangay_name, m.municipality_name, m.province, m.region,
+  h.house_number, h.street, h.id, h.housing_type, h.electricity, h.water_source, h.toilet_facility;
 `;
+
+// =============================================================================
+// READ: Public QR scan (masked name only)
+// =============================================================================
+
+export const VIEW_PUBLIC_RESIDENT_INFORMATION = `
+SELECT
+  r.id,
+  r.resident_id,
+  r.barangay_id,
+  CONCAT(r.first_name, ' ', LEFT(r.last_name, 1), '.') AS full_name,
+  b.barangay_name AS barangay,
+  m.municipality_name AS municipality
+FROM residents r
+LEFT JOIN barangays b ON r.barangay_id = b.id
+LEFT JOIN municipalities m ON b.municipality_id = m.id
+WHERE r.id = $1;
+`;
+
+// =============================================================================
+// CLASSIFICATIONS
+// =============================================================================
 
 export const INSERT_CLASSIFICATION = `
 INSERT INTO resident_classifications(
@@ -123,7 +142,16 @@ WHERE id = $1
 RETURNING *;
 `;
 
-// Classification Types Queries
+export const DELETE_CLASSIFICATION = `
+DELETE FROM resident_classifications 
+WHERE id = $1
+RETURNING *;
+`;
+
+// =============================================================================
+// CLASSIFICATION TYPES
+// =============================================================================
+
 export const GET_CLASSIFICATION_TYPES = `
 SELECT * FROM classification_types 
 WHERE municipality_id = $1 AND is_active = true 
@@ -174,22 +202,4 @@ RETURNING *;
 export const CHECK_CLASSIFICATION_TYPE_EXISTS = `
 SELECT COUNT(*) FROM classification_types 
 WHERE municipality_id = $1 AND name = $2 AND is_active = true;
-`;
-
-export const DELETE_CLASSIFICATION = `
-DELETE FROM resident_classifications 
-WHERE id = $1
-RETURNING *;
-`;
-
-export const VIEW_PUBLIC_RESIDENT_INFORMATION = `
-SELECT
-  r.id,
-  r.id AS resident_id,
-  r.barangay_id,
-  CONCAT(r.first_name, ' ', LEFT(r.last_name, 1), '.') AS full_name,
-  b.barangay_name AS barangay
-FROM residents r
-LEFT JOIN barangays b ON r.barangay_id = b.id
-WHERE r.id = $1;
 `;

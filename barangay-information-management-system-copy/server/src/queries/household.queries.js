@@ -2,7 +2,6 @@ export const INSERT_HOUSEHOLD = `
 INSERT INTO households(
   house_number,
   street,
-  purok_id,
   barangay_id,
   house_head,
   housing_type,
@@ -14,7 +13,7 @@ INSERT INTO households(
   area,
   household_image_path
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
-  $11, $12, $13)
+  $11, $12)
 RETURNING id;
 `;
 
@@ -65,17 +64,16 @@ export const UPDATE_HOUSEHOLD = `
 UPDATE households SET
   house_number = $2,
   street = $3,
-  purok_id = $4,
-  barangay_id = $5,
-  house_head = $6,
-  housing_type = $7,
-  structure_type = $8,
-  electricity = $9,
-  water_source = $10,
-  toilet_facility = $11,
-  geom = $12,
-  area = $13,
-  household_image_path = $14
+  barangay_id = $4,
+  house_head = $5,
+  housing_type = $6,
+  structure_type = $7,
+  electricity = $8,
+  water_source = $9,
+  toilet_facility = $10,
+  geom = $11,
+  area = $12,
+  household_image_path = $13
 WHERE id = $1
 RETURNING id;
 `;
@@ -103,11 +101,9 @@ export const VIEW_HOUSEHOLD_INFORMATION = `
     h.id AS household_id,
     h.house_number,
     h.street,
-    p.purok_name,
-    p.id AS purok_id,
     b.barangay_name,
     b.id AS barangay_id,
-    CONCAT_WS(' ', hh.first_name, hh.middle_name, hh.last_name, hh.suffix) AS house_head,
+    CONCAT_WS(' ', hh.first_name, hh.middle_name, hh.last_name, hh.extension_name) AS house_head,
     hh.id AS house_head_id,
     hh.contact_number AS house_head_contact_number,
     h.housing_type,
@@ -124,13 +120,13 @@ export const VIEW_HOUSEHOLD_INFORMATION = `
         'family_id', f.id,
         'family_head_id', f.family_head,
         'family_group', f.family_group,
-        'family_head', CONCAT_WS(' ', fh.first_name, fh.middle_name, fh.last_name, fh.suffix),
+        'family_head', CONCAT_WS(' ', fh.first_name, fh.middle_name, fh.last_name, fh.extension_name),
         'members', (
           SELECT json_agg(
             DISTINCT jsonb_build_object(
               'fm_id', fm.id,
               'fm_member_id', fm.family_member,
-              'fm_member', CONCAT_WS(' ', rm.first_name, rm.middle_name, rm.last_name, rm.suffix),
+              'fm_member', CONCAT_WS(' ', rm.first_name, rm.middle_name, rm.last_name, rm.extension_name),
               'fm_relationship_to_fm_head', fm.relationship_to_head
             )
           )
@@ -141,28 +137,24 @@ export const VIEW_HOUSEHOLD_INFORMATION = `
       )
     ) FILTER (WHERE f.id IS NOT NULL), '[]') AS families
   FROM households h
-  LEFT JOIN puroks p ON h.purok_id = p.id
   LEFT JOIN barangays b ON h.barangay_id = b.id
   LEFT JOIN residents hh ON h.house_head = hh.id
   LEFT JOIN families f ON h.id = f.household_id
   LEFT JOIN residents fh ON f.family_head = fh.id
   LEFT JOIN (
-    SELECT 
+    SELECT
       h.id as household_id,
       COALESCE(SUM(DISTINCT r_income.monthly_income), 0) as total_monthly_income
     FROM households h
     LEFT JOIN (
-      -- Get house head income
       SELECT h_inner.id as household_id, r_house.monthly_income
       FROM households h_inner
       JOIN residents r_house ON r_house.id = h_inner.house_head
       UNION
-      -- Get family head incomes
       SELECT fam.household_id, r_fam.monthly_income
       FROM families fam
       JOIN residents r_fam ON fam.family_head = r_fam.id
       UNION
-      -- Get family member incomes
       SELECT fam2.household_id, r_mem.monthly_income
       FROM families fam2
       JOIN family_members fm2 ON fam2.id = fm2.family_id
@@ -172,8 +164,11 @@ export const VIEW_HOUSEHOLD_INFORMATION = `
     GROUP BY h.id
   ) income_stats ON h.id = income_stats.household_id
   WHERE h.id = $1
-  GROUP BY h.id, h.house_number, h.street, p.purok_name, p.id, b.barangay_name, b.id, hh.first_name, hh.middle_name, hh.last_name, hh.suffix, hh.id,
-           h.housing_type, h.structure_type, h.electricity, h.water_source, h.toilet_facility, hh.contact_number, h.household_image_path, h.geom, h.area, income_stats.total_monthly_income;
+  GROUP BY h.id, h.house_number, h.street, b.barangay_name, b.id,
+           hh.first_name, hh.middle_name, hh.last_name, hh.extension_name, hh.id,
+           h.housing_type, h.structure_type, h.electricity, h.water_source,
+           h.toilet_facility, hh.contact_number, h.household_image_path, h.geom,
+           h.area, income_stats.total_monthly_income;
 `;
 
 export const GET_HOUSEHOLD_LOCATIONS = `
@@ -181,9 +176,8 @@ export const GET_HOUSEHOLD_LOCATIONS = `
     h.id AS household_id,
     h.house_number,
     h.street,
-    p.purok_name,
     b.barangay_name,
-    CONCAT_WS(' ', r.first_name, r.middle_name, r.last_name, r.suffix) AS house_head,
+    CONCAT_WS(' ', r.first_name, r.middle_name, r.last_name, r.extension_name) AS house_head,
     h.housing_type,
     h.structure_type,
     h.electricity,
@@ -195,7 +189,6 @@ export const GET_HOUSEHOLD_LOCATIONS = `
     COALESCE(family_stats.resident_count, 0) AS resident_count
   FROM households h
   LEFT JOIN residents r ON h.house_head = r.id
-  LEFT JOIN puroks p ON h.purok_id = p.id
   LEFT JOIN barangays b ON h.barangay_id = b.id
   LEFT JOIN (
     SELECT 
@@ -234,7 +227,6 @@ INSERT INTO households(
   id,
   house_number,
   street,
-  purok_id,
   barangay_id,
   house_head,
   housing_type,
@@ -245,7 +237,7 @@ INSERT INTO households(
   geom,
   area,
   household_image_path
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING id;
 `;
 
@@ -253,17 +245,16 @@ export const SYNC_HOUSEHOLD_UPDATE = `
 UPDATE households SET
   house_number = $2,
   street = $3,
-  purok_id = $4,
-  barangay_id = $5,
-  house_head = $6,
-  housing_type = $7,
-  structure_type = $8,
-  electricity = $9,
-  water_source = $10,
-  toilet_facility = $11,
-  geom = $12,
-  area = $13,
-  household_image_path = $14
+  barangay_id = $4,
+  house_head = $5,
+  housing_type = $6,
+  structure_type = $7,
+  electricity = $8,
+  water_source = $9,
+  toilet_facility = $10,
+  geom = $11,
+  area = $12,
+  household_image_path = $13
 WHERE id = $1
 RETURNING id;
 `;

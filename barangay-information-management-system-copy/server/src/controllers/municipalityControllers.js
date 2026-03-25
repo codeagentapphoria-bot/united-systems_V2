@@ -167,7 +167,6 @@ export const exportResidents = async (req, res, next) => {
     // Extract filters from query parameters
     const filters = {
       barangayId: req.query.barangayId,
-      purokId: req.query.purokId,
       search: req.query.search,
       classificationType: req.query.classificationType,
     };
@@ -206,7 +205,6 @@ export const exportHouseholds = async (req, res, next) => {
     // Extract filters from query parameters
     const filters = {
       barangayId: req.query.barangayId,
-      purokId: req.query.purokId,
       search: req.query.search,
     };
 

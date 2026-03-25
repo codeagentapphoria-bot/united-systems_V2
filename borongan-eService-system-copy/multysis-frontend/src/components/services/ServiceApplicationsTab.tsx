@@ -43,7 +43,7 @@ export const ServiceApplicationsTab: React.FC<ServiceApplicationsTabProps> = ({ 
       search: searchQuery || undefined,
       paymentStatus: paymentStatusFilter,
       status: statusFilter,
-      isResidentOfBorongan: residentFilter,
+      isLocalResident: residentFilter,
       serviceData: Object.keys(serviceDataFilters).length > 0 ? serviceDataFilters : undefined,
     },
     page: 1,
@@ -56,7 +56,7 @@ export const ServiceApplicationsTab: React.FC<ServiceApplicationsTabProps> = ({ 
       search: value || undefined,
       paymentStatus: paymentStatusFilter,
       status: statusFilter,
-      isResidentOfBorongan: residentFilter,
+      isLocalResident: residentFilter,
     });
     setPage(1);
   };
@@ -64,14 +64,14 @@ export const ServiceApplicationsTab: React.FC<ServiceApplicationsTabProps> = ({ 
   const handleFilterChange = (newFilters: {
     paymentStatus?: string;
     status?: string;
-    isResidentOfBorongan?: boolean;
+    isLocalResident?: boolean;
     serviceData?: Record<string, string>;
   }) => {
     setFilters({
       search: searchQuery || undefined,
       paymentStatus: paymentStatusFilter,
       status: statusFilter,
-      isResidentOfBorongan: residentFilter,
+      isLocalResident: residentFilter,
       serviceData: Object.keys(serviceDataFilters).length > 0 ? serviceDataFilters : undefined,
       ...newFilters,
     });
@@ -316,7 +316,7 @@ export const ServiceApplicationsTab: React.FC<ServiceApplicationsTabProps> = ({ 
                 onChange={(option) => {
                     const newValue = option?.value === 'true' ? true : option?.value === 'false' ? false : undefined;
                     setResidentFilter(newValue);
-                    handleFilterChange({ isResidentOfBorongan: newValue });
+                    handleFilterChange({ isLocalResident: newValue });
                 }}
                 options={[
                     { value: '', label: 'All' },

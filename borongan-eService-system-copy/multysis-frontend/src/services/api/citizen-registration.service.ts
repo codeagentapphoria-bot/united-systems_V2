@@ -1,215 +1,76 @@
-import axios from 'axios';
+/**
+ * citizen-registration.service.ts — updated for v2 portal-registration API
+ *
+ * All endpoints now point to /api/portal-registration (was: /api/citizen-registration).
+ *
+ * BACKWARD COMPATIBILITY: The response shape is normalized so existing callers
+ * (AdminRegistrationWorkflow.tsx) that use `request.citizen?.firstName` etc.
+ * continue to work without changes — `citizen` is aliased to `resident`.
+ * Status filter values are also normalized: uppercase 'APPROVED' → lowercase 'approved'.
+ */
 
-const getApiUrl = (): string => {
-  const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-  return apiUrl;
-};
-
-const API_URL = getApiUrl();
-
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'multipart/form-data',
-  },
-  withCredentials: true,
-  timeout: 60000, // 60 seconds for file uploads
-});
+import api from './auth.service';
 
 // =============================================================================
-// TYPES - Frontend types match backend response
+// TYPES
 // =============================================================================
-
-export interface CitizenRegistrationData {
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  extensionName?: string;
-  birthDate: string;
-  sex: string;
-  civilStatus: string;
-  phoneNumber: string;
-  email?: string;
-  // Present Address
-  address: string;
-  barangay: string;
-  municipality?: string;
-  province?: string;
-  region?: string;
-  postalCode?: string;
-  streetAddress?: string;
-  // Documents
-  idDocumentType: string;
-  idDocumentNumber: string;
-  idDocumentUrl: string;
-  selfieUrl?: string;
-}
-
-export interface RegistrationSubmitResponse {
-  id: string;                  // Registration request ID
-  citizenId: string;           // Citizen record ID
-  registrationRequestId: string;
-  phoneNumber: string;
-  status: 'PENDING';
-  createdAt: string;
-}
-
-export interface RegistrationStatusResponse {
-  citizenId: string;
-  registrationRequestId: string | null;
-  status: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'INACTIVE';
-  workflowStatus: 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'REQUIRES_RESUBMISSION' | null;
-  firstName: string;
-  lastName: string;
-  createdAt: string;
-  reviewedAt?: string;
-  adminNotes?: string;
-}
-
-export interface RegistrationRequestResponse {
-  id: string;
-  citizenId: string;
-  status: 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'REQUIRES_RESUBMISSION';
-  /** Whether a matching BIMS resident record was found via fuzzy matching. */
-  bimsMatchStatus?: 'CONFIRMED' | 'PENDING' | 'NEEDS_REVIEW' | 'REJECTED' | 'NOT_FOUND';
-  adminNotes?: string;
-  reviewedBy?: string;
-  reviewedAt?: string;
-  selfieUrl?: string;
-  subscriberId?: string;
-  createdAt: string;
-  updatedAt: string;
-  // Populated via include - documents now stored in Citizen table
-  citizen?: {
-    id: string;
-    firstName: string;
-    middleName?: string;
-    lastName: string;
-    extensionName?: string;
-    phoneNumber: string;
-    email?: string;
-    residencyStatus: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'INACTIVE';
-    birthDate: string;
-    sex: string;
-    civilStatus: string;
-    address?: string;
-    addressBarangay?: string;
-    addressMunicipality?: string;
-    addressProvince?: string;
-    addressRegion?: string;
-    addressPostalCode?: string;
-    addressStreetAddress?: string;
-    proofOfIdentification?: string;
-    idType?: string;
-    idDocumentNumber?: string;
-  };
-  subscriber?: {
-    id: string;
-    type: 'CITIZEN' | 'SUBSCRIBER';
-  };
-}
-
-// =============================================================================
-// SERVICE - Citizen Registration API
-// =============================================================================
-
-export const citizenRegistrationService = {
-  /**
-   * Submit a citizen registration request
-   * 
-   * Backend flow: Creates PENDING Citizen + RegistrationWorkflow (atomically)
-   */
-  async submitRegistration(data: CitizenRegistrationData): Promise<RegistrationSubmitResponse> {
-    try {
-      const formData = new FormData();
-      // Personal Information
-      formData.append('firstName', data.firstName);
-      if (data.middleName) formData.append('middleName', data.middleName);
-      formData.append('lastName', data.lastName);
-      if (data.extensionName) formData.append('extensionName', data.extensionName);
-      formData.append('birthDate', data.birthDate);
-      formData.append('sex', data.sex);
-      formData.append('civilStatus', data.civilStatus);
-      formData.append('phoneNumber', data.phoneNumber);
-      if (data.email) formData.append('email', data.email);
-      // Present Address
-      formData.append('address', data.address);
-      formData.append('barangay', data.barangay);
-      if (data.municipality) formData.append('municipality', data.municipality);
-      if (data.province) formData.append('province', data.province);
-      if (data.region) formData.append('region', data.region);
-      if (data.postalCode) formData.append('postalCode', data.postalCode);
-      if (data.streetAddress) formData.append('streetAddress', data.streetAddress);
-      // Documents
-      formData.append('idDocumentType', data.idDocumentType);
-      formData.append('idDocumentNumber', data.idDocumentNumber);
-      formData.append('idDocumentUrl', data.idDocumentUrl);
-      if (data.selfieUrl) formData.append('selfieUrl', data.selfieUrl);
-
-      const response = await api.post('/citizen-registration/register', formData);
-      
-      if (response.data.status !== 'success') {
-        throw new Error(response.data.message || 'Registration failed');
-      }
-
-      return response.data.data;
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
-      throw new Error(errorMessage);
-    }
-  },
-
-  /**
-   * Check registration status by phone number
-   * 
-   * Backend flow: Queries Citizen table for status (with workflow status from RegistrationWorkflow)
-   */
-  async getRegistrationStatus(phoneNumber: string): Promise<RegistrationStatusResponse> {
-    try {
-      const response = await api.get(`/citizen-registration/register/status/${phoneNumber}`);
-      
-      if (response.data.status !== 'success') {
-        throw new Error(response.data.message || 'Failed to get status');
-      }
-
-      return response.data.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        throw new Error('No registration found for this phone number');
-      }
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to get status';
-      throw new Error(errorMessage);
-    }
-  },
-};
-
-// =============================================================================
-// ADMIN SERVICE - Registration Workflow Management
-// =============================================================================
-
-const adminApi = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: true,
-  timeout: 30000,
-});
-
-// Add auth token to admin requests
-adminApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 export interface RegistrationRequestFilters {
   status?: string;
   search?: string;
   page?: number;
   limit?: number;
+}
+
+// Resident/citizen info shape (same fields, two names for backward compat)
+interface ResidentInfo {
+  id: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  extensionName?: string;
+  // Legacy field names (old citizen API)
+  phoneNumber?: string;
+  // New field names (unified resident API)
+  contactNumber?: string;
+  email?: string;
+  residencyStatus?: string;
+  birthdate?: string;
+  birthDate?: string;           // old alias
+  sex?: string;
+  civilStatus?: string;
+  address?: string;
+  streetAddress?: string;
+  barangayId?: number;
+  addressBarangay?: string;
+  addressMunicipality?: string;
+  addressProvince?: string;
+  addressRegion?: string;
+  addressPostalCode?: string;
+  addressStreetAddress?: string;
+  idType?: string;
+  proofOfIdentification?: string;
+  idDocumentNumber?: string;
+  username?: string;
+  status?: string;
+}
+
+export interface RegistrationRequestResponse {
+  id: string;
+  citizenId?: string;           // old field — keep for backward compat
+  residentId?: string;          // new field
+  status: string;
+  bimsMatchStatus?: string;
+  adminNotes?: string;
+  reviewedBy?: string | number;
+  reviewedAt?: string;
+  selfieUrl?: string;
+  subscriberId?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Both names point to the same data (normalized in service)
+  resident?: ResidentInfo;
+  citizen?: ResidentInfo;       // backward compat alias → same as resident
 }
 
 export interface PaginatedResponse<T> {
@@ -222,153 +83,110 @@ export interface PaginatedResponse<T> {
   };
 }
 
+// =============================================================================
+// INTERNAL NORMALIZER
+// Adds `citizen` alias and normalizes field names for backward compat.
+// =============================================================================
+function normalizeRequest(r: any): RegistrationRequestResponse {
+  const residentInfo = r.resident
+    ? {
+        ...r.resident,
+        // add old field aliases
+        phoneNumber: r.resident.contactNumber ?? r.resident.phoneNumber,
+        birthDate: r.resident.birthdate ?? r.resident.birthDate,
+        addressBarangay: r.resident.barangay?.barangayName ?? r.resident.addressBarangay,
+        addressMunicipality: r.resident.barangay?.municipality?.municipalityName ?? r.resident.addressMunicipality,
+        residencyStatus: r.resident.status ?? r.resident.residencyStatus,
+      }
+    : undefined;
+
+  return {
+    ...r,
+    // Normalize status to uppercase for backward compat with STATUS_COLORS / STATUS_LABELS
+    status: (r.status ?? '').toUpperCase().replace(' ', '_'),
+    resident: residentInfo,
+    citizen: residentInfo,      // alias
+    citizenId: r.residentId ?? r.citizenId,
+  };
+}
+
+function normalizeStatusFilter(status?: string): string | undefined {
+  if (!status) return undefined;
+  // Accept both 'ALL' and all/ALL; convert to lowercase for the API
+  if (status.toUpperCase() === 'ALL') return undefined;
+  return status.toLowerCase().replace(' ', '_');
+}
+
+// =============================================================================
+// ADMIN REGISTRATION SERVICE
+// =============================================================================
+
 export const adminRegistrationService = {
-  /**
-   * Get all registration requests (admin)
-   */
-  async getRegistrationRequests(filters?: RegistrationRequestFilters): Promise<PaginatedResponse<RegistrationRequestResponse>> {
-    try {
-      const params = new URLSearchParams();
-      if (filters?.status) params.append('status', filters.status);
-      if (filters?.search) params.append('search', filters.search);
-      if (filters?.page) params.append('page', filters.page.toString());
-      if (filters?.limit) params.append('limit', filters.limit.toString());
+  async getRegistrationRequests(
+    filters?: RegistrationRequestFilters
+  ): Promise<PaginatedResponse<RegistrationRequestResponse>> {
+    const params = new URLSearchParams();
+    const apiStatus = normalizeStatusFilter(filters?.status);
+    if (apiStatus)       params.set('status', apiStatus);
+    if (filters?.search) params.set('search', filters.search);
+    if (filters?.page)   params.set('page',   String(filters.page));
+    if (filters?.limit)  params.set('limit',  String(filters.limit));
 
-      const response = await adminApi.get(`/citizen-registration/registration-requests?${params.toString()}`);
-      
-      if (response.data.status !== 'success') {
-        throw new Error(response.data.message || 'Failed to get registration requests');
-      }
+    const response = await api.get(`/portal-registration/requests?${params.toString()}`);
+    const data = response.data.data ?? response.data;
 
-      return response.data.data;
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to get registration requests';
-      throw new Error(errorMessage);
-    }
+    return {
+      ...data,
+      requests: (data.requests ?? []).map(normalizeRequest),
+    };
   },
 
-  /**
-   * Get single registration request by ID (admin)
-   */
   async getRegistrationRequestById(id: string): Promise<RegistrationRequestResponse> {
-    try {
-      const response = await adminApi.get(`/citizen-registration/registration-requests/${id}`);
-      
-      if (response.data.status !== 'success') {
-        throw new Error(response.data.message || 'Failed to get registration request');
-      }
-
-      return response.data.data;
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to get registration request';
-      throw new Error(errorMessage);
-    }
+    const response = await api.get(`/portal-registration/requests/${id}`);
+    return normalizeRequest(response.data.data ?? response.data);
   },
 
-  /**
-   * Review registration request (approve/reject)
-   */
   async reviewRegistration(
-    id: string, 
-    action: 'APPROVED' | 'REJECTED', 
+    id: string,
+    // Accept both old 'APPROVED'/'REJECTED' and new 'approved'/'rejected'
+    action: 'APPROVED' | 'REJECTED' | 'approved' | 'rejected',
     adminNotes?: string
-  ): Promise<{
-    citizenId: string;
-    subscriberId?: string;
-    residentId?: string;
-    username?: string;
-    status: string;
-    reviewedAt: string;
-    tempPasswordSent: boolean;
-  }> {
-    try {
-      const response = await adminApi.post(`/citizen-registration/registration-requests/${id}/review`, {
-        action,
-        adminNotes,
-      });
-      
-      if (response.data.status !== 'success') {
-        throw new Error(response.data.message || 'Failed to review registration');
-      }
-
-      return response.data.data;
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to review registration';
-      throw new Error(errorMessage);
-    }
+  ): Promise<{ residentId?: string; citizenId?: string; status: string; reviewedAt: string }> {
+    const response = await api.post(`/portal-registration/requests/${id}/review`, {
+      action: action.toLowerCase(),
+      adminNotes,
+    });
+    const d = response.data.data ?? response.data;
+    return { ...d, citizenId: d.residentId ?? d.citizenId };
   },
 
-  /**
-   * Request resubmission from applicant
-   */
-  async requestResubmission(id: string, adminNotes: string): Promise<void> {
-    try {
-      const response = await adminApi.post(`/citizen-registration/registration-requests/${id}/request-docs`, {
-        adminNotes,
-      });
-      
-      if (response.data.status !== 'success') {
-        throw new Error(response.data.message || 'Failed to request resubmission');
-      }
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to request resubmission';
-      throw new Error(errorMessage);
-    }
-  },
-
-  /**
-   * Mark registration as under review
-   */
   async markUnderReview(id: string): Promise<void> {
-    try {
-      const response = await adminApi.patch(`/citizen-registration/registration-requests/${id}/under-review`);
-      
-      if (response.data.status !== 'success') {
-        throw new Error(response.data.message || 'Failed to mark as under review');
-      }
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to mark as under review';
-      throw new Error(errorMessage);
-    }
+    await api.patch(`/portal-registration/requests/${id}/under-review`);
   },
 
-  /**
-   * Delete rejected registrations older than X days (cron / manual admin)
-   */
-  async deleteRejectedRegistrations(daysOld: number = 30): Promise<{ deletedCount: number }> {
-    try {
-      const response = await adminApi.delete(
-        `/citizen-registration/registration-requests/rejected?daysOld=${daysOld}`
-      );
-      
-      if (response.data.status !== 'success') {
-        throw new Error(response.data.message || 'Failed to delete rejected registrations');
-      }
-
-      return response.data.data;
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to delete rejected registrations';
-      throw new Error(errorMessage);
-    }
+  async requestResubmission(id: string, adminNotes: string): Promise<void> {
+    await api.post(`/portal-registration/requests/${id}/request-docs`, { adminNotes });
   },
 
-  /**
-   * Delete a specific rejected registration (manual admin action)
-   */
+  async deleteRejectedRegistrations(daysOld = 30): Promise<{ deletedCount: number }> {
+    const response = await api.delete(
+      `/portal-registration/requests/rejected?daysOld=${daysOld}`
+    );
+    return response.data.data ?? response.data;
+  },
+
   async deleteRejectedRegistration(citizenId: string): Promise<void> {
-    try {
-      const response = await adminApi.delete(
-        `/citizen-registration/registration-requests/rejected/${citizenId}`
-      );
-      
-      if (response.data.status !== 'success') {
-        throw new Error(response.data.message || 'Failed to delete rejected registration');
-      }
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to delete rejected registration';
-      throw new Error(errorMessage);
-    }
+    await api.delete(`/portal-registration/requests/rejected/${citizenId}`);
   },
 };
 
-export default citizenRegistrationService;
+// =============================================================================
+// PORTAL REGISTRATION SERVICE (public — no auth)
+// =============================================================================
+
+export const citizenRegistrationService = {
+  async getRegistrationStatus(usernameOrPhone: string) {
+    const response = await api.get(`/portal-registration/status/${usernameOrPhone}`);
+    return response.data.data;
+  },
+};

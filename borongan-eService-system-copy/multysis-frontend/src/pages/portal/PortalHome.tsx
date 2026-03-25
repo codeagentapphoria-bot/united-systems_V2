@@ -33,14 +33,10 @@ export const PortalHome: React.FC = () => {
   // Handle Supabase Auth state changes (Google OAuth callback)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Supabase Auth Event:', event, session);
-
       if (event === 'SIGNED_IN' && session) {
         // User signed in via Supabase Auth (Google OAuth)
         const googleEmail = session.user.email;
         const googleId = session.user.id;
-
-        console.log('Google OAuth successful:', googleEmail);
 
         setIsGoogleAuthLoading(true);
 
@@ -100,7 +96,7 @@ export const PortalHome: React.FC = () => {
           setIsGoogleAuthLoading(false);
         }
       } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out from Supabase');
+        // Session cleared
       }
     });
 

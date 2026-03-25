@@ -85,8 +85,8 @@ const PetTable = ({
           <TableHeader>
             <TableRow>
               {renderSortableHeader(
-                "purok_name",
-                user?.target_type === "barangay" ? "Purok" : "Barangay"
+                "barangay_name",
+                "Barangay"
               )}
               {renderSortableHeader("pet_name", "Pet Name")}
               {renderSortableHeader("species", "Species")}
@@ -122,9 +122,7 @@ const PetTable = ({
                   className="cursor-pointer hover:bg-muted/50"
                 >
                   <TableCell className="capitalize">
-                    {user?.target_type === "barangay"
-                      ? pet.purok_name || "No Purok"
-                      : pet.barangay_name || "No Barangay"}
+                    {pet.barangay_name || "No Barangay"}
                   </TableCell>
                   <TableCell className="font-medium">{pet.pet_name}</TableCell>
                   <TableCell className="capitalize">{pet.species}</TableCell>

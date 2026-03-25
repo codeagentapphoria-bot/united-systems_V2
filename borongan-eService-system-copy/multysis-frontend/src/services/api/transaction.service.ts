@@ -13,7 +13,14 @@ export interface AppointmentNote {
 
 export interface Transaction {
   id: string;
-  subscriberId: string;
+  // Unified resident/guest fields (v2 schema)
+  residentId?: string;          // null for guest transactions
+  applicantName?: string;       // guest applicant name
+  applicantContact?: string;
+  applicantEmail?: string;
+  applicantAddress?: string;
+  // Legacy alias kept for components not yet updated
+  subscriberId?: string;
   serviceId: string;
   transactionType: string;
   transactionId: string;
@@ -22,7 +29,8 @@ export interface Transaction {
   paymentAmount: number;
   transmitalNo?: string;
   referenceNumberGeneratedAt?: string;
-  isResidentOfBorongan: boolean;
+  isLocalResident: boolean;
+  isResidentOfBorongan?: boolean; // legacy alias
   permitType?: string;
   status?: string;
   isPosted: boolean;
@@ -51,22 +59,13 @@ export interface Transaction {
     name: string;
     description?: string;
   };
-  subscriber?: {
+  // Resolved resident info (populated by backend when residentId is set)
+  resident?: {
     id: string;
-    citizen?: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      phoneNumber: string;
-      email?: string;
-    };
-    nonCitizen?: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      phoneNumber: string;
-      email?: string;
-    };
+    firstName?: string;
+    lastName?: string;
+    contactNumber?: string;
+    email?: string;
   };
   birthCertificate?: any;
   cedulas?: any;
@@ -117,7 +116,7 @@ export interface ServiceStatistics {
 export interface GetTransactionsByServiceFilters {
   paymentStatus?: string;
   status?: string;
-  isResidentOfBorongan?: boolean;
+  isLocalResident?: boolean;
   search?: string;
   startDate?: string;
   endDate?: string;
@@ -169,8 +168,8 @@ export const transactionService = {
 
     if (filters.paymentStatus) params.append('paymentStatus', filters.paymentStatus);
     if (filters.status) params.append('status', filters.status);
-    if (filters.isResidentOfBorongan !== undefined) {
-      params.append('isResidentOfBorongan', filters.isResidentOfBorongan.toString());
+    if (filters.isLocalResident !== undefined) {
+      params.append('isLocalResident', filters.isLocalResident.toString());
     }
     if (filters.search) params.append('search', filters.search);
     if (filters.startDate) params.append('startDate', filters.startDate);
@@ -202,14 +201,21 @@ export const transactionService = {
   },
 
   async createTransaction(data: {
-    subscriberId: string;
+    // Resident submission — provide residentId
+    residentId?: string;
+    // Guest submission — provide applicant fields instead
+    applicantName?: string;
+    applicantContact?: string;
+    applicantEmail?: string;
+    applicantAddress?: string;
     serviceId: string;
     serviceData?: Record<string, any>;
     paymentAmount?: number;
-    isResidentOfBorongan?: boolean;
+    isLocalResident?: boolean;
     permitType?: string;
     validIdToPresent?: string;
     remarks?: string;
+    preferredAppointmentDate?: string;
   }): Promise<Transaction> {
     const response = await api.post('/transactions', data);
     return response.data.data;

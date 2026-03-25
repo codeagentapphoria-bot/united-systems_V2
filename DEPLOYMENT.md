@@ -1,525 +1,421 @@
-# Deployment Guide — Borongan United Systems
+# United Systems — Deployment Guide
 
-**Systems:** BIMS (Barangay Information Management System) + E-Services (Multysis)
-**Database:** Unified Supabase PostgreSQL
-**Target:** Vercel (frontends + backends)
-
----
-
-## Table of Contents
-
-1. [Architecture Overview](#1-architecture-overview)
-2. [Prerequisites](#2-prerequisites)
-3. [Pre-Deployment Fixes Required](#3-pre-deployment-fixes-required)
-4. [Supabase Configuration](#4-supabase-configuration)
-5. [Google OAuth Configuration](#5-google-oauth-configuration)
-6. [BIMS Deployment](#6-bims-deployment)
-7. [E-Services Deployment](#7-e-services-deployment)
-8. [Post-Deployment Checklist](#8-post-deployment-checklist)
-9. [Known Limitations on Vercel](#9-known-limitations-on-vercel)
-10. [Seeding Production Database](#10-seeding-production-database)
+> **Version:** v2 (March 2026)  
+> **Architecture:** Two Express backends + two Vite frontends sharing one PostgreSQL database
 
 ---
 
-## 1. Architecture Overview
+## Overview
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                        VERCEL                           │
-│                                                         │
-│  ┌──────────────┐        ┌────────────────────────┐     │
-│  │ BIMS Frontend│        │ E-Services Frontend    │     │
-│  │  (React/Vite)│        │   (React/Vite)         │     │
-│  │  Port: 5173  │        │   Port: 5174           │     │
-│  └──────┬───────┘        └───────────┬────────────┘     │
-│         │                            │                  │
-│  ┌──────▼───────┐        ┌───────────▼────────────┐     │
-│  │ BIMS Backend │        │ E-Services Backend     │     │
-│  │ (Express.js) │        │ (Express.js/TypeScript)│     │
-│  │  Port: 5000  │        │   Port: 3000           │     │
-│  └──────┬───────┘        └───────────┬────────────┘     │
-└─────────┼────────────────────────────┼──────────────────┘
-          │                            │
-          └──────────────┬─────────────┘
-                         │
-              ┌──────────▼───────────┐
-              │  Supabase PostgreSQL │
-              │  (Unified Database)  │
-              │  exahyuahguriwrkk... │
-              └──────────────────────┘
-```
+United Systems consists of four components that must be deployed together:
 
-### Repository Structure
-```
-united-systems/
-├── barangay-information-management-system-copy/
-│   ├── client/          ← BIMS Frontend
-│   └── server/          ← BIMS Backend
-├── borongan-eService-system-copy/
-│   ├── multysis-frontend/   ← E-Services Frontend
-│   └── multysis-backend/    ← E-Services Backend
-└── united-database/         ← Migrations, seed scripts, test scripts
-```
+| Component | Directory | Default Port | Purpose |
+|---|---|---|---|
+| BIMS Backend | `barangay-information-management-system-copy/server/` | 5000 | Resident/barangay management, registration approvals, certificate generation |
+| E-Services Backend | `borongan-eService-system-copy/multysis-backend/` | 3000 | Portal auth, transactions, services catalogue |
+| BIMS Frontend | `barangay-information-management-system-copy/client/` | 5173 | Staff admin UI (barangay + municipality) |
+| E-Services Frontend | `borongan-eService-system-copy/multysis-frontend/` | 5174 | Resident-facing portal |
+
+**Both backends connect to the same PostgreSQL database.** They share tables: `residents`, `barangays`, `municipalities`, `registration_requests`, `transactions`, `services`, `certificate_templates`.
 
 ---
 
-## 2. Prerequisites
+## Prerequisites
 
-- [ ] Vercel account (https://vercel.com)
-- [ ] GitHub repository with all four projects
-- [ ] Supabase project already set up (project ID: `exahyuahguriwrkkeuvm`)
-- [ ] Google Cloud Console project with OAuth 2.0 credentials
-- [ ] Gmail account with App Password for SMTP (or any SMTP provider)
-- [ ] Node.js 18+ installed locally for running seed scripts
-
----
-
-## 3. Pre-Deployment Fixes Required
-
-Two things **must** be done before deploying backends to Vercel:
-
-### 3.1 File Uploads → Supabase Storage
-
-Both backends currently save uploaded files to a local `uploads/` folder using `multer`.
-Vercel's filesystem is **ephemeral** — files are lost between deployments.
-
-**Action required:** Replace `multer` disk storage with Supabase Storage in both backends.
-
-Affected upload paths:
-- **BIMS:** resident photos, ID documents, archive documents, inventory images
-  - `server/src/middlewares/upload.js` — change `diskStorage` to Supabase Storage upload
-- **E-Services:** citizen photos, proof of identification, selfie verification
-  - `multysis-backend/src/middleware/upload.middleware.ts` — change `diskStorage` to Supabase Storage upload
-
-**Supabase Storage buckets to create:**
-```
-bims-uploads        (public: false — serve via signed URLs)
-eservice-uploads    (public: false — serve via signed URLs)
-```
-
-Create buckets in: Supabase Dashboard → Storage → New Bucket
-
-**Implementation pattern (replace multer diskStorage):**
-```ts
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-// Instead of writing to disk, upload to Supabase Storage:
-const { data, error } = await supabase.storage
-  .from('bims-uploads')           // or 'eservice-uploads'
-  .upload(`residents/${filename}`, fileBuffer, { contentType: mimeType });
-
-const publicUrl = supabase.storage
-  .from('bims-uploads')
-  .getPublicUrl(`residents/${filename}`).data.publicUrl;
-// Store publicUrl in the database instead of a local file path
-```
-
-Add `SUPABASE_SERVICE_ROLE_KEY` to backend env vars (get from Supabase Dashboard → Settings → API → service_role key — **keep secret**).
-
-### 3.2 Add `vercel.json` to Both Backends
-
-Each backend needs a `vercel.json` at its root so Vercel knows to route all requests through Express.
-
-**BIMS Backend** — create `barangay-information-management-system-copy/server/vercel.json`:
-```json
-{
-  "version": 2,
-  "builds": [
-    {
-      "src": "server.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "server.js"
-    }
-  ]
-}
-```
-
-**E-Services Backend** — create `borongan-eService-system-copy/multysis-backend/vercel.json`:
-```json
-{
-  "version": 2,
-  "builds": [
-    {
-      "src": "dist/index.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "dist/index.js"
-    }
-  ]
-}
-```
-
-Also add a `build` script to E-Services backend `package.json` (already present: `"build": "tsc"`).
-Vercel will run `npm run build` automatically before deploying.
+| Requirement | Version | Notes |
+|---|---|---|
+| Node.js | ≥ 20 | Both backends |
+| PostgreSQL | ≥ 14 (with PostGIS) | Shared database |
+| Redis | ≥ 7 | Session caching (optional in dev) |
+| Chromium / Chrome | any | Required by Puppeteer for certificate PDF generation |
+| `psql` CLI | any | For running schema + seed scripts |
 
 ---
 
-## 4. Supabase Configuration
+## Step 1 — Database Setup
 
-### 4.1 Authentication → URL Configuration
+Both backends must point to the same database. Run the scripts once on a fresh database:
 
-In Supabase Dashboard → Authentication → URL Configuration:
-
-**Site URL:**
-```
-https://<eservice-frontend>.vercel.app
-```
-
-**Redirect URLs (add all):**
-```
-https://<eservice-frontend>.vercel.app
-https://<eservice-frontend>.vercel.app/**
-http://localhost:5174
-http://localhost:5174/**
-```
-
-### 4.2 Storage Buckets (after fix 3.1)
-
-Create in Supabase Dashboard → Storage:
-
-| Bucket | Public | Purpose |
-|--------|--------|---------|
-| `bims-uploads` | No | BIMS file uploads (residents, archives, inventory) |
-| `eservice-uploads` | No | E-Services file uploads (citizen docs, ID photos) |
-
-### 4.3 Google OAuth Provider
-
-In Supabase Dashboard → Authentication → Providers → Google:
-- **Enable** the Google provider
-- **Client ID:** `686060403294-2v8vh2662spp7j5rpo3s55msinpnl00j.apps.googleusercontent.com`
-- **Client Secret:** *(get from Google Cloud Console — kept secret)*
-
----
-
-## 5. Google OAuth Configuration
-
-### 5.1 Google Cloud Console
-
-In [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials → your OAuth 2.0 Client:
-
-**Authorized JavaScript Origins:**
-```
-http://localhost:5174
-http://localhost:3000
-https://<eservice-frontend>.vercel.app
-https://<eservice-backend>.vercel.app
-```
-
-**Authorized Redirect URIs:**
-```
-https://exahyuahguriwrkkeuvm.supabase.co/auth/v1/callback
-http://localhost:3000/api/auth/google/callback
-https://<eservice-backend>.vercel.app/api/auth/google/callback
-```
-
-> **Note:** Replace `<eservice-frontend>` and `<eservice-backend>` with the actual Vercel project URLs assigned after first deployment.
-
----
-
-## 6. BIMS Deployment
-
-### 6.1 BIMS Backend
-
-**Vercel Project Settings:**
-- Root Directory: `barangay-information-management-system-copy/server`
-- Framework Preset: Other
-- Build Command: *(leave empty — no build step for plain Node.js)*
-- Output Directory: *(leave empty)*
-- Install Command: `npm install`
-
-**Environment Variables (set in Vercel Dashboard):**
-
-| Variable | Value |
-|----------|-------|
-| `NODE_ENV` | `production` |
-| `PORT` | `5000` |
-| `PG_USER` | `postgres.exahyuahguriwrkkeuvm` |
-| `PG_HOST` | `aws-1-ap-south-1.pooler.supabase.com` |
-| `PG_DATABASE` | `postgres` |
-| `PG_PASSWORD` | *(Supabase DB password)* |
-| `PG_PORT` | `6543` |
-| `PG_SSL` | `true` |
-| `JWT_SECRET` | *(generate: `openssl rand -base64 64`)* |
-| `JWT_EXPIRES_IN` | `1d` |
-| `CORS_ORIGIN` | `https://<bims-frontend>.vercel.app` |
-| `CORS_CREDENTIALS` | `true` |
-| `CLIENT_URL` | `https://<bims-frontend>.vercel.app` |
-| `GMAIL_USER` | `rosettascript@gmail.com` |
-| `GMAIL_PASS` | *(Gmail App Password)* |
-| `SMTP_FROM` | `noreply@borongan.gov.ph` |
-| `BCRYPT_ROUNDS` | `12` |
-| `OPENAPI_ENABLED` | `true` |
-| `OPENAPI_DEFAULT_RATE_LIMIT_PER_MINUTE` | `60` |
-| `RATE_LIMIT_WINDOW_MS` | `900000` |
-| `RATE_LIMIT_MAX_REQUESTS` | `100` |
-| `LOG_LEVEL` | `info` |
-| `SUPABASE_URL` | `https://exahyuahguriwrkkeuvm.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | *(from Supabase Dashboard → Settings → API)* |
-| `DEFAULT_MUNICIPALITY_NAME` | `City of Borongan` |
-| `DEFAULT_REGION` | `Region VIII` |
-| `DEFAULT_PROVINCE` | `Eastern Samar` |
-| `DB_SEEDED` | `true` |
-| `GIS_DATA_IMPORTED` | `true` |
-
-> **Redis:** BIMS uses Redis for caching. On Vercel serverless, Redis connections may not persist.
-> Option A: Remove Redis caching (set `REDIS_HOST` to empty — the app degrades gracefully).
-> Option B: Use [Upstash Redis](https://upstash.com) (serverless-compatible, free tier available).
->
-> | `REDIS_HOST` | `<upstash-endpoint>` or leave empty |
-> | `REDIS_PORT` | `6379` |
-> | `REDIS_PASSWORD` | *(Upstash password or empty)* |
-
-### 6.2 BIMS Frontend
-
-**Vercel Project Settings:**
-- Root Directory: `barangay-information-management-system-copy/client`
-- Framework Preset: Vite
-- Build Command: `npm run build`
-- Output Directory: `dist`
-
-**`vercel.json`** — create in `barangay-information-management-system-copy/client/vercel.json`:
-```json
-{
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
-```
-
-**Environment Variables:**
-
-| Variable | Value |
-|----------|-------|
-| `VITE_API_BASE_URL` | `https://<bims-backend>.vercel.app/api` |
-
----
-
-## 7. E-Services Deployment
-
-### 7.1 E-Services Backend
-
-**Vercel Project Settings:**
-- Root Directory: `borongan-eService-system-copy/multysis-backend`
-- Framework Preset: Other
-- Build Command: `npm run build`
-- Output Directory: `dist`
-- Install Command: `npm install`
-
-**Environment Variables (set in Vercel Dashboard):**
-
-| Variable | Value |
-|----------|-------|
-| `NODE_ENV` | `production` |
-| `PORT` | `3000` |
-| `DATABASE_URL` | `postgres://postgres.exahyuahguriwrkkeuvm:<password>@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true` |
-| `DIRECT_URL` | `postgres://postgres.exahyuahguriwrkkeuvm:<password>@aws-1-ap-south-1.pooler.supabase.com:5432/postgres` |
-| `JWT_SECRET` | *(generate: `openssl rand -base64 64`)* |
-| `JWT_REFRESH_SECRET` | *(generate: `openssl rand -base64 64`)* |
-| `JWT_EXPIRES_IN` | `1h` |
-| `JWT_REFRESH_EXPIRES_IN` | `7d` |
-| `SESSION_SECRET` | *(generate: `openssl rand -base64 64`)* |
-| `SESSION_MAX_AGE` | `86400000` |
-| `FRONTEND_URL` | `https://<eservice-frontend>.vercel.app` |
-| `CORS_ORIGIN` | `https://<eservice-frontend>.vercel.app` |
-| `EMAIL_ENABLED` | `true` |
-| `SMTP_HOST` | `smtp.gmail.com` |
-| `SMTP_PORT` | `587` |
-| `SMTP_SECURE` | `false` |
-| `SMTP_USER` | `rosettascript@gmail.com` |
-| `SMTP_PASS` | *(Gmail App Password)* |
-| `SMTP_FROM` | `noreply@borongan.gov.ph` |
-| `GOOGLE_CLIENT_ID` | `686060403294-2v8vh2662spp7j5rpo3s55msinpnl00j.apps.googleusercontent.com` |
-| `GOOGLE_CLIENT_SECRET` | *(from Google Cloud Console)* |
-| `GOOGLE_CALLBACK_URL` | `https://<eservice-backend>.vercel.app/api/auth/google/callback` |
-| `SUPABASE_URL` | `https://exahyuahguriwrkkeuvm.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | *(from Supabase Dashboard → Settings → API)* |
-| `RATE_LIMIT_WINDOW_MS` | `900000` |
-| `RATE_LIMIT_MAX_REQUESTS` | `100` |
-| `MAX_FILE_SIZE` | `5242880` |
-| `API_PREFIX` | `/api` |
-| `LOG_LEVEL` | `info` |
-| `OTP_EXPIRY_MINUTES` | `5` |
-| `OTP_LENGTH` | `6` |
-| `DEBUG_DB` | `false` |
-
-> **Redis:** Same as BIMS — use Upstash or leave empty.
->
-> | `REDIS_HOST` | `<upstash-endpoint>` or leave empty |
-> | `REDIS_PORT` | `6379` |
-> | `REDIS_PASSWORD` | *(Upstash password or empty)* |
-
-### 7.2 E-Services Frontend
-
-**Vercel Project Settings:**
-- Root Directory: `borongan-eService-system-copy/multysis-frontend`
-- Framework Preset: Vite
-- Build Command: `npm run build`
-- Output Directory: `dist`
-
-**`vercel.json`** — create in `borongan-eService-system-copy/multysis-frontend/vercel.json`:
-```json
-{
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
-```
-
-**Environment Variables:**
-
-| Variable | Value |
-|----------|-------|
-| `VITE_API_BASE_URL` | `https://<eservice-backend>.vercel.app/api` |
-| `VITE_API_TIMEOUT` | `30000` |
-| `VITE_APP_NAME` | `Borongan E-Services` |
-| `VITE_APP_VERSION` | `2.0.0` |
-| `VITE_SUPABASE_URL` | `https://exahyuahguriwrkkeuvm.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4YWh5dWFoZ3VyaXdya2tldXZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDAzMDksImV4cCI6MjA4OTc3NjMwOX0.gfPJwTsk7vRUBhvNvLqKIBOtQY0Ucg1XYRaR30VwgDA` |
-| `VITE_SUPABASE_TIMEOUT` | `120000` |
-| `VITE_GOOGLE_CLIENT_ID` | `686060403294-2v8vh2662spp7j5rpo3s55msinpnl00j.apps.googleusercontent.com` |
-| `VITE_WS_URL` | `wss://<eservice-backend>.vercel.app` |
-| `VITE_ENABLE_ANALYTICS` | `false` |
-| `VITE_ENABLE_DEBUG` | `false` |
-
----
-
-## 8. Post-Deployment Checklist
-
-After all four Vercel projects are deployed, verify in order:
-
-### Step 1 — Update URLs in Google Cloud Console
-Replace all `<placeholder>` entries with actual Vercel URLs (see Section 5.1).
-
-### Step 2 — Update Supabase Auth URLs
-Replace all `<placeholder>` entries with actual Vercel URLs (see Section 4.1).
-
-### Step 3 — Update CORS / Frontend URLs
-In both backend deployments, update these env vars with the actual Vercel URLs:
-- BIMS Backend: `CORS_ORIGIN`, `CLIENT_URL`
-- E-Services Backend: `CORS_ORIGIN`, `FRONTEND_URL`, `GOOGLE_CALLBACK_URL`
-
-After updating env vars, **redeploy both backends** (Vercel → Deployments → Redeploy).
-
-### Step 4 — Verify health endpoints
-```
-GET https://<bims-backend>.vercel.app/health
-GET https://<eservice-backend>.vercel.app/health
-```
-Both should return `200 OK`.
-
-### Step 5 — Test admin logins
-- **BIMS admin:** `bims_admin@borongan.gov.ph` / `Admin1234!`
-- **E-Services admin:** `admin@eservice.com` / `Test1234!`
-
-### Step 6 — Run database seed (if fresh Supabase project)
-From a local machine with the repo cloned:
 ```bash
-# Set the unified DB URL
-export UNIFIED_DB_URL="postgresql://postgres.<project-id>:<password>@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+# 1. Apply the schema (creates all tables, indexes, triggers, extensions)
+psql -U postgres -d your_database -f united-database/schema.sql
 
-# Run the unified seed
-psql "$UNIFIED_DB_URL" -f united-database/seed.sql
+# 2. Load seed data (roles, permissions, services, FAQs, etc.)
+psql -U postgres -d your_database -f united-database/seed.sql
 
-# Run E-Services specific seeds
+# Expected output from seed.sql:
+#   Roles:                        4
+#   Permissions:                  15
+#   Role-Permission mappings:     27
+#   Social amelioration settings: 22
+#   Government programs:          8
+#   FAQs:                         7
+#   Services (certificates):      9
+```
+
+> **Important:** Always run `schema.sql` before `seed.sql`. The seed depends on tables the schema creates.
+
+### PostGIS
+
+The schema requires the PostGIS extension. It is automatically enabled by `schema.sql`:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
+```
+
+If you are using Supabase, PostGIS is available by default. For self-hosted PostgreSQL, install the `postgis` package for your OS before running the schema.
+
+### Local dev database
+
+```bash
+createdb united_systems_dev
+psql -U postgres -d united_systems_dev -f united-database/schema.sql
+psql -U postgres -d united_systems_dev -f united-database/seed.sql
+```
+
+---
+
+## Step 2 — Environment Variables
+
+### Critical: JWT_SECRET must be identical on both backends
+
+The BIMS backend validates JWT tokens issued by the E-Services backend (e.g. residents calling BIMS household routes). Both backends must share the same secret:
+
+```env
+# Both .env files must have the exact same value:
+JWT_SECRET=your-long-random-secret-min-32-chars
+```
+
+Generate a strong secret:
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+---
+
+### BIMS Backend — `barangay-information-management-system-copy/server/.env`
+
+See `.env.example` in the same directory for the full template. Key variables:
+
+```env
+# Database (same instance as E-Services backend)
+PG_USER=postgres
+PG_HOST=localhost
+PG_DATABASE=united_systems
+PG_PASSWORD=your_db_password
+PG_PORT=5432
+PG_SSL=false
+
+# JWT — must match E-Services backend exactly
+JWT_SECRET=your-long-random-secret-min-32-chars
+JWT_EXPIRES_IN=1d
+
+PORT=5000
+NODE_ENV=production
+
+# CORS — comma-separate to allow both frontends
+# The E-Services portal calls BIMS directly for household data
+CORS_ORIGIN=https://bims.your-domain.com,https://portal.your-domain.com
+
+# Portal URL — used in QR codes and redirect notices
+PORTAL_URL=https://portal.your-domain.com
+
+# Puppeteer (required for certificate PDF generation — see Step 4)
+# PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+# PUPPETEER_NO_SANDBOX=true
+
+# Email (optional)
+GMAIL_USER=your_gmail@gmail.com
+GMAIL_PASS=your_gmail_app_password
+
+# First admin account (created on first boot)
+DEFAULT_ADMIN_EMAIL=admin@your-domain.gov.ph
+DEFAULT_ADMIN_PASSWORD=ChangeThisPassword123!
+DEFAULT_MUNICIPALITY_NAME=Your Municipality
+DEFAULT_REGION=Your Region
+DEFAULT_PROVINCE=Your Province
+```
+
+---
+
+### E-Services Backend — `borongan-eService-system-copy/multysis-backend/.env`
+
+See `.env.example` in the same directory for the full template. Key variables:
+
+```env
+# Database (Prisma — same DB as BIMS backend)
+DATABASE_URL=postgres://user:password@host:5432/dbname
+DIRECT_URL=postgres://user:password@host:5432/dbname
+
+# JWT — must match BIMS backend exactly
+JWT_SECRET=your-long-random-secret-min-32-chars
+JWT_REFRESH_SECRET=another-long-random-secret-for-refresh
+
+PORT=3000
+NODE_ENV=production
+
+# CORS — E-Services portal frontend
+CORS_ORIGIN=https://portal.your-domain.com
+
+# Portal URL (used in approval email login links)
+PORTAL_URL=https://portal.your-domain.com
+
+# Email (Gmail App Password)
+SMTP_USER=your_gmail@gmail.com
+SMTP_PASS=your_gmail_app_password
+SMTP_FROM=noreply@your-domain.gov.ph
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_CALLBACK_URL=https://eservice-api.your-domain.com/api/auth/portal/google/callback
+```
+
+---
+
+### BIMS Frontend — `barangay-information-management-system-copy/client/.env`
+
+```env
+VITE_API_BASE_URL=https://bims-api.your-domain.com/api
+VITE_SERVER_URL=https://bims-api.your-domain.com
+VITE_ESERVICE_URL=https://portal.your-domain.com
+```
+
+---
+
+### E-Services Frontend — `borongan-eService-system-copy/multysis-frontend/.env`
+
+```env
+VITE_API_BASE_URL=https://eservice-api.your-domain.com/api
+VITE_BIMS_API_BASE_URL=https://bims-api.your-domain.com/api
+VITE_PORTAL_URL=https://portal.your-domain.com
+
+# Supabase (for Google OAuth only)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_TIMEOUT=120000
+```
+
+---
+
+## Step 3 — Install Dependencies
+
+```bash
+# BIMS backend
+cd barangay-information-management-system-copy/server && npm install
+
+# E-Services backend
 cd borongan-eService-system-copy/multysis-backend
-npx ts-node src/database/seeds/run_missing_seeds.ts
+npm install
+npx prisma generate          # regenerate Prisma client against current schema
+
+# BIMS frontend
+cd barangay-information-management-system-copy/client && npm install
+
+# E-Services frontend
+cd borongan-eService-system-copy/multysis-frontend && npm install
 ```
 
-### Step 7 — Run GIS data import (BIMS)
+---
+
+## Step 4 — Puppeteer (PDF Generation)
+
+The BIMS backend generates certificate PDFs using Puppeteer (headless Chrome). Chromium is downloaded automatically on `npm install`.
+
+**Linux server / no display:**
+
+```env
+# Add to BIMS backend .env:
+PUPPETEER_NO_SANDBOX=true
+```
+
+**Docker:** Install Chromium dependencies in your Dockerfile:
+
+```dockerfile
+RUN apt-get update && apt-get install -y \
+    chromium fonts-liberation libatk-bridge2.0-0 libatk1.0-0 \
+    libcups2 libdbus-1-3 libnspr4 libnss3 libx11-xcb1 \
+    libxcomposite1 libxdamage1 libxrandr2 xdg-utils \
+    --no-install-recommends && rm -rf /var/lib/apt/lists/*
+
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_NO_SANDBOX=true
+```
+
+---
+
+## Step 5 — Build Frontends
+
 ```bash
+# BIMS frontend
+cd barangay-information-management-system-copy/client
+npm run build
+# Output → dist/ (serve as static files)
+
+# E-Services frontend
+cd borongan-eService-system-copy/multysis-frontend
+npm run build
+# Output → dist/ (serve as static files)
+```
+
+Serve `dist/` with nginx, Caddy, or a CDN. For SPAs, configure your server to serve `index.html` for all routes.
+
+---
+
+## Step 6 — Start Backends
+
+```bash
+# BIMS backend
 cd barangay-information-management-system-copy/server
-node scripts/importGisData.js
+node server.js
+# With PM2:  pm2 start server.js --name bims-backend
+
+# E-Services backend
+cd borongan-eService-system-copy/multysis-backend
+npm run build               # compile TypeScript → dist/
+node dist/index.js
+# With PM2:  pm2 start dist/index.js --name eservice-backend
 ```
 
----
-
-## 9. Known Limitations on Vercel
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| REST API | ✅ Works | All endpoints function normally |
-| Auth (JWT + cookies) | ✅ Works | Standard stateless auth |
-| Email (SMTP) | ✅ Works | Stateless, no issue |
-| Google OAuth | ✅ Works | Requires correct redirect URIs |
-| Database (Supabase) | ✅ Works | Already production-ready |
-| File uploads | ⚠️ Requires fix | Must migrate multer → Supabase Storage before deploying |
-| Redis caching | ⚠️ Requires fix | Use Upstash Redis (serverless-compatible) or disable |
-| Socket.io real-time | ❌ Broken | Vercel serverless does not support persistent WebSockets. Citizens must manually refresh to see transaction status updates. All other functionality works. |
-| Cron jobs / background tasks | ❌ Not supported | If any background jobs are added later, use Vercel Cron or a separate worker |
-
-### Socket.io Impact
-The only feature affected by missing WebSockets is **live transaction status updates** on the citizen portal. When an admin updates a transaction status:
-- **With WebSockets (local dev):** Citizen's page auto-updates immediately
-- **Without WebSockets (Vercel):** Citizen needs to manually refresh the page
-
-All other features — submitting requests, admin approval, email notifications, file uploads (after fix), Google OAuth — work normally.
-
-### Recommended alternative if WebSockets are critical
-Deploy backends to **Railway** (https://railway.app) instead of Vercel:
-- Supports persistent WebSocket connections
-- Supports persistent filesystem (or use Supabase Storage)
-- Deploys directly from GitHub
-- Free tier available
-- Frontends can still be on Vercel
+Health checks:
+- BIMS: `GET http://localhost:5000/health`
+- E-Services: the app logs its port on startup
 
 ---
 
-## 10. Seeding Production Database
+## Step 7 — Initial Municipality Setup (GeoJSON)
 
-If deploying to a new/empty Supabase project, run seeds in this order:
+**This must be done before any resident can register.**
+
+The GeoJSON setup auto-creates all barangays for the municipality from official PSGC data. Without this, the portal's address dropdown is empty and registration requests have no barangay to route to.
+
+### Prerequisites for setup
+
+The `gis_municipality` and `gis_barangay` tables must contain PSGC GeoJSON polygon data. Load the included GIS seed before running setup:
 
 ```bash
-# 1. Run schema migrations
-psql "$UNIFIED_DB_URL" -f united-database/migrations/01_create_schema.sql
-psql "$UNIFIED_DB_URL" -f united-database/migrations/02_seed_gis.sql
-
-# 2. Run base seed (roles, permissions, E-Services data)
-psql "$UNIFIED_DB_URL" -f united-database/seed.sql
-
-# 3. Run E-Services specific seeds (services + e-government listings)
-cd borongan-eService-system-copy/multysis-backend
-npx ts-node src/database/seeds/run_missing_seeds.ts
-
-# 4. Enable pg_trgm extension (for fuzzy matching)
-psql "$UNIFIED_DB_URL" -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
-
-# 5. (Optional) Run fuzzy match after importing real resident + citizen data
-psql "$UNIFIED_DB_URL" -f united-database/migrations/03_fuzzy_match.sql
+psql "$DB_URL" -f united-database/seed_gis.sql
 ```
 
-### Default Admin Accounts
+This populates Eastern Samar province geometry data. For a different province see **Deploying to a Different Province** below.
 
-**BIMS Admin** (municipality-level, full access):
-- Email: `bims_admin@borongan.gov.ph`
-- Password: `Admin1234!`
-- Role: `admin` → `municipality` scope
+### Running setup
 
-**E-Services Admin** (super_admin, full access):
-- Email: `admin@eservice.com`
-- Password: `Test1234!`
-- Role: `super_admin`
+1. Log in to the BIMS admin UI as the **municipality admin**
+2. Go to **Setup** in the sidebar
+3. The interactive map shows all municipalities in the loaded GeoJSON
+4. Click your municipality on the map
+5. Enter **Province** and **Region** in the confirmation dialog
+6. Click **Confirm**
 
-> ⚠️ **Change both passwords immediately after first login in production.**
+All barangays are auto-created from GIS data. The municipality is marked `active` and the portal becomes functional.
+
+### Deploying to a Different Province
+
+The included `seed_gis.sql` contains Eastern Samar municipality and barangay geometries only. To deploy in another province:
+
+1. Obtain GeoJSON polygon data for your province's municipalities and barangays (available from the Philippine Statistics Authority PSGC portal or OpenStreetMap/GADM exports)
+2. Review `united-database/prepare.sh` — it converts shapefiles/GeoJSON to SQL INSERT statements targeting `gis_municipality` and `gis_barangay`. Adapt the input file paths and PSGC code mappings for your province.
+3. Run `prepare.sh` to generate a new `seed_gis.sql` for your province
+4. Load it with `psql "$DB_URL" -f united-database/seed_gis.sql`
+
+The seed must populate `gis_municipality` (municipal boundaries + PSGC municipality codes) and `gis_barangay` (barangay boundaries + PSGC barangay codes) before the setup wizard can auto-create barangays.
 
 ---
 
-## Quick Reference — Vercel Project Setup Order
+## Step 8 — Verify with the Test Script
 
-1. Deploy **BIMS Backend** first → note its URL
-2. Deploy **BIMS Frontend** → set `VITE_API_BASE_URL` to BIMS Backend URL
-3. Deploy **E-Services Backend** → note its URL
-4. Deploy **E-Services Frontend** → set `VITE_API_BASE_URL` to E-Services Backend URL
-5. Update Google Cloud Console + Supabase with all production URLs
-6. Redeploy both backends with updated `CORS_ORIGIN` / `FRONTEND_URL`
+```bash
+# Run from the repository root
+chmod +x united-database/test_mutations_bims.sh
+
+# Default (local dev):
+./united-database/test_mutations_bims.sh
+
+# Custom DB / server:
+DB_URL="postgresql://user:pass@host/dbname" \
+BIMS_URL="http://your-server:5000/api" \
+./united-database/test_mutations_bims.sh
+```
+
+Expected: all tests PASS, 0 FAIL.
 
 ---
 
-*Document prepared for DevOps handoff — Borongan United Systems v1.0*
-*Last updated: March 2026*
+## Step 9 — End-to-End Smoke Tests
+
+Run these manually in order after a fresh deployment:
+
+### 1 — GeoJSON setup → barangays exist
+- BIMS admin → Setup → click municipality → confirm
+- Verify barangays appear in the Barangays list
+
+### 2 — Resident registration → approval → login
+- Portal `/portal/register` → 4-step wizard
+- BIMS admin → Registrations → Approve
+- Resident receives `resident_id` (e.g. `RES-2026-0000001`)
+- Resident logs in with username/password
+- My Profile shows correct address; My ID shows QR card
+
+### 3 — Service request (resident)
+- Portal → E-Government → Request Service
+- Submit form → reference number shown
+- Portal → Track Application → enter reference
+
+### 4 — Guest application
+- Log out → E-Government → Apply as Guest
+- Barangay Certificate services show "residents only" notice
+- Select a non-certificate service → submit → reference number shown
+- Portal → Track → enter reference
+
+### 5 — Certificate template + PDF
+- BIMS municipality admin → Certificate Templates → New Template (Barangay Clearance)
+- BIMS barangay staff → Certificates → pending clearance request → Generate & Download
+- PDF downloads with resident name filled in
+
+### 6 — Bulk ID
+- BIMS municipality admin → Bulk ID → select barangay → Download PDF
+- PDF contains ID cards for active residents
+
+---
+
+## Troubleshooting
+
+### PDF generation fails (`Failed to launch the browser process`)
+Add `PUPPETEER_NO_SANDBOX=true` to BIMS backend `.env`.
+
+### CORS errors in browser console
+`CORS_ORIGIN` in both backend `.env` files must include the exact origin (protocol + host + port, no trailing slash) of the calling frontend. Comma-separate multiple origins.
+
+### Portal household shows 401
+The E-Services portal calls the BIMS backend directly for household data. Both backends must have **identical** `JWT_SECRET` values.
+
+### "Barangay not found" during registration
+Complete Step 7 (GeoJSON municipality setup) before accepting registrations.
+
+### Resident can log in with `pending` status
+Ensure the E-Services backend is on the latest version. `auth.service.ts → portalLogin()` must check for `pending` and `rejected` statuses in addition to `inactive`.
+
+### Prisma schema drift
+If you get Prisma errors, regenerate the client:
+```bash
+cd borongan-eService-system-copy/multysis-backend
+npx prisma generate
+```
+
+---
+
+## Key Design Notes
+
+| Topic | Detail |
+|---|---|
+| **Single approver** | Registration requests are approved/rejected in BIMS only. The E-Services admin panel shows them read-only to prevent race conditions. |
+| **No manual barangay entry** | Barangays are always auto-created from GeoJSON via Setup. |
+| **Resident status lifecycle** | `pending` → `active` (on approval) or `pending` → `rejected`. Active residents can log in; pending and rejected cannot. |
+| **Guest transactions** | Transactions with no `resident_id` are guest submissions. They appear in the E-Services admin list but NOT in the BIMS certificate queue (no barangay to route to). |
+| **Certificate templates** | One active template per certificate type per municipality. All barangays in the municipality share the same template. Templates are managed by the municipality admin in BIMS. |
+| **Shared database** | Both backends write to the same PostgreSQL instance. There is no HTTP communication between the two backends — they share data via the DB. The only exception is the E-Services frontend calling the BIMS backend directly for household data (cross-origin, handled via CORS + JWT). |
+
+---
+
+*United Systems Deployment Guide — v2, March 2026*

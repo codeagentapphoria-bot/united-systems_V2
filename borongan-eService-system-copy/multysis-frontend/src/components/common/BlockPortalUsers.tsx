@@ -35,7 +35,7 @@ export const BlockPortalUsers: React.FC<BlockPortalUsersProps> = ({
   }
 
   // If user is authenticated and is a portal user (subscriber), redirect to portal
-  if (isAuthenticated && user && (user.role === 'user' || user.role === 'subscriber')) {
+  if (isAuthenticated && user && user.role === 'resident') {
     return <Navigate to="/portal" replace />;
   }
 

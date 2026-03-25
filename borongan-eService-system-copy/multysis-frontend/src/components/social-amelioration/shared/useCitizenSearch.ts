@@ -1,46 +1,56 @@
-// React imports
-import { useCallback, useEffect, useState } from 'react';
+/**
+ * useCitizenSearch.ts — updated for unified residents (was: useCitizens hook)
+ *
+ * Used by social amelioration modals (AddPWDModal, AddSeniorCitizenModal, etc.)
+ * to search for residents to link as beneficiaries.
+ */
 
-// Hooks
-import { useCitizens } from '@/hooks/citizens/useCitizens';
+import { useCallback, useEffect, useState } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
+import { residentService, type Resident } from '@/services/api/resident.service';
 
 export const useCitizenSearch = () => {
-  const {
-    citizens,
-    isLoading: isLoadingCitizens,
-    setSearchQuery,
-    selectedCitizen,
-    setSelectedCitizen,
-  } = useCitizens();
-  
+  const [residents, setResidents]             = useState<Resident[]>([]);
+  const [isLoading, setIsLoading]             = useState(false);
   const [localSearchQuery, setLocalSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(localSearchQuery, 300);
-  
-  // Update the actual search query when debounced value changes
-  useEffect(() => {
-    setSearchQuery(debouncedSearchQuery);
-  }, [debouncedSearchQuery, setSearchQuery]);
+  const [selectedCitizen, setSelectedCitizen] = useState<Resident | null>(null);
 
-  // Filter citizens based on search (using local search for immediate UI feedback)
-  const filteredCitizens = citizens.filter(citizen => {
-    const fullName = `${citizen.firstName} ${citizen.middleName || ''} ${citizen.lastName}`.toLowerCase();
-    const searchLower = localSearchQuery.toLowerCase();
-    return fullName.includes(searchLower) ||
-           citizen.residentId?.toLowerCase().includes(searchLower) ||
-           citizen.phoneNumber?.toLowerCase().includes(searchLower);
+  const debouncedSearch = useDebounce(localSearchQuery, 300);
+
+  useEffect(() => {
+    if (!debouncedSearch.trim()) {
+      setResidents([]);
+      return;
+    }
+    setIsLoading(true);
+    residentService
+      .searchResidents(debouncedSearch, { status: 'active' })
+      .then(setResidents)
+      .catch(() => setResidents([]))
+      .finally(() => setIsLoading(false));
+  }, [debouncedSearch]);
+
+  const filteredCitizens = residents.filter((r) => {
+    const fullName = `${r.firstName} ${r.middleName ?? ''} ${r.lastName}`.toLowerCase();
+    const q = localSearchQuery.toLowerCase();
+    return (
+      fullName.includes(q) ||
+      r.residentId?.toLowerCase().includes(q) ||
+      r.contactNumber?.toLowerCase().includes(q)
+    );
   });
 
   const resetSearch = useCallback(() => {
     setLocalSearchQuery('');
-    setSearchQuery('');
+    setResidents([]);
     setSelectedCitizen(null);
-  }, [setSearchQuery, setSelectedCitizen]);
+  }, []);
 
   return {
-    citizens,
+    // kept old names for backward compat with callers
+    citizens: residents,
     filteredCitizens,
-    isLoadingCitizens,
+    isLoadingCitizens: isLoading,
     localSearchQuery,
     setLocalSearchQuery,
     selectedCitizen,
@@ -48,4 +58,3 @@ export const useCitizenSearch = () => {
     resetSearch,
   };
 };
-

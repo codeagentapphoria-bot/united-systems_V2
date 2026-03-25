@@ -29,6 +29,7 @@ export const ADMIN_ROUTES = {
     SETUP: '/admin/municipality/setup',
     SYSTEM_MANAGEMENT: '/admin/municipality/system-management',
     GUIDE: '/admin/municipality/guide',
+    CERTIFICATE_TEMPLATES: '/admin/municipality/certificate-templates',
   },
   
   // Barangay Routes
@@ -37,10 +38,10 @@ export const ADMIN_ROUTES = {
     RESIDENTS: '/admin/barangay/residents',
     HOUSEHOLDS: '/admin/barangay/households',
     PETS: '/admin/barangay/pets',
-    PUROKS: '/admin/barangay/puroks',
     ARCHIVES: '/admin/barangay/archives',
     INVENTORY: '/admin/barangay/inventory',
     REQUESTS: '/admin/barangay/requests',
+    CERTIFICATES: '/admin/barangay/certificates',
     OFFICIALS: '/admin/barangay/officials',
     ACCOUNTS: '/admin/barangay/accounts',
     SETTINGS: '/admin/barangay/settings',

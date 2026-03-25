@@ -38,8 +38,6 @@ export const protect = async (req, res, next) => {
       throw new ApiError(401, 'User no longer exists');
     }
 
-    console.log('Authorization header:', req.headers.authorization);
-
     // Attach essential user fields to the request
     req.user = {
       id: user.id,

@@ -84,7 +84,7 @@ class Request {
                 'first_name', res.first_name,
                 'last_name', res.last_name,
                 'middle_name', res.middle_name,
-                'suffix', res.suffix,
+                'extension_name', res.extension_name,
                 'contact_number', res.contact_number,
                 'email', res.email,
                 'sex', res.sex,
@@ -93,7 +93,6 @@ class Request {
                 'monthly_income', res.monthly_income,
                 'house_number', h.house_number,
                 'street', h.street,
-                'purok_name', p.purok_name,
                 'barangay_name', b.barangay_name,
                 'municipality_name', m.municipality_name
               )
@@ -104,7 +103,6 @@ class Request {
         LEFT JOIN family_members fm ON res.id = fm.family_member
         LEFT JOIN families f ON fm.family_id = f.id
         LEFT JOIN households h ON f.household_id = h.id OR res.id = h.house_head
-        LEFT JOIN puroks p ON h.purok_id = p.id
         LEFT JOIN barangays b ON res.barangay_id = b.id
         LEFT JOIN municipalities m ON b.municipality_id = m.id
         WHERE r.id = $1
@@ -131,7 +129,7 @@ class Request {
                 'first_name', res.first_name,
                 'last_name', res.last_name,
                 'middle_name', res.middle_name,
-                'suffix', res.suffix,
+                'extension_name', res.extension_name,
                 'contact_number', res.contact_number,
                 'email', res.email,
                 'sex', res.sex,
@@ -140,7 +138,6 @@ class Request {
                 'monthly_income', res.monthly_income,
                 'house_number', h.house_number,
                 'street', h.street,
-                'purok_name', p.purok_name,
                 'barangay_name', b.barangay_name,
                 'municipality_name', m.municipality_name
               )
@@ -151,7 +148,6 @@ class Request {
         LEFT JOIN family_members fm ON res.id = fm.family_member
         LEFT JOIN families f ON fm.family_id = f.id
         LEFT JOIN households h ON f.household_id = h.id OR res.id = h.house_head
-        LEFT JOIN puroks p ON h.purok_id = p.id
         LEFT JOIN barangays b ON res.barangay_id = b.id
         LEFT JOIN municipalities m ON b.municipality_id = m.id
         WHERE r.uuid = $1
@@ -178,7 +174,7 @@ class Request {
                 'first_name', res.first_name,
                 'last_name', res.last_name,
                 'middle_name', res.middle_name,
-                'suffix', res.suffix,
+                'extension_name', res.extension_name,
                 'contact_number', res.contact_number,
                 'email', res.email,
                 'sex', res.sex,
@@ -187,7 +183,6 @@ class Request {
                 'monthly_income', res.monthly_income,
                 'house_number', h.house_number,
                 'street', h.street,
-                'purok_name', p.purok_name,
                 'barangay_name', b.barangay_name,
                 'municipality_name', m.municipality_name
               )
@@ -198,7 +193,6 @@ class Request {
         LEFT JOIN family_members fm ON res.id = fm.family_member
         LEFT JOIN families f ON fm.family_id = f.id
         LEFT JOIN households h ON f.household_id = h.id OR res.id = h.house_head
-        LEFT JOIN puroks p ON h.purok_id = p.id
         LEFT JOIN barangays b ON res.barangay_id = b.id
         LEFT JOIN municipalities m ON b.municipality_id = m.id
         WHERE r.barangay_id = $1 
@@ -245,7 +239,7 @@ class Request {
                 'first_name', res.first_name,
                 'last_name', res.last_name,
                 'middle_name', res.middle_name,
-                'suffix', res.suffix,
+                'extension_name', res.extension_name,
                 'contact_number', res.contact_number,
                 'email', res.email,
                 'sex', res.sex,
@@ -254,7 +248,6 @@ class Request {
                 'monthly_income', res.monthly_income,
                 'house_number', h.house_number,
                 'street', h.street,
-                'purok_name', p.purok_name,
                 'barangay_name', b.barangay_name,
                 'municipality_name', m.municipality_name
               )
@@ -265,7 +258,6 @@ class Request {
         LEFT JOIN family_members fm ON res.id = fm.family_member
         LEFT JOIN families f ON fm.family_id = f.id
         LEFT JOIN households h ON f.household_id = h.id OR res.id = h.house_head
-        LEFT JOIN puroks p ON h.purok_id = p.id
         LEFT JOIN barangays b ON res.barangay_id = b.id
         LEFT JOIN municipalities m ON b.municipality_id = m.id
         WHERE r.barangay_id = $1

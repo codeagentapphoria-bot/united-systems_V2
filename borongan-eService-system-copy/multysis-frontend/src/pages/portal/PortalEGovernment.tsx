@@ -24,9 +24,11 @@ import { useToast } from '@/hooks/use-toast';
 import { serviceService, type Service } from '@/services/api/service.service';
 
 // Utils
-import { FiArrowRight, FiCalendar, FiChevronLeft, FiChevronRight, FiLock, FiSearch } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { FiArrowRight, FiCalendar, FiChevronLeft, FiChevronRight, FiClipboard, FiLock, FiSearch, FiUser } from 'react-icons/fi';
 
 export const PortalEGovernment: React.FC = () => {
+  const navigate = useNavigate();
   const { user, isLoading: isAuthLoading } = useAuth();
   const { openLoginSheet } = useLoginSheet();
   const { toast } = useToast();
@@ -157,10 +159,33 @@ export const PortalEGovernment: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-heading-700 mb-4">E-Government Services</h1>
-          <p className="text-lg text-heading-600">
-            Access government services and submit requests online. Login to request services and track your applications.
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <h1 className="text-4xl font-bold text-heading-700 mb-4">E-Government Services</h1>
+              <p className="text-lg text-heading-600">
+                Access government services and submit requests online.
+              </p>
+            </div>
+            {/* Quick-access buttons */}
+            <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+              <Button
+                variant="outline"
+                className="text-primary-600 border-primary-600 hover:bg-primary-50 whitespace-nowrap"
+                onClick={() => navigate('/portal/track')}
+              >
+                <FiClipboard size={15} className="mr-1.5" /> Track Application
+              </Button>
+              {!user && !isAuthLoading && (
+                <Button
+                  variant="outline"
+                  className="text-gray-600 border-gray-300 hover:bg-gray-50 whitespace-nowrap"
+                  onClick={() => navigate('/portal/apply-as-guest')}
+                >
+                  <FiUser size={15} className="mr-1.5" /> Apply as Guest
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Search Bar */}
@@ -255,14 +280,36 @@ export const PortalEGovernment: React.FC = () => {
                         <FiArrowRight className="ml-2" size={16} />
                       </Button>
                     ) : (
-                      <Button
-                        onClick={openLoginSheet}
-                        variant="outline"
-                        className="w-full border-primary-600 text-primary-600 hover:bg-primary-50"
-                      >
-                        Login to Request
-                        <FiLock className="ml-2" size={16} />
-                      </Button>
+                      <div className="space-y-2">
+                        <Button
+                          onClick={openLoginSheet}
+                          variant="outline"
+                          className="w-full border-primary-600 text-primary-600 hover:bg-primary-50"
+                        >
+                          Login to Request
+                          <FiLock className="ml-2" size={16} />
+                        </Button>
+                        {service.category === 'Barangay Certificate' ? (
+                          <p className="text-xs text-center text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                            Barangay certificates are for registered residents only.{' '}
+                            <button
+                              onClick={() => navigate('/portal/register')}
+                              className="underline font-medium hover:text-amber-900"
+                            >
+                              Register here
+                            </button>{' '}
+                            or visit your barangay hall for a walk-in request.
+                          </p>
+                        ) : (
+                          <Button
+                            onClick={() => navigate(`/portal/apply-as-guest?serviceId=${service.id}`)}
+                            variant="ghost"
+                            className="w-full text-gray-500 hover:text-gray-700 text-sm"
+                          >
+                            <FiUser size={14} className="mr-1.5" /> Apply as Guest
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </CardContent>

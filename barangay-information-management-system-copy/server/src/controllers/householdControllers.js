@@ -27,7 +27,6 @@ export const upsertHousehold = async (req, res, next) => {
   const {
     houseNumber,
     street,
-    purokId,
     barangayId: bodyBarangayId,
     houseHead,
     housingType,
@@ -46,7 +45,6 @@ export const upsertHousehold = async (req, res, next) => {
   console.log("Raw form values received:", {
     houseNumber,
     street,
-    purokId,
     housingType,
     structureType,
     electricity,
@@ -58,7 +56,6 @@ export const upsertHousehold = async (req, res, next) => {
   // Parse form data values to handle string "null" and other conversions
   const parsedHouseNumber = parseFormValue(houseNumber);
   const parsedStreet = parseFormValue(street);
-  const parsedPurokId = parseFormValue(purokId);
   const parsedHousingType = parseFormValue(housingType);
   const parsedStructureType = parseFormValue(structureType);
   const parsedElectricity = parseFormValue(electricity);
@@ -70,7 +67,6 @@ export const upsertHousehold = async (req, res, next) => {
   console.log("Parsed form values:", {
     parsedHouseNumber,
     parsedStreet,
-    parsedPurokId,
     parsedHousingType,
     parsedStructureType,
     parsedElectricity,
@@ -184,7 +180,6 @@ export const upsertHousehold = async (req, res, next) => {
       result = await Household.insertHousehold({
         houseNumber: parsedHouseNumber,
         street: parsedStreet,
-        purokId: parsedPurokId,
         barangayId,
         houseHead,
         housingType: parsedHousingType,
@@ -207,7 +202,6 @@ export const upsertHousehold = async (req, res, next) => {
       if (parsedHouseNumber !== undefined)
         updateData.houseNumber = parsedHouseNumber;
       if (parsedStreet !== undefined) updateData.street = parsedStreet;
-      if (parsedPurokId !== undefined) updateData.purokId = parsedPurokId;
       if (barangayId !== undefined) updateData.barangayId = barangayId;
       if (houseHead !== undefined) updateData.houseHead = houseHead;
       if (parsedHousingType !== undefined)
@@ -274,7 +268,6 @@ export const deleteHousehold = async (req, res, next) => {
 export const householdList = async (req, res, next) => {
   const {
     barangayId: queryBarangayId,
-    purokId,
     search,
     page,
     perPage,
@@ -292,7 +285,6 @@ export const householdList = async (req, res, next) => {
   try {
     const result = await Household.householdList({
       barangayId,
-      purokId,
       search,
       page,
       perPage,

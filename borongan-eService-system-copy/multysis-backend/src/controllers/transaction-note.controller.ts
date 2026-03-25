@@ -24,7 +24,7 @@ export const createTransactionNoteController = async (
       return;
     }
 
-    const senderType = req.user.type === 'admin' ? 'ADMIN' : 'SUBSCRIBER';
+    const senderType = req.user.type === 'admin' ? 'ADMIN' : 'RESIDENT';
     const senderId = req.user.id;
 
     const note = await createTransactionNote({

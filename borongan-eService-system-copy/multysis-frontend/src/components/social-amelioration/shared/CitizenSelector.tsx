@@ -7,8 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 // Hooks
-import { useCitizens } from '@/hooks/citizens/useCitizens';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useCitizenSearch } from './useCitizenSearch';
 
 // Utils
 import { cn } from '@/lib/utils';
@@ -33,19 +32,7 @@ export const CitizenSelector: React.FC<CitizenSelectorProps> = ({
   onAddNewCitizen,
   isLoading = false,
 }) => {
-  const { citizens } = useCitizens();
-  
-  // Debounce the search query for filtering
-  const debouncedSearchQuery = useDebounce(localSearchQuery, 400);
-
-  // Filter citizens based on debounced search
-  const filteredCitizens = citizens.filter(citizen => {
-    const fullName = `${citizen.firstName} ${citizen.middleName || ''} ${citizen.lastName}`.toLowerCase();
-    const searchLower = debouncedSearchQuery.toLowerCase();
-    return fullName.includes(searchLower) ||
-           citizen.residentId?.toLowerCase().includes(searchLower) ||
-           citizen.phoneNumber?.toLowerCase().includes(searchLower);
-  });
+  const { filteredCitizens, isLoadingCitizens } = useCitizenSearch();
 
   return (
     <div className="space-y-4">
@@ -64,7 +51,7 @@ export const CitizenSelector: React.FC<CitizenSelectorProps> = ({
       </div>
       
       <div className="space-y-2">
-        <label className="text-sm font-medium text-gray-700">Search Citizen</label>
+        <label className="text-sm font-medium text-gray-700">Search Resident</label>
         <div className="relative">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <Input
@@ -76,11 +63,11 @@ export const CitizenSelector: React.FC<CitizenSelectorProps> = ({
         </div>
       </div>
 
-      {isLoading ? (
+      {(isLoading || isLoadingCitizens) ? (
         <div className="text-center py-4 text-gray-500">Loading citizens...</div>
       ) : filteredCitizens.length === 0 ? (
         <div className="text-center py-4 text-gray-500">
-          {localSearchQuery ? 'No citizens found. Click "Add New Citizen" to create one.' : 'No citizens available. Click "Add New Citizen" to create one.'}
+          {localSearchQuery ? 'No residents found.' : 'Type a name or resident ID to search.'}
         </div>
       ) : (
         <div className="space-y-2 max-h-[200px] overflow-y-auto">
@@ -104,7 +91,7 @@ export const CitizenSelector: React.FC<CitizenSelectorProps> = ({
                     </h4>
                     <p className="text-sm text-gray-500 mt-1">
                       {citizen.residentId && `ID: ${citizen.residentId}`}
-                      {citizen.phoneNumber && ` • ${citizen.phoneNumber}`}
+                      {(citizen.contactNumber ?? (citizen as any).phoneNumber) && ` • ${citizen.contactNumber ?? (citizen as any).phoneNumber}`}
                     </p>
                   </div>
                   {selectedCitizen?.id === citizen.id && (

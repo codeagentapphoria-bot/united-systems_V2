@@ -10,7 +10,7 @@ This document provides a comprehensive understanding of how residents and househ
 
 #### 1. Administrative Hierarchy
 ```
-municipalities → barangays → puroks
+municipalities → barangays
 ```
 
 #### 2. Resident Management
@@ -28,7 +28,6 @@ households → families → family_members
 ```mermaid
 erDiagram
     municipalities ||--o{ barangays : "has many"
-    barangays ||--o{ puroks : "has many"
     barangays ||--o{ residents : "has many"
     barangays ||--o{ households : "has many"
     
@@ -39,8 +38,6 @@ erDiagram
     
     households ||--o{ families : "contains"
     families ||--o{ family_members : "has"
-    
-    puroks ||--o{ households : "located in"
 ```
 
 ## Add Resident Process
@@ -191,7 +188,6 @@ if (geom && geom.lat && geom.lng) {
 const { rows: householdRows } = await client.query(insertQuery, [
   houseNumber,           // Optional house number
   street,                // Optional street name
-  purokId,              // Required foreign key to puroks
   barangayId,            // Required foreign key to barangays
   houseHead,             // Required foreign key to residents (must exist)
   housingType,           // Optional housing type
@@ -210,7 +206,7 @@ const householdId = householdRows[0].id;
 - **Table**: `households`
 - **Key Features**:
   - PostGIS geometry for location mapping
-  - Foreign key constraints to `puroks`, `barangays`, and `residents`
+  - Foreign key constraints to `barangays` and `residents`
   - JSONB field for multiple image paths
 
 #### Step 2: Family Structure Creation
@@ -262,7 +258,6 @@ CREATE TABLE households (
     id SERIAL PRIMARY KEY,                           -- Auto-incrementing ID
     house_number VARCHAR(10),                        -- Optional house number
     street VARCHAR(50),                              -- Optional street name
-    purok_id INTEGER NOT NULL,                       -- Required foreign key to puroks
     barangay_id INTEGER NOT NULL,                    -- Required foreign key to barangays
     house_head VARCHAR(20) NOT NULL,                 -- Required foreign key to residents
     housing_type VARCHAR(30),                        -- Optional housing type
@@ -275,7 +270,6 @@ CREATE TABLE households (
     household_image_path TEXT,                       -- JSONB array of image paths
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (purok_id) REFERENCES puroks(id) ON DELETE CASCADE,
     FOREIGN KEY (barangay_id) REFERENCES barangays(id) ON DELETE CASCADE,
     FOREIGN KEY (house_head) REFERENCES residents(id) ON DELETE CASCADE
 );

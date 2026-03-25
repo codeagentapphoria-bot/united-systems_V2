@@ -35,18 +35,18 @@ export const listResidents = async (req, res) => {
         r.last_name,
         r.first_name,
         r.middle_name,
-        r.suffix,
+        r.extension_name,
         r.sex,
         r.civil_status,
         r.birthdate,
-        r.birthplace,
+        r.birth_region,
         r.contact_number,
         r.email,
         r.occupation,
         r.monthly_income,
         r.employment_status,
         r.education_attainment,
-        r.resident_status,
+        r.status,
         r.picture_path,
         r.indigenous_person,
         r.created_at,
@@ -81,7 +81,7 @@ export const listHouseholds = async (req, res) => {
   const client = await pool.connect();
   try {
     const dataSql = `
-      SELECT h.id, h.house_number, h.street, h.purok_id, h.barangay_id, h.house_head, h.housing_type, h.structure_type
+      SELECT h.id, h.house_number, h.street, h.barangay_id, h.house_head, h.housing_type, h.structure_type
       FROM households h
       JOIN barangays b ON b.id = h.barangay_id
       WHERE b.municipality_id = $1

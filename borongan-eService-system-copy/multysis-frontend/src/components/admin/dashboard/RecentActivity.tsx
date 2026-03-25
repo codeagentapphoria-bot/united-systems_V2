@@ -108,7 +108,7 @@ export const RecentActivity: React.FC = () => {
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span className="flex items-center gap-1">
                         <FiUser size={12} />
-                        {transaction.subscriberName}
+                        {transaction.residentName}
                       </span>
                       <span className="flex items-center gap-1">
                         <FiClock size={12} />

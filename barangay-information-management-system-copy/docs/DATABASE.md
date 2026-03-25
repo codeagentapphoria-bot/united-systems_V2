@@ -84,20 +84,6 @@ CREATE TABLE barangays (
 );
 ```
 
-#### puroks
-```sql
-CREATE TABLE puroks (
-    id SERIAL PRIMARY KEY,
-    barangay_id INTEGER NOT NULL,
-    purok_name VARCHAR(50) NOT NULL,
-    purok_leader VARCHAR(50), 
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (barangay_id) REFERENCES barangays(id) ON DELETE CASCADE
-);
-```
-
 ### Resident Management
 
 #### residents
@@ -164,7 +150,6 @@ CREATE TABLE households (
     id SERIAL PRIMARY KEY,
     house_number VARCHAR(10),
     street VARCHAR(50),
-    purok_id INTEGER NOT NULL,
     barangay_id INTEGER NOT NULL,
     house_head VARCHAR(20) NOT NULL,
     housing_type VARCHAR(30),
@@ -177,7 +162,6 @@ CREATE TABLE households (
     household_image_path TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (purok_id) REFERENCES puroks(id) ON DELETE CASCADE,
     FOREIGN KEY (barangay_id) REFERENCES barangays(id) ON DELETE CASCADE,
     FOREIGN KEY (house_head) REFERENCES residents(id) ON DELETE CASCADE
 );

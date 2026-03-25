@@ -34,6 +34,7 @@ import {
   residentSteps,
 } from "./constant/options";
 import { useClassificationTypes } from "@/hooks/useClassificationTypes";
+import useAuth from "@/hooks/useAuth";
 import ResidentInfoForm from "./components/ResidentInfoForm";
 import ClassificationGuide from "@/components/ui/ClassificationGuide";
 import ClassificationForm from "./components/ClassificationForm";
@@ -44,6 +45,8 @@ import { useUnifiedAutoRefresh } from "@/hooks/useUnifiedAutoRefresh";
 
 export default function AddResidentDialog({ role, onSuccess }) {
   logger.debug("AddResidentDialog rendered");
+  const { user } = useAuth();
+  const [municipalityId, setMunicipalityId] = useState(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [classifications, setClassifications] = useState({});
   // Add this state to track the current step
@@ -61,8 +64,28 @@ export default function AddResidentDialog({ role, onSuccess }) {
     refreshDelay: 100
   });
   
+  // Fetch municipality ID based on user role
+  useEffect(() => {
+    const fetchMunicipalityId = async () => {
+      if (user?.target_type === 'municipality') {
+        setMunicipalityId(user.target_id);
+      } else if (user?.target_type === 'barangay' && user?.target_id) {
+        try {
+          const res = await api.get(`/${user.target_id}/barangay`);
+          const barangay = res.data?.data || res.data;
+          if (barangay?.municipality_id || barangay?.municipalityId) {
+            setMunicipalityId(barangay.municipality_id || barangay.municipalityId);
+          }
+        } catch (err) {
+          logger.error('Error fetching barangay:', err);
+        }
+      }
+    };
+    fetchMunicipalityId();
+  }, [user]);
+
   // Use dynamic classification types
-  const { classificationTypes, loading: typesLoading } = useClassificationTypes();
+  const { classificationTypes, loading: typesLoading } = useClassificationTypes(municipalityId);
   const [classificationOptions, setClassificationOptions] = useState([]);
   const {
     register,
@@ -80,7 +103,9 @@ export default function AddResidentDialog({ role, onSuccess }) {
       sex: "",
       civilStatus: "",
       birthdate: "",
-      birthplace: "",
+      birth_region: "",
+      birth_province: "",
+      birth_municipality: "",
       contactNumber: "",
       email: "",
       occupation: "",
@@ -136,9 +161,8 @@ export default function AddResidentDialog({ role, onSuccess }) {
       occupation: "occupation",
       employment_status: "employmentStatus",
       education_attainment: "educationAttainment",
-      resident_status: "residentStatus",
+      status: "residentStatus",
       indigenous_person: "indigenousPerson",
-      purok_id: "purokId",
     };
     const result = {};
     for (const [key, value] of Object.entries(obj)) {

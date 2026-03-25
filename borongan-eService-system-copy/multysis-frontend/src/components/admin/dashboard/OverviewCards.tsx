@@ -36,9 +36,9 @@ export const OverviewCards: React.FC = () => {
         iconColor: 'bg-green-100 text-green-600',
       },
       {
-        title: 'Total Subscribers',
-        value: statistics.totalSubscribers.toLocaleString(),
-        subtitle: `${statistics.totalCitizens.toLocaleString()} citizens, ${statistics.totalNonCitizens.toLocaleString()} non-citizens`,
+        title: 'Total Residents',
+        value: (statistics.totalResidents ?? statistics.totalSubscribers ?? 0).toLocaleString(),
+        subtitle: 'Registered residents',
         icon: <FiUsers size={24} />,
         iconColor: 'bg-purple-100 text-purple-600',
       },

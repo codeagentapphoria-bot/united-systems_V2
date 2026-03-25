@@ -4,8 +4,8 @@ import { ApiError } from "../utils/apiError.js";
 
 export const getAgeDemographics = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
-    const data = await Statistics.getAgeDemographics({ barangayId, purokId });
+    const { barangayId } = req.query;
+    const data = await Statistics.getAgeDemographics({ barangayId });
     res.json({ success: true, data });
   } catch (error) {
     logger.error("Controller error in getAgeDemographics:", error);
@@ -15,10 +15,9 @@ export const getAgeDemographics = async (req, res, next) => {
 
 export const getGenderDemographics = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getGenderDemographics({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -29,10 +28,9 @@ export const getGenderDemographics = async (req, res, next) => {
 
 export const getCivilStatusDemographics = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getCivilStatusDemographics({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -43,10 +41,9 @@ export const getCivilStatusDemographics = async (req, res, next) => {
 
 export const getEducationalAttainmentDemographics = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getEducationalAttainmentDemographics({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -62,10 +59,9 @@ export const getEducationalAttainmentDemographics = async (req, res, next) => {
 
 export const getEmploymentStatusDemographics = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getEmploymentStatusDemographics({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -76,10 +72,9 @@ export const getEmploymentStatusDemographics = async (req, res, next) => {
 
 export const getHouseholdSizeDemographics = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getHouseholdSizeDemographics({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -94,10 +89,9 @@ export const getTotalFemaleTotalmaleTotalPopulation = async (
   next
 ) => {
   try {
-    const { barangayId, purokId, classificationType } = req.query;
+    const { barangayId, classificationType } = req.query;
     const data = await Statistics.getTotalFemaleTotalmaleTotalPopulation({
       barangayId,
-      purokId,
       classificationType,
     });
     res.json({ success: true, data });
@@ -112,10 +106,9 @@ export const getTotalFemaleTotalmaleTotalPopulation = async (
 
 export const getResidentClassificationDemographics = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getResidentClassificationDemographics({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -131,8 +124,8 @@ export const getResidentClassificationDemographics = async (req, res, next) => {
 
 export const getVoterDemographics = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
-    const data = await Statistics.getVoterDemographics({ barangayId, purokId });
+    const { barangayId } = req.query;
+    const data = await Statistics.getVoterDemographics({ barangayId });
     res.json({ success: true, data });
   } catch (error) {
     logger.error("Controller error in getVoterDemographics:", error);
@@ -142,10 +135,9 @@ export const getVoterDemographics = async (req, res, next) => {
 
 export const getTotalHouseholdsAndAddedThisMonth = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getTotalHouseholdsAndAddedThisMonth({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -161,10 +153,9 @@ export const getTotalHouseholdsAndAddedThisMonth = async (req, res, next) => {
 
 export const getTotalFamiliesAndAddedThisMonth = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getTotalFamiliesAndAddedThisMonth({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -184,10 +175,9 @@ export const getTotalRegisteredPetsAndAddedThisMonth = async (
   next
 ) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getTotalRegisteredPetsAndAddedThisMonth({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -201,10 +191,9 @@ export const getTotalRegisteredPetsAndAddedThisMonth = async (
 
 export const getUnemployedHouseholdStats = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getUnemployedHouseholdStats({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {
@@ -215,10 +204,9 @@ export const getUnemployedHouseholdStats = async (req, res, next) => {
 
 export const getUnemployedHouseholdDetails = async (req, res, next) => {
   try {
-    const { barangayId, purokId } = req.query;
+    const { barangayId } = req.query;
     const data = await Statistics.getUnemployedHouseholdDetails({
       barangayId,
-      purokId,
     });
     res.json({ success: true, data });
   } catch (error) {

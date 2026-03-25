@@ -34,7 +34,6 @@ const CACHE_STRATEGY = {
   
   // Semi-static data - changes occasionally  
   '/officials': CACHE_TTL.SEMI_STATIC,
-  '/puroks': CACHE_TTL.SEMI_STATIC,
   '/users': CACHE_TTL.SEMI_STATIC,
   
   // Dynamic data - changes frequently
@@ -174,14 +173,6 @@ export const smartInvalidateCache = () => {
           POST: ['smart:officials:*'],
           PUT: ['smart:officials:*', 'smart:official:*'],
           DELETE: ['smart:officials:*', 'smart:official:*']
-        },
-        
-        // Purok-related patterns
-        '/purok': {
-          GET: ['smart:puroks:*', 'smart:purok:*'],
-          POST: ['smart:puroks:*', 'smart:statistics:*'],
-          PUT: ['smart:puroks:*', 'smart:purok:*', 'smart:statistics:*'],
-          DELETE: ['smart:puroks:*', 'smart:purok:*', 'smart:statistics:*']
         },
         
         // Barangay-related patterns

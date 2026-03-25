@@ -61,24 +61,18 @@ const HouseholdsPage = React.lazy(() =>
   import("@/pages/admin/shared/HouseholdsPage")
 );
 const PetsPage = React.lazy(() => import("@/pages/admin/shared/PetsPage"));
-const PuroksPage = React.lazy(() =>
-  import("@/pages/admin/barangay/PuroksPage")
-);
+// PuroksPage removed — puroks no longer exist in the system
 const ArchivesPage = React.lazy(() =>
   import("@/pages/admin/barangay/ArchivesPage")
 );
 const InventoryPage = React.lazy(() =>
   import("@/pages/admin/barangay/InventoryPage")
 );
-const RequestsPage = React.lazy(() =>
-  import("@/pages/admin/barangay/RequestsPage")
-);
-
+// RequestsPage removed — replaced by CertificatesPage (AC3)
 const OfficialsPage = React.lazy(() =>
   import("@/pages/admin/barangay/OfficialsPage")
 );
 const GeoMapPage = React.lazy(() => import("@/pages/admin/shared/GeoMapPage"));
-
 const BarangaysPage = React.lazy(() =>
   import("@/pages/admin/municipality/BarangaysPage")
 );
@@ -99,6 +93,27 @@ const OpenAPIPage = React.lazy(() =>
 );
 const SystemManagementPage = React.lazy(() =>
   import("@/pages/admin/shared/SystemManagementPage")
+);
+// NEW: Registration approvals, bulk ID, GeoJSON setup
+const RegistrationApprovalsPage = React.lazy(() =>
+  import("@/pages/admin/shared/RegistrationApprovalsPage")
+);
+const BulkIDPage = React.lazy(() =>
+  import("@/pages/admin/municipality/BulkIDPage")
+);
+const GeoSetupPage = React.lazy(() =>
+  import("@/pages/admin/municipality/GeoSetupPage")
+);
+// NEW: Certificate template management (AC4)
+const CertificateTemplatesPage = React.lazy(() =>
+  import("@/pages/admin/certificates/CertificateTemplatesPage")
+);
+const TemplateEditorPage = React.lazy(() =>
+  import("@/pages/admin/certificates/TemplateEditorPage")
+);
+// NEW: Barangay certificate queue (AC3)
+const CertificatesPage = React.lazy(() =>
+  import("@/pages/admin/barangay/CertificatesPage")
 );
 
 const queryClient = new QueryClient();
@@ -200,29 +215,37 @@ function AdminRoutesContent() {
                       path="residents"
                       element={<ResidentsPage role={role} />}
                     />
-                    <Route path="setup" element={<SetupPage role={role} />} />
-                    <Route path="households" element={<HouseholdsPage />} />
-                    <Route path="pets" element={<PetsPage />} />
-                    <Route path="barangays" element={<BarangaysPage />} />
-                    <Route path="openapi" element={<OpenAPIPage />} />
-                    <Route
-                      path="accounts"
-                      element={
-                        <PermissionRoute permission="admin">
-                          <AccountsPage />
-                        </PermissionRoute>
-                      }
-                    />
-                    <Route path="settings" element={<SettingsPage />} />
-                    <Route path="activities" element={<ActivitiesPage />} />
-                    <Route path="geomap" element={<GeoMapPage />} />
-                    <Route path="system-management" element={<SystemManagementPage />} />
-                    <Route path="guide" element={<GuidePage />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Suspense>
-              </MunicipalityLayout>
-            </SetupRouter>
+                     <Route path="setup" element={<SetupPage role={role} />} />
+                     {/* New GeoJSON-based municipality setup */}
+                     <Route path="geo-setup" element={<GeoSetupPage />} />
+                     <Route path="households" element={<HouseholdsPage />} />
+                     <Route path="pets" element={<PetsPage />} />
+                     <Route path="barangays" element={<BarangaysPage />} />
+                     {/* New: Registration approvals + bulk ID */}
+                     <Route path="registrations" element={<RegistrationApprovalsPage />} />
+                     <Route path="bulk-id" element={<BulkIDPage />} />
+                     {/* New: Certificate template management (AC4) */}
+                     <Route path="certificate-templates" element={<CertificateTemplatesPage />} />
+                     <Route path="certificate-templates/:id" element={<TemplateEditorPage />} />
+                     <Route path="openapi" element={<OpenAPIPage />} />
+                     <Route
+                       path="accounts"
+                       element={
+                         <PermissionRoute permission="admin">
+                           <AccountsPage />
+                         </PermissionRoute>
+                       }
+                     />
+                     <Route path="settings" element={<SettingsPage />} />
+                     <Route path="activities" element={<ActivitiesPage />} />
+                     <Route path="geomap" element={<GeoMapPage />} />
+                     <Route path="system-management" element={<SystemManagementPage />} />
+                     <Route path="guide" element={<GuidePage />} />
+                     <Route path="*" element={<NotFound />} />
+                   </Routes>
+                 </Suspense>
+               </MunicipalityLayout>
+             </SetupRouter>
           </RoleRoute>
         }
       />
@@ -243,14 +266,19 @@ function AdminRoutesContent() {
                     <Route
                       path="residents"
                       element={<ResidentsPage role={role} />} />
-                    <Route path="setup" element={<SetupPage role={role} />} />
-                    <Route path="households" element={<HouseholdsPage />} />
-                    <Route path="pets" element={<PetsPage />} />
-                    <Route path="puroks" element={<PuroksPage />} />
-                    <Route path="archives" element={<ArchivesPage />} />
+                     <Route path="setup" element={<SetupPage role={role} />} />
+                     <Route path="households" element={<HouseholdsPage />} />
+                     <Route path="pets" element={<PetsPage />} />
+                     {/* PuroksPage removed — puroks no longer exist */}
+                     {/* New: Registration approvals */}
+                     <Route path="registrations" element={<RegistrationApprovalsPage />} />
+                     {/* Certificate request queue (AC3) — replaces old Requests page */}
+                     <Route path="certificates" element={<CertificatesPage />} />
+                     {/* Redirect old /requests URL to /certificates */}
+                     <Route path="requests" element={<Navigate to="/admin/barangay/certificates" replace />} />
+                     <Route path="archives" element={<ArchivesPage />} />
                     <Route path="inventory" element={<InventoryPage />} />
-                    <Route path="requests" element={<RequestsPage />} />
-                    <Route path="officials" element={<OfficialsPage />} />
+                     <Route path="officials" element={<OfficialsPage />} />
                     <Route
                       path="accounts"
                       element={

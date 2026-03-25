@@ -65,7 +65,7 @@ const GuidePage = () => {
           "Monitor total population across all barangays",
           "View demographic charts and statistics",
           "Track employment and education data",
-          "Filter data by barangay and purok"
+          "Filter data by barangay"
         ]
       },
       {
@@ -196,7 +196,7 @@ const GuidePage = () => {
           "Monitor local population statistics",
           "View demographic charts and data",
           "Track employment and education trends",
-          "Filter data by purok areas"
+          "Filter data by barangay"
         ]
       },
       {
@@ -235,19 +235,7 @@ const GuidePage = () => {
           "Upload pet photos for identification",
           "Generate QR codes for pet tracking",
           "Edit pet details and images",
-          "Filter pets by species and purok"
-        ]
-      },
-      {
-        title: "Puroks Management",
-        description: "Manage purok areas and assign residents",
-        icon: MapPin,
-        path: "/admin/barangay/puroks",
-        tips: [
-          "Create and manage purok areas",
-          "Assign residents to specific puroks",
-          "Track purok population statistics",
-          "Organize data by geographic subdivisions"
+          "Filter pets by species and barangay"
         ]
       },
       {

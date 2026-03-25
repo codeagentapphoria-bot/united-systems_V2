@@ -14,10 +14,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Plus,
   Settings,
   MapPin,
   Users,
@@ -62,7 +60,6 @@ const HouseholdsPage = () => {
   });
 
   // Dialog states
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -78,8 +75,6 @@ const HouseholdsPage = () => {
   const [editLocationDialogOpen, setEditLocationDialogOpen] = useState(false);
   const [editImagesDialogOpen, setEditImagesDialogOpen] = useState(false);
 
-  // Puroks state for filters
-  const [puroks, setPuroks] = useState([]);
   const [barangays, setBarangays] = useState([]);
 
   // Pagination state
@@ -222,22 +217,6 @@ const HouseholdsPage = () => {
   const handlePrev = () => setPage((p) => Math.max(1, p - 1));
   const handleNext = () => setPage((p) => Math.min(totalPages, p + 1));
 
-  // Fetch puroks for filters
-  useEffect(() => {
-    const fetchPuroks = async () => {
-      try {
-        const response = await api.get(`/list/${user.target_id}/purok`);
-        setPuroks(response.data.data || []);
-      } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-  console.error("Failed to fetch puroks:", error);
-}
-      }
-    };
-
-    fetchPuroks();
-  }, [user.target_id]);
-
   // Fetch barangays for filter
   useEffect(() => {
     api
@@ -254,28 +233,6 @@ const HouseholdsPage = () => {
       setTotal(pagination.totalRecords || 0);
     }
   }, [pagination]);
-
-  // Enhanced add household handler with validation
-  const handleAddHousehold = async (householdData) => {
-    // Validate data before submission
-    const validation = validateHouseholdData(householdData);
-    if (!validation.isValid) {
-      if (process.env.NODE_ENV === 'development') {
-  console.error("Validation failed:", validation.errors);
-}
-      return false;
-    }
-
-    // Transform data for API
-    const transformedData = transformHouseholdData(householdData);
-
-    const success = await enhancedCreateHousehold(transformedData);
-    if (success) {
-      setIsAddDialogOpen(false);
-      // Auto refresh will be triggered by the backend cache invalidation
-    }
-    return success;
-  };
 
   // Enhanced edit household handler with validation
   const handleEditHousehold = async (householdData) => {
@@ -539,15 +496,10 @@ const HouseholdsPage = () => {
 
       // Prepare filter parameters
       const params = {
-        ...(user.target_type === "barangay"
-          ? {
-              purokId:
-                filterPurok === "all" ? undefined : filterPurok || undefined,
-            }
-          : {
-              barangayId:
-                filterPurok === "all" ? undefined : filterPurok || undefined,
-            }),
+        ...(user.target_type !== "barangay" && {
+          barangayId:
+            filterPurok === "all" ? undefined : filterPurok || undefined,
+        }),
         search: searchTerm || undefined,
       };
 
@@ -708,32 +660,6 @@ const HouseholdsPage = () => {
               )}
             </Button>
           )}
-
-          {/* Add Household Dialog */}
-          {user.target_type === "barangay" && (
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="hero" className="gap-2 text-xs sm:text-sm">
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                  Add Household
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Household</DialogTitle>
-                  <DialogDescription>
-                    Fill in the required information to add a new household
-                  </DialogDescription>
-                </DialogHeader>
-                <HouseholdForm
-                  mode="add"
-                  onSubmit={handleAddHousehold}
-                  onCancel={() => setIsAddDialogOpen(false)}
-                  loading={loading || isEnhancedUpdating}
-                />
-              </DialogContent>
-            </Dialog>
-          )}
         </div>
       </div>
 
@@ -758,7 +684,6 @@ const HouseholdsPage = () => {
         setFilterPurok={setFilterPurok}
         filterHousingType={filterHousingType}
         setFilterHousingType={setFilterHousingType}
-        puroks={puroks}
         barangays={barangays.data || []}
         setPage={setPage}
         role={user.target_type}
@@ -1046,11 +971,10 @@ const HouseholdsPage = () => {
                      <h4 className="font-semibold text-red-700">Required Fields</h4>
                    </div>
                    <div className="space-y-2">
-                     {[
-                       { field: "house_head_name", label: "House Head Name", desc: "Full name of household head (must exist in residents - exact match required)" },
-                       { field: "purok_name", label: "Purok Name", desc: "Purok name (must exist in puroks)" },
-                       { field: "electricity", label: "Electricity Status", desc: "Electricity availability (Yes/No)" }
-                     ].map((item) => (
+                      {[
+                        { field: "house_head_name", label: "House Head Name", desc: "Full name of household head (must exist in residents - exact match required)" },
+                        { field: "electricity", label: "Electricity Status", desc: "Electricity availability (Yes/No)" }
+                      ].map((item) => (
                        <div key={item.field} className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded-md">
                          <code className="text-xs font-mono bg-red-100 px-1 py-0.5 rounded text-red-700 min-w-[120px]">
                            {item.field}
@@ -1138,12 +1062,10 @@ const HouseholdsPage = () => {
                    <li>• Excel format (.xlsx) only</li>
                    <li>• First row must contain column headers</li>
                    <li>• Maximum 500 households per import</li>
-                   <li>• <strong>Required:</strong> House head name, purok name, and electricity status</li>
-                   <li>• House head must exist in residents table first</li>
-                   <li>• Purok name must exist in the system</li>
-                   <li>• Family members must exist in residents table first</li>
-                   <li>• Use full names as they appear in the residents table</li>
-                   <li>• Use purok names as they appear in the puroks table</li>
+                    <li>• <strong>Required:</strong> House head name and electricity status</li>
+                    <li>• House head must exist in residents table first</li>
+                    <li>• Family members must exist in residents table first</li>
+                    <li>• Use full names as they appear in the residents table</li>
                    <li>• Coordinates (latitude/longitude) should be decimal format</li>
                  </ul>
                </div>
@@ -1215,7 +1137,6 @@ const HouseholdsPage = () => {
                      const templateData = [
                        {
                          house_head_name: "Juan Santos Dela Cruz",
-                         purok_name: "Purok 1",
                          electricity: "Yes",
                          house_number: "HH001",
                          street: "123 Main Street",

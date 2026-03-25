@@ -44,14 +44,10 @@ export const AppointmentList: React.FC<AppointmentListProps> = ({
   };
 
   const getSubscriberName = (transaction: Transaction): string => {
-    if (transaction.subscriber?.citizen) {
-      const { firstName, lastName } = transaction.subscriber.citizen;
-      return `${firstName} ${lastName}`;
+    if (transaction.resident?.firstName && transaction.resident?.lastName) {
+      return `${transaction.resident.firstName} ${transaction.resident.lastName}`;
     }
-    if (transaction.subscriber?.nonCitizen) {
-      const { firstName, lastName } = transaction.subscriber.nonCitizen;
-      return `${firstName} ${lastName}`;
-    }
+    if (transaction.applicantName) return transaction.applicantName;
     return 'Unknown';
   };
 

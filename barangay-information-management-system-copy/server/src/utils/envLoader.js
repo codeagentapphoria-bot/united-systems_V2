@@ -30,7 +30,11 @@ export const loadEnvConfig = () => {
         if (equalIndex > 0) {
           const key = trimmedLine.substring(0, equalIndex).trim();
           const value = trimmedLine.substring(equalIndex + 1).trim();
-          process.env[key] = value;
+          // Don't override variables already set in the environment
+          // (allows PG_DATABASE=test node server.js to work correctly)
+          if (process.env[key] === undefined) {
+            process.env[key] = value;
+          }
           loadedCount++;
         }
       }

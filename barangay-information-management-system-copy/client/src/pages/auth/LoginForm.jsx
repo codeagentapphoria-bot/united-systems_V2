@@ -29,7 +29,7 @@ import useAuth from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import useRoles from "@/hooks/useRoles";
 import { toast } from "@/hooks/use-toast";
-import logo from "@/assets/images/lgu-borongan.png";
+import logo from "@/assets/images/lgu-logo.png";
 
 const authSchema = z.object({
   email: z.string().email("Invalid email address").min(1, "Email is required"),
@@ -344,7 +344,7 @@ export const LoginForm = () => {
             <p>
               &copy; 2025 Barangay Information Management System. All rights reserved.
             </p>
-            <p className="mt-1">Developed for LGU Borongan</p>
+            <p className="mt-1">Developed for Local Government Units</p>
           </div>
         </div>
       </div>

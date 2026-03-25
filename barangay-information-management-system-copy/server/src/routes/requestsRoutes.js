@@ -16,7 +16,7 @@ const router = express.Router();
 router.post("/public/requests/certificate", submitCertificateRequest);
 router.post("/public/requests/appointment", submitAppointmentRequest);
 router.get("/public/track/:requestId", trackRequestById);
-router.get("/public/requests/:requestId", getRequestById);
+router.get("/public/requests/:requestId", trackRequestById);
 
 // Protected routes (require authentication)
 router.get("/requests/my-requests", ...allUsers, getMyRequests);

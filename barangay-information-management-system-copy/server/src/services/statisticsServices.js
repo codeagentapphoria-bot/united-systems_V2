@@ -2,117 +2,66 @@ import { pool } from "../config/db.js";
 import logger from "../utils/logger.js";
 
 class Statistics {
+  // NOTE: puroks table was removed in v2 schema. All purokId-related code paths below
+  // are kept as dead code/comments but should be cleaned up in a future refactor.
+
   /**
-   * Returns age group demographics, optionally filtered by barangayId and/or purokId.
+   * Returns age group demographics, optionally filtered by barangayId.
    * @param {Object} options
    * @param {string|number} [options.barangayId]
-   * @param {string|number} [options.purokId]
    * @returns {Promise<Array<{ age_group: string, count: number }>>}
    */
-  static async getAgeDemographics({ barangayId, purokId } = {}) {
+  static async getAgeDemographics({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query;
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
-        // Use UNION approach to include both house heads and family members
-        query = `
-          SELECT
-            CASE
-              WHEN age BETWEEN 0 AND 4 THEN '0-4'
-              WHEN age BETWEEN 5 AND 9 THEN '5-9'
-              WHEN age BETWEEN 10 AND 14 THEN '10-14'
-              WHEN age BETWEEN 15 AND 19 THEN '15-19'
-              WHEN age BETWEEN 20 AND 24 THEN '20-24'
-              WHEN age BETWEEN 25 AND 29 THEN '25-29'
-              WHEN age BETWEEN 30 AND 34 THEN '30-34'
-              WHEN age BETWEEN 35 AND 39 THEN '35-39'
-              WHEN age BETWEEN 40 AND 44 THEN '40-44'
-              WHEN age BETWEEN 45 AND 49 THEN '45-49'
-              WHEN age BETWEEN 50 AND 54 THEN '50-54'
-              WHEN age BETWEEN 55 AND 59 THEN '55-59'
-              WHEN age BETWEEN 60 AND 64 THEN '60-64'
-              WHEN age BETWEEN 65 AND 69 THEN '65-69'
-              WHEN age BETWEEN 70 AND 74 THEN '70-74'
-              WHEN age BETWEEN 75 AND 79 THEN '75-79'
-              WHEN age >= 80 THEN '80+'
-              ELSE 'Unknown'
-            END AS age_group,
-            COUNT(*) AS count
-          FROM (
-            SELECT r.*, EXTRACT(YEAR FROM AGE(NOW(), r.birthdate))::int AS age
-            FROM residents r
-            WHERE r.id IN (
-              SELECT h.house_head FROM households h WHERE h.purok_id = $${paramIndex}
-              UNION
-              SELECT fm.family_member 
-              FROM family_members fm
-              JOIN families f ON f.id = fm.family_id
-              JOIN households h ON h.id = f.household_id
-              WHERE h.purok_id = $${paramIndex}
-            )
-        `;
-        paramIndex++;
-        values.push(purokId);
+      // Standard approach - puroks removed in v2
+      query = `
+        SELECT
+          CASE
+            WHEN age BETWEEN 0 AND 4 THEN '0-4'
+            WHEN age BETWEEN 5 AND 9 THEN '5-9'
+            WHEN age BETWEEN 10 AND 14 THEN '10-14'
+            WHEN age BETWEEN 15 AND 19 THEN '15-19'
+            WHEN age BETWEEN 20 AND 24 THEN '20-24'
+            WHEN age BETWEEN 25 AND 29 THEN '25-29'
+            WHEN age BETWEEN 30 AND 34 THEN '30-34'
+            WHEN age BETWEEN 35 AND 39 THEN '35-39'
+            WHEN age BETWEEN 40 AND 44 THEN '40-44'
+            WHEN age BETWEEN 45 AND 49 THEN '45-49'
+            WHEN age BETWEEN 50 AND 54 THEN '50-54'
+            WHEN age BETWEEN 55 AND 59 THEN '55-59'
+            WHEN age BETWEEN 60 AND 64 THEN '60-64'
+            WHEN age BETWEEN 65 AND 69 THEN '65-69'
+            WHEN age BETWEEN 70 AND 74 THEN '70-74'
+            WHEN age BETWEEN 75 AND 79 THEN '75-79'
+            WHEN age >= 80 THEN '80+'
+            ELSE 'Unknown'
+          END AS age_group,
+          COUNT(*) AS count
+        FROM (
+          SELECT r.*, EXTRACT(YEAR FROM AGE(NOW(), r.birthdate))::int AS age
+          FROM residents r
+      `;
+      const whereClauses = [];
 
-        if (barangayId) {
-          query += ` AND r.barangay_id = $${paramIndex++}`;
-          values.push(barangayId);
-        }
-
-        query += `
-          ) AS sub
-          GROUP BY age_group
-          ORDER BY age_group
-        `;
-      } else {
-        // Standard approach for non-purok filtering
-        query = `
-          SELECT
-            CASE
-              WHEN age BETWEEN 0 AND 4 THEN '0-4'
-              WHEN age BETWEEN 5 AND 9 THEN '5-9'
-              WHEN age BETWEEN 10 AND 14 THEN '10-14'
-              WHEN age BETWEEN 15 AND 19 THEN '15-19'
-              WHEN age BETWEEN 20 AND 24 THEN '20-24'
-              WHEN age BETWEEN 25 AND 29 THEN '25-29'
-              WHEN age BETWEEN 30 AND 34 THEN '30-34'
-              WHEN age BETWEEN 35 AND 39 THEN '35-39'
-              WHEN age BETWEEN 40 AND 44 THEN '40-44'
-              WHEN age BETWEEN 45 AND 49 THEN '45-49'
-              WHEN age BETWEEN 50 AND 54 THEN '50-54'
-              WHEN age BETWEEN 55 AND 59 THEN '55-59'
-              WHEN age BETWEEN 60 AND 64 THEN '60-64'
-              WHEN age BETWEEN 65 AND 69 THEN '65-69'
-              WHEN age BETWEEN 70 AND 74 THEN '70-74'
-              WHEN age BETWEEN 75 AND 79 THEN '75-79'
-              WHEN age >= 80 THEN '80+'
-              ELSE 'Unknown'
-            END AS age_group,
-            COUNT(*) AS count
-          FROM (
-            SELECT r.*, EXTRACT(YEAR FROM AGE(NOW(), r.birthdate))::int AS age
-            FROM residents r
-        `;
-        const whereClauses = [];
-
-        if (barangayId) {
-          whereClauses.push(`r.barangay_id = $${paramIndex++}`);
-          values.push(barangayId);
-        }
-
-        if (whereClauses.length > 0) {
-          query += " WHERE " + whereClauses.join(" AND ");
-        }
-
-        query += `
-          ) AS sub
-          GROUP BY age_group
-          ORDER BY age_group
-        `;
+      if (barangayId) {
+        whereClauses.push(`r.barangay_id = $${paramIndex++}`);
+        values.push(barangayId);
       }
+
+      if (whereClauses.length > 0) {
+        query += " WHERE " + whereClauses.join(" AND ");
+      }
+
+      query += `
+        ) AS sub
+        GROUP BY age_group
+        ORDER BY age_group
+      `;
 
       const result = await client.query(query, values);
       return result.rows;
@@ -124,14 +73,14 @@ class Statistics {
     }
   }
 
-  static async getGenderDemographics({ barangayId, purokId } = {}) {
+  static async getGenderDemographics({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query;
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use UNION approach to include both house heads and family members
         query = `
           SELECT COALESCE(sex, 'unknown') as sex, COUNT(*) AS count 
@@ -147,7 +96,7 @@ class Statistics {
           )
         `;
         paramIndex++;
-        values.push(purokId);
+        // purokId removed
 
         if (barangayId) {
           query += ` AND r.barangay_id = $${paramIndex++}`;
@@ -182,14 +131,14 @@ class Statistics {
     }
   }
 
-  static async getCivilStatusDemographics({ barangayId, purokId } = {}) {
+  static async getCivilStatusDemographics({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query;
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use UNION approach to include both house heads and family members
         query = `
           SELECT civil_status, COUNT(*) AS count 
@@ -205,7 +154,7 @@ class Statistics {
           )
         `;
         paramIndex++;
-        values.push(purokId);
+        // purokId removed
 
         if (barangayId) {
           query += ` AND r.barangay_id = $${paramIndex++}`;
@@ -242,7 +191,7 @@ class Statistics {
 
   static async getEducationalAttainmentDemographics({
     barangayId,
-    purokId,
+    // purokId removed in v2
   } = {}) {
     const client = await pool.connect();
     try {
@@ -250,7 +199,7 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use simple JOIN approach with UNION subquery
         query = `
           SELECT education_attainment, COUNT(*) AS count 
@@ -266,7 +215,7 @@ class Statistics {
           )
         `;
         paramIndex++;
-        values.push(purokId);
+        // purokId removed
 
         if (barangayId) {
           query += ` AND r.barangay_id = $${paramIndex++}`;
@@ -301,14 +250,14 @@ class Statistics {
     }
   }
 
-  static async getEmploymentStatusDemographics({ barangayId, purokId } = {}) {
+  static async getEmploymentStatusDemographics({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query;
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use simple JOIN approach with UNION subquery
         query = `
           SELECT employment_status, COUNT(*) AS count 
@@ -324,7 +273,7 @@ class Statistics {
           )
         `;
         paramIndex++;
-        values.push(purokId);
+        // purokId removed
 
         if (barangayId) {
           query += ` AND r.barangay_id = $${paramIndex++}`;
@@ -359,7 +308,7 @@ class Statistics {
     }
   }
 
-  static async getHouseholdSizeDemographics({ barangayId, purokId } = {}) {
+  static async getHouseholdSizeDemographics({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       // Count number of residents per household
@@ -376,11 +325,6 @@ class Statistics {
       const whereClauses = [];
       const values = [];
       let paramIndex = 1;
-      if (purokId) {
-        joins.push(`JOIN puroks p ON p.id = h.purok_id`);
-        whereClauses.push(`p.id = $${paramIndex++}`);
-        values.push(purokId);
-      }
       if (barangayId) {
         whereClauses.push(`h.barangay_id = $${paramIndex++}`);
         values.push(barangayId);
@@ -406,7 +350,7 @@ class Statistics {
 
   static async getTotalFemaleTotalmaleTotalPopulation({
     barangayId,
-    purokId,
+    // purokId removed in v2
     classificationType,
   } = {}) {
     const client = await pool.connect();
@@ -415,7 +359,7 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use UNION approach to include both house heads and family members
         query = `
           SELECT 
@@ -433,7 +377,7 @@ class Statistics {
             WHERE h.purok_id = $${paramIndex++}
           )
         `;
-        values.push(purokId, purokId);
+        // purokId removed
 
         if (barangayId) {
           query += ` AND r.barangay_id = $${paramIndex++}`;
@@ -485,7 +429,7 @@ class Statistics {
       const monthValues = [];
       let monthParamIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use UNION approach for month query as well
         monthQuery = `
           SELECT COUNT(*) AS added_this_month 
@@ -499,10 +443,10 @@ class Statistics {
             JOIN households h ON h.id = f.household_id
             WHERE h.purok_id = $${monthParamIndex++}
           )
-          AND EXTRACT(YEAR FROM r.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
-          AND EXTRACT(MONTH FROM r.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+          AND r.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+          AND r.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
         `;
-        monthValues.push(purokId, purokId);
+        // purokId removed
 
         if (barangayId) {
           monthQuery += ` AND r.barangay_id = $${monthParamIndex++}`;
@@ -522,8 +466,8 @@ class Statistics {
         // Standard approach for non-purok filtering
         monthQuery = `SELECT COUNT(*) AS added_this_month FROM residents r`;
         const monthWhereClauses = [
-          `EXTRACT(YEAR FROM r.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`,
-          `EXTRACT(MONTH FROM r.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
+          `r.created_at >= DATE_TRUNC('month', CURRENT_DATE)`,
+          `r.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`,
         ];
 
         if (barangayId) {
@@ -549,42 +493,12 @@ class Statistics {
       const monthResult = await client.query(monthQuery, monthValues);
       const addedThisMonth = monthResult.rows[0]?.added_this_month || 0;
 
-      // Get detailed breakdown by purok if barangay is selected
-      let purokBreakdown = [];
-      if (barangayId && !purokId) {
-        const purokQuery = `
-          SELECT 
-            p.id as purok_id,
-            p.purok_name,
-            COUNT(DISTINCT r.id) AS total_population,
-            COUNT(DISTINCT r.id) FILTER (WHERE r.sex = 'male') AS total_male,
-            COUNT(DISTINCT r.id) FILTER (WHERE r.sex = 'female') AS total_female,
-            COUNT(DISTINCT r.id) FILTER (
-              WHERE EXTRACT(YEAR FROM r.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-              AND EXTRACT(MONTH FROM r.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
-            ) AS added_this_month
-          FROM puroks p
-          LEFT JOIN (
-            SELECT h.house_head as resident_id, h.purok_id
-            FROM households h
-            UNION
-            SELECT fm.family_member as resident_id, h.purok_id
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-          ) purok_residents ON purok_residents.purok_id = p.id
-          LEFT JOIN residents r ON r.id = purok_residents.resident_id
-          WHERE p.barangay_id = $1
-          GROUP BY p.id, p.purok_name
-          ORDER BY p.purok_name
-        `;
-        const purokResult = await client.query(purokQuery, [barangayId]);
-        purokBreakdown = purokResult.rows;
-      }
+      // Purok breakdown removed — puroks table dropped in v2 schema
+      const purokBreakdown = [];
 
       // Get detailed breakdown by barangay if no specific barangay is selected
       let barangayBreakdown = [];
-      if (!barangayId && !purokId) {
+      if (!barangayId) { // Puroks removed in v2
         const barangayQuery = `
           SELECT 
             b.id as barangay_id,
@@ -593,8 +507,8 @@ class Statistics {
             COUNT(*) FILTER (WHERE r.sex = 'male') AS total_male,
             COUNT(*) FILTER (WHERE r.sex = 'female') AS total_female,
             COUNT(*) FILTER (
-              WHERE EXTRACT(YEAR FROM r.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-              AND EXTRACT(MONTH FROM r.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+              WHERE r.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+              AND r.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
             ) AS added_this_month
           FROM residents r
           JOIN barangays b ON b.id = r.barangay_id
@@ -624,7 +538,7 @@ class Statistics {
 
   static async getResidentClassificationDemographics({
     barangayId,
-    purokId,
+    // purokId removed in v2
   } = {}) {
     const client = await pool.connect();
     try {
@@ -632,7 +546,7 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use UNION approach to include both house heads and family members
         // Join with classification_types to filter out deleted/inactive types
         query = `
@@ -654,7 +568,7 @@ class Statistics {
           )
         `;
         paramIndex++;
-        values.push(purokId);
+        // purokId removed
 
         if (barangayId) {
           query += ` AND r.barangay_id = $${paramIndex++}`;
@@ -706,14 +620,14 @@ class Statistics {
     }
   }
 
-  static async getVoterDemographics({ barangayId, purokId } = {}) {
+  static async getVoterDemographics({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query;
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use simple JOIN approach with UNION subquery
         query = `
           SELECT 
@@ -736,7 +650,7 @@ class Statistics {
           )
         `;
         paramIndex++;
-        values.push(purokId);
+        // purokId removed
 
         if (barangayId) {
           query += ` AND r.barangay_id = $${paramIndex++}`;
@@ -787,7 +701,7 @@ class Statistics {
 
   static async getTotalHouseholdsAndAddedThisMonth({
     barangayId,
-    purokId,
+    // purokId removed in v2
   } = {}) {
     const client = await pool.connect();
     try {
@@ -797,20 +711,11 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      // Add JOIN only once if either purokId or barangayId is provided
-      if (purokId || barangayId) {
-        joins.push(`JOIN puroks p ON p.id = h.purok_id`);
-      }
-
-      if (purokId) {
-        whereClauses.push(`p.id = $${paramIndex++}`);
-        values.push(purokId);
-      }
+      // Filter directly on households.barangay_id (puroks removed in v2)
       if (barangayId) {
-        whereClauses.push(`p.barangay_id = $${paramIndex++}`);
+        whereClauses.push(`h.barangay_id = $${paramIndex++}`);
         values.push(barangayId);
       }
-      query += " " + joins.join(" ");
       if (whereClauses.length > 0) {
         query += " WHERE " + whereClauses.join(" AND ");
       }
@@ -818,71 +723,35 @@ class Statistics {
 
       // Query for households added this month
       let monthQuery = `SELECT COUNT(*) AS added_this_month FROM households h`;
-      const monthJoins = [];
       const monthWhereClauses = [
-        `EXTRACT(YEAR FROM h.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`,
-        `EXTRACT(MONTH FROM h.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
+        `h.created_at >= DATE_TRUNC('month', CURRENT_DATE)`,
+        `h.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`,
       ];
       const monthValues = [];
       let monthParamIndex = 1;
 
-      // Add JOIN only once if either purokId or barangayId is provided
-      if (purokId || barangayId) {
-        monthJoins.push(`JOIN puroks p ON p.id = h.purok_id`);
-      }
-
-      if (purokId) {
-        monthWhereClauses.push(`p.id = $${monthParamIndex++}`);
-        monthValues.push(purokId);
-      }
       if (barangayId) {
-        monthWhereClauses.push(`p.barangay_id = $${monthParamIndex++}`);
+        monthWhereClauses.push(`h.barangay_id = $${monthParamIndex++}`);
         monthValues.push(barangayId);
       }
-      monthQuery += " " + monthJoins.join(" ");
-      if (monthWhereClauses.length > 0) {
-        monthQuery += " WHERE " + monthWhereClauses.join(" AND ");
-      }
+      monthQuery += " WHERE " + monthWhereClauses.join(" AND ");
       const monthResult = await client.query(monthQuery, monthValues);
       const addedThisMonth = monthResult.rows[0]?.added_this_month || 0;
 
-      // Get detailed breakdown by purok if barangay is selected
-      let purokBreakdown = [];
-      if (barangayId && !purokId) {
-        const purokQuery = `
-          SELECT 
-            p.id as purok_id,
-            p.purok_name,
-            COUNT(DISTINCT h.id) AS total_households,
-            COUNT(DISTINCT h.id) FILTER (
-              WHERE EXTRACT(YEAR FROM h.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-              AND EXTRACT(MONTH FROM h.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
-            ) AS added_this_month
-          FROM households h
-          JOIN puroks p ON p.id = h.purok_id
-          WHERE p.barangay_id = $1
-          GROUP BY p.id, p.purok_name
-          ORDER BY p.purok_name
-        `;
-        const purokResult = await client.query(purokQuery, [barangayId]);
-        purokBreakdown = purokResult.rows;
-      }
-
-      // Get detailed breakdown by barangay if no specific barangay is selected
+      // Breakdown by barangay when no filter is applied
       let barangayBreakdown = [];
-      if (!barangayId && !purokId) {
+      if (!barangayId) {
         const barangayQuery = `
-          SELECT 
+          SELECT
             b.id as barangay_id,
             b.barangay_name,
             COUNT(DISTINCT h.id) AS total_households,
             COUNT(DISTINCT h.id) FILTER (
-              WHERE EXTRACT(YEAR FROM h.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-              AND EXTRACT(MONTH FROM h.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+              WHERE h.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+              AND h.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
             ) AS added_this_month
           FROM households h
-          JOIN puroks p ON p.id = h.purok_id
-          JOIN barangays b ON b.id = p.barangay_id
+          JOIN barangays b ON b.id = h.barangay_id
           GROUP BY b.id, b.barangay_name
           ORDER BY b.barangay_name
         `;
@@ -893,45 +762,22 @@ class Statistics {
       // Calculate total residents for the filtered households
       let totalResidents = 0;
       if (result.rows[0]?.total_households > 0) {
-        let residentsQuery = `
+        const brgyFilter = barangayId ? `WHERE h.barangay_id = $1` : "";
+        const residentsQuery = `
           SELECT COUNT(DISTINCT r.id) AS total_residents
           FROM residents r
           WHERE r.id IN (
-            SELECT h.house_head FROM households h
-            ${purokId || barangayId ? "JOIN puroks p ON p.id = h.purok_id" : ""}
-            ${purokId ? "WHERE p.id = $1" : ""}
-            ${
-              barangayId
-                ? purokId
-                  ? "AND p.barangay_id = $2"
-                  : "WHERE p.barangay_id = $1"
-                : ""
-            }
+            SELECT h.house_head FROM households h ${brgyFilter}
             UNION
-            SELECT fm.family_member 
+            SELECT fm.family_member
             FROM family_members fm
             JOIN families f ON f.id = fm.family_id
             JOIN households h ON h.id = f.household_id
-            ${purokId || barangayId ? "JOIN puroks p ON p.id = h.purok_id" : ""}
-            ${purokId ? "WHERE p.id = $1" : ""}
-            ${
-              barangayId
-                ? purokId
-                  ? "AND p.barangay_id = $2"
-                  : "WHERE p.barangay_id = $1"
-                : ""
-            }
+            ${brgyFilter}
           )
         `;
-
-        const residentsValues = [];
-        if (purokId) residentsValues.push(purokId);
-        if (barangayId) residentsValues.push(barangayId);
-
-        const residentsResult = await client.query(
-          residentsQuery,
-          residentsValues
-        );
+        const residentsValues = barangayId ? [barangayId] : [];
+        const residentsResult = await client.query(residentsQuery, residentsValues);
         totalResidents = residentsResult.rows[0]?.total_residents || 0;
       }
 
@@ -939,7 +785,6 @@ class Statistics {
         ...result.rows[0],
         total_residents: Number(totalResidents),
         added_this_month: Number(addedThisMonth),
-        purok_breakdown: purokBreakdown,
         barangay_breakdown: barangayBreakdown,
       };
     } catch (error) {
@@ -950,31 +795,20 @@ class Statistics {
     }
   }
 
-  static async getTotalFamiliesAndAddedThisMonth({ barangayId, purokId } = {}) {
+  static async getTotalFamiliesAndAddedThisMonth({ barangayId } = {}) {
     const client = await pool.connect();
     try {
+      // Filter via households.barangay_id (puroks removed in v2)
       let query = `SELECT COUNT(*) AS total_families FROM families f`;
-      const joins = [];
       const whereClauses = [];
       const values = [];
       let paramIndex = 1;
 
-      // Add JOIN only once if either purokId or barangayId is provided
-      if (purokId || barangayId) {
-        joins.push(
-          `JOIN households h ON h.id = f.household_id JOIN puroks p ON p.id = h.purok_id`
-        );
-      }
-
-      if (purokId) {
-        whereClauses.push(`p.id = $${paramIndex++}`);
-        values.push(purokId);
-      }
       if (barangayId) {
-        whereClauses.push(`p.barangay_id = $${paramIndex++}`);
+        query += ` JOIN households h ON h.id = f.household_id`;
+        whereClauses.push(`h.barangay_id = $${paramIndex++}`);
         values.push(barangayId);
       }
-      query += " " + joins.join(" ");
       if (whereClauses.length > 0) {
         query += " WHERE " + whereClauses.join(" AND ");
       }
@@ -982,75 +816,37 @@ class Statistics {
 
       // Query for families added this month
       let monthQuery = `SELECT COUNT(*) AS added_this_month FROM families f`;
-      const monthJoins = [];
       const monthWhereClauses = [
-        `EXTRACT(YEAR FROM f.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`,
-        `EXTRACT(MONTH FROM f.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
+        `f.created_at >= DATE_TRUNC('month', CURRENT_DATE)`,
+        `f.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`,
       ];
       const monthValues = [];
       let monthParamIndex = 1;
 
-      // Add JOIN only once if either purokId or barangayId is provided
-      if (purokId || barangayId) {
-        monthJoins.push(
-          `JOIN households h ON h.id = f.household_id JOIN puroks p ON p.id = h.purok_id`
-        );
-      }
-
-      if (purokId) {
-        monthWhereClauses.push(`p.id = $${monthParamIndex++}`);
-        monthValues.push(purokId);
-      }
       if (barangayId) {
-        monthWhereClauses.push(`p.barangay_id = $${monthParamIndex++}`);
+        monthQuery += ` JOIN households h ON h.id = f.household_id`;
+        monthWhereClauses.push(`h.barangay_id = $${monthParamIndex++}`);
         monthValues.push(barangayId);
       }
-      monthQuery += " " + monthJoins.join(" ");
-      if (monthWhereClauses.length > 0) {
-        monthQuery += " WHERE " + monthWhereClauses.join(" AND ");
-      }
+      monthQuery += " WHERE " + monthWhereClauses.join(" AND ");
       const monthResult = await client.query(monthQuery, monthValues);
       const addedThisMonth = monthResult.rows[0]?.added_this_month || 0;
 
-      // Get detailed breakdown by purok if barangay is selected
-      let purokBreakdown = [];
-      if (barangayId && !purokId) {
-        const purokQuery = `
-          SELECT 
-            p.id as purok_id,
-            p.purok_name,
-            COUNT(DISTINCT f.id) AS total_families,
-            COUNT(DISTINCT f.id) FILTER (
-              WHERE EXTRACT(YEAR FROM f.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-              AND EXTRACT(MONTH FROM f.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
-            ) AS added_this_month
-          FROM families f
-          JOIN households h ON h.id = f.household_id
-          JOIN puroks p ON p.id = h.purok_id
-          WHERE p.barangay_id = $1
-          GROUP BY p.id, p.purok_name
-          ORDER BY p.purok_name
-        `;
-        const purokResult = await client.query(purokQuery, [barangayId]);
-        purokBreakdown = purokResult.rows;
-      }
-
-      // Get detailed breakdown by barangay if no specific barangay is selected
+      // Breakdown by barangay when no filter applied
       let barangayBreakdown = [];
-      if (!barangayId && !purokId) {
+      if (!barangayId) {
         const barangayQuery = `
-          SELECT 
+          SELECT
             b.id as barangay_id,
             b.barangay_name,
             COUNT(DISTINCT f.id) AS total_families,
             COUNT(DISTINCT f.id) FILTER (
-              WHERE EXTRACT(YEAR FROM f.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-              AND EXTRACT(MONTH FROM f.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+              WHERE f.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+              AND f.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
             ) AS added_this_month
           FROM families f
           JOIN households h ON h.id = f.household_id
-          JOIN puroks p ON p.id = h.purok_id
-          JOIN barangays b ON b.id = p.barangay_id
+          JOIN barangays b ON b.id = h.barangay_id
           GROUP BY b.id, b.barangay_name
           ORDER BY b.barangay_name
         `;
@@ -1061,7 +857,6 @@ class Statistics {
       return {
         ...result.rows[0],
         added_this_month: Number(addedThisMonth),
-        purok_breakdown: purokBreakdown,
         barangay_breakdown: barangayBreakdown,
       };
     } catch (error) {
@@ -1074,7 +869,7 @@ class Statistics {
 
   static async getTotalRegisteredPetsAndAddedThisMonth({
     barangayId,
-    purokId,
+    // purokId removed in v2
   } = {}) {
     const client = await pool.connect();
     try {
@@ -1082,7 +877,7 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use UNION approach to include both house heads and family members
         query = `
           SELECT COUNT(*) AS total_pets 
@@ -1099,7 +894,7 @@ class Statistics {
           )
         `;
         paramIndex++;
-        values.push(purokId);
+        // purokId removed
 
         if (barangayId) {
           query += ` AND r.barangay_id = $${paramIndex++}`;
@@ -1132,7 +927,7 @@ class Statistics {
       const monthValues = [];
       let monthParamIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         // Use UNION approach for month query as well
         monthQuery = `
           SELECT COUNT(*) AS added_this_month 
@@ -1147,11 +942,11 @@ class Statistics {
             JOIN households h ON h.id = f.household_id
             WHERE h.purok_id = $${monthParamIndex}
           )
-          AND EXTRACT(YEAR FROM p.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
-          AND EXTRACT(MONTH FROM p.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+          AND p.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+          AND p.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
         `;
         monthParamIndex++;
-        monthValues.push(purokId);
+        // purokId removed
 
         if (barangayId) {
           monthQuery += ` AND r.barangay_id = $${monthParamIndex++}`;
@@ -1162,8 +957,8 @@ class Statistics {
         monthQuery = `SELECT COUNT(*) AS added_this_month FROM pets p`;
         const monthJoins = [];
         const monthWhereClauses = [
-          `EXTRACT(YEAR FROM p.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`,
-          `EXTRACT(MONTH FROM p.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
+          `p.created_at >= DATE_TRUNC('month', CURRENT_DATE)`,
+          `p.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`,
         ];
 
         // Always join with residents to get owner info
@@ -1185,15 +980,15 @@ class Statistics {
 
       // Get detailed breakdown by barangay if no specific barangay is selected
       let barangayBreakdown = [];
-      if (!barangayId && !purokId) {
+      if (!barangayId) { // Puroks removed in v2
         const barangayQuery = `
           SELECT 
             b.id as barangay_id,
             b.barangay_name,
             COUNT(*) AS total_pets,
             COUNT(*) FILTER (
-              WHERE EXTRACT(YEAR FROM p.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-              AND EXTRACT(MONTH FROM p.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+              WHERE p.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+              AND p.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
             ) AS added_this_month
           FROM pets p
           JOIN residents r ON p.owner_id = r.id
@@ -1218,51 +1013,9 @@ class Statistics {
     }
   }
 
-  // New method to get detailed population statistics by purok
+  // Puroks removed in v2 — returns empty array
   static async getDetailedPopulationStatsByPurok({ barangayId } = {}) {
-    const client = await pool.connect();
-    try {
-      let query = `
-        SELECT 
-          p.id as purok_id,
-          p.purok_name,
-          COUNT(*) AS total_population,
-          COUNT(*) FILTER (WHERE r.sex = 'male') AS total_male,
-          COUNT(*) FILTER (WHERE r.sex = 'female') AS total_female,
-          COUNT(*) FILTER (
-            WHERE EXTRACT(YEAR FROM r.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-            AND EXTRACT(MONTH FROM r.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
-          ) AS added_this_month
-        FROM residents r
-        JOIN family_members fm ON fm.family_member = r.id
-        JOIN families f ON f.id = fm.family_id
-        JOIN households h ON h.id = f.household_id
-        JOIN puroks p ON p.id = h.purok_id
-      `;
-
-      const whereClauses = [];
-      const values = [];
-      let paramIndex = 1;
-
-      if (barangayId) {
-        whereClauses.push(`p.barangay_id = $${paramIndex++}`);
-        values.push(barangayId);
-      }
-
-      if (whereClauses.length > 0) {
-        query += " WHERE " + whereClauses.join(" AND ");
-      }
-
-      query += " GROUP BY p.id, p.purok_name ORDER BY p.purok_name";
-
-      const result = await client.query(query, values);
-      return result.rows;
-    } catch (error) {
-      logger.error("Error getting detailed population stats by purok:", error);
-      throw error;
-    } finally {
-      client.release();
-    }
+    return [];
   }
 
   // New method to get detailed population statistics by barangay
@@ -1277,8 +1030,8 @@ class Statistics {
           COUNT(*) FILTER (WHERE r.sex = 'male') AS total_male,
           COUNT(*) FILTER (WHERE r.sex = 'female') AS total_female,
           COUNT(*) FILTER (
-            WHERE EXTRACT(YEAR FROM r.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-            AND EXTRACT(MONTH FROM r.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+            WHERE r.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+              AND r.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
           ) AS added_this_month
         FROM residents r
         JOIN barangays b ON b.id = r.barangay_id
@@ -1299,46 +1052,9 @@ class Statistics {
     }
   }
 
-  // New method to get detailed household statistics by purok
+  // Puroks removed in v2 — returns empty array
   static async getDetailedHouseholdStatsByPurok({ barangayId } = {}) {
-    const client = await pool.connect();
-    try {
-      let query = `
-        SELECT 
-          p.id as purok_id,
-          p.purok_name,
-          COUNT(DISTINCT h.id) AS total_households,
-          COUNT(DISTINCT h.id) FILTER (
-            WHERE EXTRACT(YEAR FROM h.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-            AND EXTRACT(MONTH FROM h.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
-          ) AS added_this_month
-        FROM households h
-        JOIN puroks p ON p.id = h.purok_id
-      `;
-
-      const whereClauses = [];
-      const values = [];
-      let paramIndex = 1;
-
-      if (barangayId) {
-        whereClauses.push(`p.barangay_id = $${paramIndex++}`);
-        values.push(barangayId);
-      }
-
-      if (whereClauses.length > 0) {
-        query += " WHERE " + whereClauses.join(" AND ");
-      }
-
-      query += " GROUP BY p.id, p.purok_name ORDER BY p.purok_name";
-
-      const result = await client.query(query, values);
-      return result.rows;
-    } catch (error) {
-      logger.error("Error getting detailed household stats by purok:", error);
-      throw error;
-    } finally {
-      client.release();
-    }
+    return [];
   }
 
   // New method to get detailed household statistics by barangay
@@ -1351,12 +1067,11 @@ class Statistics {
           b.barangay_name,
           COUNT(DISTINCT h.id) AS total_households,
           COUNT(DISTINCT h.id) FILTER (
-            WHERE EXTRACT(YEAR FROM h.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-            AND EXTRACT(MONTH FROM h.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+            WHERE h.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+              AND h.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
           ) AS added_this_month
         FROM households h
-        JOIN puroks p ON p.id = h.purok_id
-        JOIN barangays b ON b.id = p.barangay_id
+        JOIN barangays b ON b.id = h.barangay_id
         GROUP BY b.id, b.barangay_name
         ORDER BY b.barangay_name
       `;
@@ -1374,47 +1089,9 @@ class Statistics {
     }
   }
 
-  // New method to get detailed family statistics by purok
+  // Puroks removed in v2 — returns empty array
   static async getDetailedFamilyStatsByPurok({ barangayId } = {}) {
-    const client = await pool.connect();
-    try {
-      let query = `
-        SELECT 
-          p.id as purok_id,
-          p.purok_name,
-          COUNT(DISTINCT f.id) AS total_families,
-          COUNT(DISTINCT f.id) FILTER (
-            WHERE EXTRACT(YEAR FROM f.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-            AND EXTRACT(MONTH FROM f.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
-          ) AS added_this_month
-        FROM families f
-        JOIN households h ON h.id = f.household_id
-        JOIN puroks p ON p.id = h.purok_id
-      `;
-
-      const whereClauses = [];
-      const values = [];
-      let paramIndex = 1;
-
-      if (barangayId) {
-        whereClauses.push(`p.barangay_id = $${paramIndex++}`);
-        values.push(barangayId);
-      }
-
-      if (whereClauses.length > 0) {
-        query += " WHERE " + whereClauses.join(" AND ");
-      }
-
-      query += " GROUP BY p.id, p.purok_name ORDER BY p.purok_name";
-
-      const result = await client.query(query, values);
-      return result.rows;
-    } catch (error) {
-      logger.error("Error getting detailed family stats by purok:", error);
-      throw error;
-    } finally {
-      client.release();
-    }
+    return [];
   }
 
   // New method to get detailed family statistics by barangay
@@ -1427,13 +1104,12 @@ class Statistics {
           b.barangay_name,
           COUNT(DISTINCT f.id) AS total_families,
           COUNT(DISTINCT f.id) FILTER (
-            WHERE EXTRACT(YEAR FROM f.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) 
-            AND EXTRACT(MONTH FROM f.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+            WHERE f.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+              AND f.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
           ) AS added_this_month
         FROM families f
         JOIN households h ON h.id = f.household_id
-        JOIN puroks p ON p.id = h.purok_id
-        JOIN barangays b ON b.id = p.barangay_id
+        JOIN barangays b ON b.id = h.barangay_id
         GROUP BY b.id, b.barangay_name
         ORDER BY b.barangay_name
       `;
@@ -1475,13 +1151,13 @@ class Statistics {
   }
 
   /**
-   * Returns unemployed household statistics, optionally filtered by barangayId and/or purokId.
+   * Returns unemployed household statistics, optionally filtered by barangayId.
    * @param {Object} options
    * @param {string|number} [options.barangayId]
    * @param {string|number} [options.purokId]
    * @returns {Promise<Object>}
    */
-  static async getUnemployedHouseholdStats({ barangayId, purokId } = {}) {
+  static async getUnemployedHouseholdStats({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       // Build the full query including both house head and family members
@@ -1520,9 +1196,9 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         whereClauses.push(`h.purok_id = $${paramIndex++}`);
-        values.push(purokId);
+        // purokId removed
       }
 
       if (barangayId) {
@@ -1565,7 +1241,7 @@ class Statistics {
    * @param {string|number} [options.purokId]
    * @returns {Promise<Array>}
    */
-  static async getUnemployedHouseholdDetails({ barangayId, purokId } = {}) {
+  static async getUnemployedHouseholdDetails({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query = `
@@ -1574,7 +1250,6 @@ class Statistics {
           h.house_number as household_number,
           CONCAT(h.house_number, ' ', COALESCE(h.street, '')) as address,
           b.barangay_name as barangay_name,
-          p.purok_name as purok_name,
           household_stats.unemployed_count,
           household_stats.total_residents,
           household_stats.total_monthly_income,
@@ -1586,7 +1261,6 @@ class Statistics {
           EXTRACT(YEAR FROM AGE(NOW(), r.birthdate))::int as age
         FROM households h
         JOIN barangays b ON b.id = h.barangay_id
-        LEFT JOIN puroks p ON p.id = h.purok_id
         LEFT JOIN (
           -- Include house head
           SELECT h.id as household_id, h.house_head as resident_id
@@ -1630,9 +1304,9 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (purokId) {
+      if (false && purokId) { // Puroks removed in v2
         whereClauses.push(`h.purok_id = $${paramIndex++}`);
-        values.push(purokId);
+        // purokId removed
       }
 
       if (barangayId) {
@@ -1677,8 +1351,8 @@ class Statistics {
           COUNT(CASE WHEN type = 'certificate' THEN 1 END) AS certificate_requests,
           COUNT(CASE WHEN type = 'appointment' THEN 1 END) AS appointment_requests,
           COUNT(CASE WHEN status = 'completed' AND type = 'certificate' THEN 1 END) AS completed_certificates,
-          COUNT(CASE WHEN EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE) THEN 1 END) AS requests_this_year,
-          COUNT(CASE WHEN EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE) AND status = 'completed' THEN 1 END) AS completed_this_year
+          COUNT(CASE WHEN created_at >= DATE_TRUNC('year', CURRENT_DATE) THEN 1 END) AS requests_this_year,
+          COUNT(CASE WHEN created_at >= DATE_TRUNC('year', CURRENT_DATE) AND status = 'completed' THEN 1 END) AS completed_this_year
         FROM requests
       `;
       const values = [];

@@ -7,8 +7,7 @@ export interface DashboardStatistics {
   totalRevenue: number;
   totalRevenueThisMonth: number;
   totalSubscribers: number;
-  totalCitizens: number;
-  totalNonCitizens: number;
+  totalResidents: number;
   activeServicesCount: number;
   
   // Transaction breakdowns
@@ -18,7 +17,7 @@ export interface DashboardStatistics {
   
   // Trends
   transactionTrends: Array<{ date: string; count: number; revenue: number }>;
-  subscriberGrowthTrends: Array<{ date: string; citizens: number; nonCitizens: number }>;
+  subscriberGrowthTrends: Array<{ date: string; active: number; pending: number }>;
   
   // Citizen status
   citizensByStatus: Record<string, number>;
@@ -29,7 +28,7 @@ export interface DashboardStatistics {
     transactionId: string;
     serviceName: string;
     serviceCode: string;
-    subscriberName: string;
+    residentName: string;
     paymentStatus: string;
     status: string | null;
     paymentAmount: number;

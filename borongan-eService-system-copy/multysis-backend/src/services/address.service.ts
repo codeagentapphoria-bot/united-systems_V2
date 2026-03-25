@@ -1,166 +1,107 @@
-import { Prisma } from '@prisma/client';
+/**
+ * address.service.ts
+ *
+ * Provides address hierarchy data from the barangays + municipalities tables
+ * that were auto-created during BIMS municipality setup via GeoJSON.
+ *
+ * Replaces the old "addresses" reference lookup table (removed in schema v2).
+ * The portal registration uses barangayId (integer FK) + street_address (free text).
+ */
+
 import prisma from '../config/database';
 
-export interface CreateAddressData {
-  region: string;
-  province: string;
-  municipality: string;
-  barangay: string;
-  postalCode: string;
-  streetAddress?: string;
-  isActive?: boolean;
-}
+// =============================================================================
+// GET ALL MUNICIPALITIES  (for portal dropdowns)
+// =============================================================================
 
-export interface UpdateAddressData {
-  region?: string;
-  province?: string;
-  municipality?: string;
-  barangay?: string;
-  postalCode?: string;
-  streetAddress?: string;
-  isActive?: boolean;
-}
+export const getMunicipalities = async () => {
+  return prisma.municipality.findMany({
+    where: { setupStatus: 'active' },
+    select: {
+      id: true,
+      municipalityName: true,
+      municipalityCode: true,
+      province: true,
+      region: true,
+    },
+    orderBy: { municipalityName: 'asc' },
+  });
+};
 
-export interface AddressFilters {
-  search?: string;
-  region?: string;
-  province?: string;
-  municipality?: string;
-  isActive?: boolean;
-}
+// =============================================================================
+// GET BARANGAYS BY MUNICIPALITY  (for portal address cascading dropdown)
+// =============================================================================
 
-export const createAddress = async (data: CreateAddressData) => {
-  const address = await prisma.address.create({
-    data: {
-      region: data.region,
-      province: data.province,
-      municipality: data.municipality,
-      barangay: data.barangay,
-      postalCode: data.postalCode,
-      streetAddress: data.streetAddress || null,
-      isActive: data.isActive !== undefined ? data.isActive : true,
+export const getBarangaysByMunicipality = async (municipalityId: number) => {
+  return prisma.barangay.findMany({
+    where: { municipalityId },
+    select: {
+      id: true,
+      barangayName: true,
+      barangayCode: true,
+      municipality: {
+        select: {
+          id: true,
+          municipalityName: true,
+          province: true,
+          region: true,
+        },
+      },
+    },
+    orderBy: { barangayName: 'asc' },
+  });
+};
+
+// =============================================================================
+// GET SINGLE BARANGAY  (resolves full address context)
+// =============================================================================
+
+export const getBarangay = async (barangayId: number) => {
+  const barangay = await prisma.barangay.findUnique({
+    where: { id: barangayId },
+    include: {
+      municipality: {
+        select: {
+          id: true,
+          municipalityName: true,
+          province: true,
+          region: true,
+        },
+      },
     },
   });
 
-  return address;
+  if (!barangay) throw new Error('Barangay not found');
+  return barangay;
 };
 
-export const getAddresses = async (filters: AddressFilters) => {
-  const { search, region, province, municipality, isActive } = filters;
+// =============================================================================
+// RESOLVE FULL ADDRESS STRING  (used when displaying a resident's address)
+// Format: {street}, {barangay}, {municipality}, {province}, {region}
+// =============================================================================
 
-  const where: Prisma.AddressWhereInput = {};
+export const resolveFullAddress = async (
+  barangayId: number | null | undefined,
+  streetAddress: string | null | undefined
+): Promise<string> => {
+  if (!barangayId) return streetAddress || '';
 
-  // Search filter
-  if (search) {
-    where.OR = [
-      { region: { contains: search, mode: 'insensitive' } },
-      { province: { contains: search, mode: 'insensitive' } },
-      { municipality: { contains: search, mode: 'insensitive' } },
-      { barangay: { contains: search, mode: 'insensitive' } },
-      { postalCode: { contains: search, mode: 'insensitive' } },
-      { streetAddress: { contains: search, mode: 'insensitive' } },
-    ];
-  }
-
-  // Region filter
-  if (region) {
-    where.region = region;
-  }
-
-  // Province filter
-  if (province) {
-    where.province = province;
-  }
-
-  // Municipality filter
-  if (municipality) {
-    where.municipality = municipality;
-  }
-
-  // Active filter
-  if (isActive !== undefined) {
-    where.isActive = isActive;
-  }
-
-  const addresses = await prisma.address.findMany({
-    where,
-    orderBy: [{ region: 'asc' }, { province: 'asc' }, { municipality: 'asc' }, { barangay: 'asc' }],
+  const barangay = await prisma.barangay.findUnique({
+    where: { id: barangayId },
+    include: {
+      municipality: { select: { municipalityName: true, province: true, region: true } },
+    },
   });
 
-  return addresses;
-};
+  if (!barangay) return streetAddress || '';
 
-export const getAddress = async (id: string) => {
-  const address = await prisma.address.findUnique({
-    where: { id },
-  });
+  const parts = [
+    streetAddress,
+    barangay.barangayName,
+    barangay.municipality?.municipalityName,
+    barangay.municipality?.province,
+    barangay.municipality?.region,
+  ].filter(Boolean);
 
-  if (!address) {
-    throw new Error('Address not found');
-  }
-
-  return address;
-};
-
-export const updateAddress = async (id: string, data: UpdateAddressData) => {
-  const address = await prisma.address.findUnique({ where: { id } });
-
-  if (!address) {
-    throw new Error('Address not found');
-  }
-
-  const updateData: Prisma.AddressUpdateInput = {};
-
-  if (data.region !== undefined) updateData.region = data.region;
-  if (data.province !== undefined) updateData.province = data.province;
-  if (data.municipality !== undefined) updateData.municipality = data.municipality;
-  if (data.barangay !== undefined) updateData.barangay = data.barangay;
-  if (data.postalCode !== undefined) updateData.postalCode = data.postalCode;
-  if (data.streetAddress !== undefined) updateData.streetAddress = data.streetAddress || null;
-  if (data.isActive !== undefined) updateData.isActive = data.isActive;
-
-  return prisma.address.update({
-    where: { id },
-    data: updateData,
-  });
-};
-
-export const deleteAddress = async (id: string) => {
-  const address = await prisma.address.findUnique({
-    where: { id },
-  });
-
-  if (!address) {
-    throw new Error('Address not found');
-  }
-
-  return prisma.address.delete({
-    where: { id },
-  });
-};
-
-export const activateAddress = async (id: string) => {
-  const address = await prisma.address.findUnique({ where: { id } });
-
-  if (!address) {
-    throw new Error('Address not found');
-  }
-
-  return prisma.address.update({
-    where: { id },
-    data: { isActive: true },
-  });
-};
-
-export const deactivateAddress = async (id: string) => {
-  const address = await prisma.address.findUnique({ where: { id } });
-
-  if (!address) {
-    throw new Error('Address not found');
-  }
-
-  return prisma.address.update({
-    where: { id },
-    data: { isActive: false },
-  });
+  return parts.join(', ');
 };

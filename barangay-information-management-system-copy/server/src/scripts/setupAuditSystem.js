@@ -173,7 +173,7 @@ async function setupAuditSystem() {
                                     NULLIF(first_name, ''), 
                                     NULLIF(middle_name, ''), 
                                     NULLIF(last_name, ''), 
-                                    NULLIF(suffix, '')
+                                    NULLIF(extension_name, '')
                                   ), 
                                   '\\s+', ' ', 'g'
                                 )),
@@ -192,7 +192,7 @@ async function setupAuditSystem() {
                                     NULLIF(first_name, ''), 
                                     NULLIF(middle_name, ''), 
                                     NULLIF(last_name, ''), 
-                                    NULLIF(suffix, '')
+                                    NULLIF(extension_name, '')
                                   ), 
                                   '\\s+', ' ', 'g'
                                 )),
@@ -211,7 +211,7 @@ async function setupAuditSystem() {
                                     NULLIF(first_name, ''), 
                                     NULLIF(middle_name, ''), 
                                     NULLIF(last_name, ''), 
-                                    NULLIF(suffix, '')
+                                    NULLIF(extension_name, '')
                                   ), 
                                   '\\s+', ' ', 'g'
                                 )),

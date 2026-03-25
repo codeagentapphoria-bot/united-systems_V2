@@ -1,138 +1,46 @@
-import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
+import { Request, Response } from 'express';
 import {
-  activateAddress,
-  createAddress,
-  deactivateAddress,
-  deleteAddress,
-  getAddress,
-  getAddresses,
-  updateAddress,
+  getBarangay,
+  getBarangaysByMunicipality,
+  getMunicipalities,
 } from '../services/address.service';
 
-export const createAddressController = async (req: AuthRequest, res: Response): Promise<void> => {
+// GET /api/addresses/municipalities
+export const getMunicipalitiesController = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const address = await createAddress(req.body);
-    res.status(201).json({
-      status: 'success',
-      data: address,
-    });
+    const municipalities = await getMunicipalities();
+    res.status(200).json({ status: 'success', data: municipalities });
   } catch (error: any) {
-    res.status(400).json({
-      status: 'error',
-      message: error.message || 'Failed to create address',
-    });
+    res.status(500).json({ status: 'error', message: error.message || 'Failed to fetch municipalities' });
   }
 };
 
-export const getAddressesController = async (req: AuthRequest, res: Response): Promise<void> => {
+// GET /api/addresses/barangays?municipalityId=1
+export const getBarangaysController = async (req: Request, res: Response): Promise<void> => {
   try {
-    const search = req.query.search as string;
-    const region = req.query.region as string;
-    const province = req.query.province as string;
-    const municipality = req.query.municipality as string;
-    const isActive =
-      req.query.isActive === 'true' ? true : req.query.isActive === 'false' ? false : undefined;
-
-    const addresses = await getAddresses({
-      search,
-      region,
-      province,
-      municipality,
-      isActive,
-    });
-
-    res.status(200).json({
-      status: 'success',
-      data: addresses,
-    });
+    const municipalityId = parseInt(req.query.municipalityId as string);
+    if (!municipalityId || isNaN(municipalityId)) {
+      res.status(400).json({ status: 'error', message: 'municipalityId query param is required' });
+      return;
+    }
+    const barangays = await getBarangaysByMunicipality(municipalityId);
+    res.status(200).json({ status: 'success', data: barangays });
   } catch (error: any) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message || 'Failed to fetch addresses',
-    });
+    res.status(500).json({ status: 'error', message: error.message || 'Failed to fetch barangays' });
   }
 };
 
-export const getAddressController = async (req: AuthRequest, res: Response): Promise<void> => {
+// GET /api/addresses/barangays/:id
+export const getBarangayController = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
-    const address = await getAddress(id);
-    res.status(200).json({
-      status: 'success',
-      data: address,
-    });
+    const id = parseInt(req.params.id);
+    if (!id || isNaN(id)) {
+      res.status(400).json({ status: 'error', message: 'Invalid barangay id' });
+      return;
+    }
+    const barangay = await getBarangay(id);
+    res.status(200).json({ status: 'success', data: barangay });
   } catch (error: any) {
-    res.status(404).json({
-      status: 'error',
-      message: error.message || 'Address not found',
-    });
-  }
-};
-
-export const updateAddressController = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const address = await updateAddress(id, req.body);
-    res.status(200).json({
-      status: 'success',
-      data: address,
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      status: 'error',
-      message: error.message || 'Failed to update address',
-    });
-  }
-};
-
-export const deleteAddressController = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    await deleteAddress(id);
-    res.status(200).json({
-      status: 'success',
-      message: 'Address deleted successfully',
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      status: 'error',
-      message: error.message || 'Failed to delete address',
-    });
-  }
-};
-
-export const activateAddressController = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const address = await activateAddress(id);
-    res.status(200).json({
-      status: 'success',
-      data: address,
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      status: 'error',
-      message: error.message || 'Failed to activate address',
-    });
-  }
-};
-
-export const deactivateAddressController = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const address = await deactivateAddress(id);
-    res.status(200).json({
-      status: 'success',
-      data: address,
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      status: 'error',
-      message: error.message || 'Failed to deactivate address',
-    });
+    res.status(404).json({ status: 'error', message: error.message || 'Barangay not found' });
   }
 };

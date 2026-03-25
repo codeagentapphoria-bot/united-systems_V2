@@ -38,7 +38,12 @@ export async function convertShapefileToSQL() {
     const dbPort = process.env.PG_PORT || '5432';
     const dbName = process.env.PG_DATABASE || 'bims';
     const dbUser = process.env.PG_USER || 'postgres';
-    const dbPassword = process.env.PG_PASSWORD || '1234';
+    const dbPassword = process.env.PG_PASSWORD; // No default — must be set in environment
+    
+    if (!dbPassword) {
+      logger.error('PG_PASSWORD environment variable is required for shapefile import');
+      process.exit(1);
+    }
     
     logger.info(`Using database: ${dbHost}:${dbPort}/${dbName} as ${dbUser}`);
     
@@ -111,7 +116,7 @@ CREATE TABLE IF NOT EXISTS gis_municipality (
 );
 
 -- Data was imported directly using ogr2ogr command:
--- ogr2ogr -progress --config PG_USE_COPY YES -f PostgreSQL "PG:host=localhost port=5432 dbname=bims password=1234 active_schema=public user=postgres" -lco DIM=2 -nln public.gis_municipality -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geom -append "geodata/Eastern Samar Municipality.shp"
+-- ogr2ogr -progress --config PG_USE_COPY YES -f PostgreSQL "PG:host=localhost port=5432 dbname=bims password=YOUR_PASSWORD active_schema=public user=postgres" -lco DIM=2 -nln public.gis_municipality -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geom -append "geodata/Eastern Samar Municipality.shp"
 
 -- Add shape_sqkm column if it doesn't exist (for existing installations)
 DO $$ 
@@ -150,7 +155,7 @@ CREATE TABLE IF NOT EXISTS gis_barangay (
 );
 
 -- Data was imported directly using ogr2ogr command:
--- ogr2ogr -progress --config PG_USE_COPY YES -f PostgreSQL "PG:host=localhost port=5432 dbname=bims password=1234 active_schema=public user=postgres" -lco DIM=2 -nln public.gis_barangay -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geom -append "geodata/Eastern Samar Barangay.shp"
+-- ogr2ogr -progress --config PG_USE_COPY YES -f PostgreSQL "PG:host=localhost port=5432 dbname=bims password=YOUR_PASSWORD active_schema=public user=postgres" -lco DIM=2 -nln public.gis_barangay -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geom -append "geodata/Eastern Samar Barangay.shp"
 
 -- Add shape_sqkm column if it doesn't exist (for existing installations)
 DO $$ 

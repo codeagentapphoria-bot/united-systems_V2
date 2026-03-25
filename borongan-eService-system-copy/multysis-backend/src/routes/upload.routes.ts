@@ -14,7 +14,7 @@ const router = Router();
 
 // Upload profile picture
 router.post(
-  '/subscribers/:id/profile-picture',
+  '/residents/:id/profile-picture',
   verifyAdmin,
   uploadProfilePicture.single('file'),
   async (req: AuthRequest, res: Response): Promise<void> => {
@@ -27,17 +27,14 @@ router.post(
         return;
       }
 
-      const subscriberGateway = await (prisma as any).subscriber.findUnique({
+      const resident = await prisma.resident.findUnique({
         where: { id: req.params.id },
-        include: {
-          nonCitizen: true,
-        },
       });
 
-      if (!subscriberGateway) {
+      if (!resident) {
         res.status(404).json({
           status: 'error',
-          message: 'Subscriber not found',
+          message: 'Resident not found',
         });
         return;
       }
@@ -45,36 +42,25 @@ router.post(
       const filePath = getFilePath(req.file.filename, 'image');
       const fileUrl = getFileUrl(filePath);
 
-      // Update profile picture in NonCitizen if type is SUBSCRIBER
-      if (subscriberGateway.type === 'SUBSCRIBER' && subscriberGateway.nonCitizen) {
-        // Delete old profile picture if it exists
-        if (subscriberGateway.nonCitizen.profilePicture) {
-          try {
-            const oldFilePath = subscriberGateway.nonCitizen.profilePicture.startsWith('/')
-              ? subscriberGateway.nonCitizen.profilePicture
-              : `/${subscriberGateway.nonCitizen.profilePicture}`;
-            const fullPath = path.join(process.cwd(), oldFilePath);
-            if (fs.existsSync(fullPath)) {
-              fs.unlinkSync(fullPath);
-              console.log(`Deleted old subscriber profile picture: ${oldFilePath}`);
-            }
-          } catch (error) {
-            console.error('Error deleting old subscriber profile picture:', error);
-            // Continue with update even if file deletion fails
+      // Delete old profile picture if it exists
+      if ((resident as any).profilePicture) {
+        try {
+          const oldFilePath = (resident as any).profilePicture.startsWith('/')
+            ? (resident as any).profilePicture
+            : `/${(resident as any).profilePicture}`;
+          const fullPath = path.join(process.cwd(), oldFilePath);
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
           }
+        } catch (error) {
+          console.error('Error deleting old profile picture:', error);
         }
-
-        await (prisma as any).nonCitizen.update({
-          where: { id: subscriberGateway.nonCitizen.id },
-          data: { profilePicture: filePath }, // Store relative path in DB
-        });
-      } else {
-        res.status(400).json({
-          status: 'error',
-          message: 'Cannot update profile picture for citizen subscribers',
-        });
-        return;
       }
+
+      await prisma.resident.update({
+        where: { id: resident.id },
+        data: { profilePicture: filePath } as any,
+      });
 
       res.status(200).json({
         status: 'success',
@@ -94,33 +80,23 @@ router.post(
 
 // Get profile picture
 router.get(
-  '/subscribers/:id/profile-picture',
+  '/residents/:id/profile-picture',
   verifyToken,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const subscriberGateway = await (prisma as any).subscriber.findUnique({
+      const resident = await prisma.resident.findUnique({
         where: { id: req.params.id },
-        include: {
-          citizen: { select: { citizenPicture: true } },
-          nonCitizen: { select: { profilePicture: true } },
-        },
       });
 
-      if (!subscriberGateway) {
+      if (!resident) {
         res.status(404).json({
           status: 'error',
-          message: 'Subscriber not found',
+          message: 'Resident not found',
         });
         return;
       }
 
-      // Get profile picture from appropriate source
-      let profilePicture: string | null = null;
-      if (subscriberGateway.type === 'CITIZEN' && subscriberGateway.citizen) {
-        profilePicture = subscriberGateway.citizen.citizenPicture;
-      } else if (subscriberGateway.type === 'SUBSCRIBER' && subscriberGateway.nonCitizen) {
-        profilePicture = subscriberGateway.nonCitizen.profilePicture;
-      }
+      const profilePicture: string | null = (resident as any).profilePicture ?? null;
 
       res.status(200).json({
         status: 'success',

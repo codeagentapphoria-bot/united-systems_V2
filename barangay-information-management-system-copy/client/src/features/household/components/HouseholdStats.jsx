@@ -24,13 +24,11 @@ const HouseholdStats = ({
       setLoading(true);
       try {
         // Build query parameters for filtering
+        // Note: filterPurok now refers to barangay in v2 (puroks removed)
         const params = {};
 
         if (user?.target_type === "barangay") {
           params.barangayId = user.target_id;
-          if (filterPurok && filterPurok !== "all") {
-            params.purokId = filterPurok;
-          }
         } else if (filterPurok && filterPurok !== "all") {
           params.barangayId = filterPurok;
         }

@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import {
   emitAppointmentNew,
@@ -25,8 +26,9 @@ export const createTransactionController = async (
   res: Response
 ): Promise<void> => {
   try {
-    // Verify subscriber can only create transactions for themselves
-    if (req.user?.type === 'subscriber' && req.body.subscriberId !== req.user.id) {
+    // Residents can only create transactions for themselves.
+    // Guest submissions (no residentId) are allowed without auth.
+    if (req.user?.type === 'resident' && req.body.residentId && req.body.residentId !== req.user.id) {
       res.status(403).json({
         status: 'error',
         message: 'Access denied',
@@ -39,7 +41,7 @@ export const createTransactionController = async (
     // Emit WebSocket event for new transaction with full data
     emitNewTransaction({
       id: transaction.id,
-      subscriberId: transaction.subscriberId,
+      residentId: transaction.residentId ?? '',
       transactionId: transaction.transactionId,
       serviceId: transaction.serviceId,
       status: transaction.status || undefined,
@@ -58,7 +60,7 @@ export const createTransactionController = async (
         serviceCode: transaction.service?.code,
         appointmentDate: transaction.preferredAppointmentDate,
         appointmentStatus: transaction.appointmentStatus || 'PENDING',
-        subscriberId: transaction.subscriberId,
+        residentId: transaction.residentId ?? '',
       });
     }
 
@@ -74,12 +76,67 @@ export const createTransactionController = async (
   }
 };
 
+// GET /api/transactions/track/:referenceNumber — public, no auth
+// Returns minimal status info for any transaction (guest or resident).
+export const trackTransactionController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const transaction = await prisma.transaction.findFirst({
+      where: { referenceNumber: req.params.referenceNumber },
+      select: {
+        transactionId:     true,
+        referenceNumber:   true,
+        status:            true,
+        paymentStatus:     true,
+        paymentAmount:     true,
+        applicationDate:   true,
+        appointmentStatus: true,
+        createdAt:         true,
+        updatedAt:         true,
+        applicantName:     true,
+        applicantEmail:    true,
+        resident: { select: { firstName: true, lastName: true } },
+        service:  { select: { id: true, name: true, code: true, description: true } },
+      },
+    });
+
+    if (!transaction) {
+      res.status(404).json({ status: 'error', message: 'Transaction not found' });
+      return;
+    }
+
+    const applicantName = transaction.applicantName
+      ?? (transaction.resident
+          ? `${transaction.resident.firstName} ${transaction.resident.lastName}`
+          : 'Unknown');
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        transactionId:     transaction.transactionId,
+        referenceNumber:   transaction.referenceNumber,
+        status:            transaction.status,
+        paymentStatus:     transaction.paymentStatus,
+        paymentAmount:     transaction.paymentAmount,
+        appointmentStatus: transaction.appointmentStatus,
+        applicationDate:   transaction.applicationDate,
+        createdAt:         transaction.createdAt,
+        updatedAt:         transaction.updatedAt,
+        applicantName,
+        service:           transaction.service,
+        isGuest:           !transaction.resident,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
 export const getTransactionsController = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const subscriberId = req.params.subscriberId;
+    const residentId = req.params.residentId;
 
-    // Verify ownership for subscribers
-    if (req.user?.type === 'subscriber' && subscriberId !== req.user.id) {
+    // Verify ownership for residents
+    if (req.user?.type === 'resident' && residentId !== req.user.id) {
       res.status(403).json({
         status: 'error',
         message: 'Access denied',
@@ -91,7 +148,7 @@ export const getTransactionsController = async (req: AuthRequest, res: Response)
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
 
-    const result = await getTransactions(subscriberId, serviceId, page, limit);
+    const result = await getTransactions(residentId, serviceId, page, limit);
 
     res.status(200).json({
       status: 'success',
@@ -110,10 +167,11 @@ export const getTransactionController = async (req: AuthRequest, res: Response):
   try {
     const userType = req.user?.type;
     const userId = req.user?.id;
-    const transaction = await getTransaction(req.params.id, userType, userId);
+    const transaction = await getTransaction(req.params.id, userType as any, userId);
 
-    // Verify ownership for subscribers
-    if (req.user?.type === 'subscriber' && transaction.subscriberId !== req.user.id) {
+    // Residents can only access their own transactions.
+    // Guest (null residentId) transactions are publicly accessible via referenceNumber.
+    if (req.user?.type === 'resident' && transaction.residentId !== null && transaction.residentId !== req.user.id) {
       res.status(403).json({
         status: 'error',
         message: 'Access denied',
@@ -169,11 +227,11 @@ export const updateTransactionController = async (
       emitAppointmentUpdate(transaction.id, {
         appointmentStatus: transaction.appointmentStatus || undefined,
         appointmentDate:
-          transaction.preferredAppointmentDate || transaction.scheduledAppointmentDate,
+          (transaction.preferredAppointmentDate || transaction.scheduledAppointmentDate) ?? undefined,
         oldAppointmentStatus: oldTransaction.appointmentStatus || undefined,
         serviceId: transaction.serviceId,
         serviceCode: transaction.service?.code,
-        subscriberId: transaction.subscriberId,
+      residentId: transaction.residentId ?? '',
         updatedAt: transaction.updatedAt,
       });
     }
@@ -197,8 +255,8 @@ export const downloadTransactionController = async (
   try {
     const transaction = await getTransaction(req.params.id);
 
-    // Verify ownership for subscribers
-    if (req.user?.type === 'subscriber' && transaction.subscriberId !== req.user.id) {
+    // Residents can only download their own transactions.
+    if (req.user?.type === 'resident' && transaction.residentId !== null && transaction.residentId !== req.user.id) {
       res.status(403).json({
         status: 'error',
         message: 'Access denied',
@@ -238,8 +296,8 @@ export const getTransactionsByServiceController = async (
     if (req.query.status) {
       filters.status = req.query.status as string;
     }
-    if (req.query.isResidentOfBorongan !== undefined) {
-      filters.isResidentOfBorongan = req.query.isResidentOfBorongan === 'true';
+    if (req.query.isLocalResident !== undefined) {
+      filters.isLocalResident = req.query.isLocalResident === 'true';
     }
     if (req.query.search) {
       filters.search = req.query.search as string;
@@ -318,7 +376,7 @@ export const requestTransactionUpdateController = async (
     const transactionId = req.params.id;
     const { description, serviceData, preferredAppointmentDate } = req.body;
 
-    if (!req.user || req.user.type !== 'subscriber') {
+    if (!req.user || req.user.type !== 'resident') {
       res.status(403).json({
         status: 'error',
         message: 'Access denied',

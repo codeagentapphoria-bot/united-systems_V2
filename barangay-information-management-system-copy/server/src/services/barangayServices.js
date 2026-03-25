@@ -5,8 +5,6 @@ import logger from "../utils/logger.js";
 import {
   INSERT_BARANGAY,
   UPDATE_BARANGAY,
-  INSERT_PUROK,
-  UPDATE_PUROK,
   ADD_OFFICIAL,
   UPDATE_OFFICIAL,
   GET_OFFICIALS_LIST,
@@ -282,80 +280,10 @@ class Barangay {
     }
   }
 
-  static async insertPurok({
-    barangayId,
-    purokName,
-    purokLeader,
-    description,
-  }) {
-    logger.info("insertPurok called:", { barangayId, purokName, purokLeader, description });
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const result = await client.query(INSERT_PUROK, [
-        barangayId,
-        purokName,
-        purokLeader,
-        description,
-      ]);
-      await client.query("COMMIT");
-      logger.info("insertPurok success:", result.rows[0]);
-      return result.rows[0];
-    } catch (error) {
-      try { await client.query("ROLLBACK"); } catch (e) {}
-      logger.error("insertPurok FAILED:", error.message, error.code, error.detail);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  static async updatePurok({
-    purokId,
-    barangayId,
-    purokName,
-    purokLeader,
-    description,
-  }) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const result = await client.query(UPDATE_PUROK, [
-        purokId,
-        barangayId,
-        purokName,
-        purokLeader,
-        description,
-      ]);
-      await client.query("COMMIT");
-      return result.rows[0];
-    } catch (error) {
-      await client.query("ROLLBACK");
-      logger.error("Failed to update purok:", error);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  static async deletePurok(purokId) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const result = await client.query(
-        "DELETE FROM puroks WHERE id = $1 RETURNING *",
-        [purokId]
-      );
-      await client.query("COMMIT");
-      return result.rows[0];
-    } catch (error) {
-      await client.query("ROLLBACK");
-      logger.error("Failed to delete purok:", error);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
+  // Puroks removed in v2 — these stubs prevent any accidental DB access.
+  static async insertPurok() { return null; }
+  static async updatePurok() { return null; }
+  static async deletePurok() { return null; }
 
   static async barangayList({ search = "", page = 1, perPage = 10 }) {
     const client = await pool.connect();
@@ -541,55 +469,9 @@ class Barangay {
     }
   }
 
-  static async purokList(barangayId) {
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        `
-        SELECT id AS purok_id,
-        barangay_id,
-        purok_name,
-        purok_leader,
-        description
-        FROM puroks
-        WHERE barangay_id = $1
-        `,
-        [barangayId]
-      );
-
-      return result.rows;
-    } catch (error) {
-      logger.error("Error fetching purok list:", error);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  static async purokInfo(purokId) {
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        `
-        SELECT
-        id AS purok_id,
-        purok_name,
-        purok_leader,
-        description
-        FROM puroks
-        WHERE id = $1
-        `,
-        [purokId]
-      );
-
-      return result.rows[0];
-    } catch (error) {
-      logger.error("Error fetching purok information:", error);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
+  // Puroks removed in v2 — returns empty results.
+  static async purokList() { return []; }
+  static async purokInfo() { return null; }
 
   static async insertOfficial({
     barangayId,
@@ -1367,13 +1249,6 @@ class Barangay {
       let queryParams = [barangayId];
       let paramIndex = 2;
 
-      // Add purok filter
-      if (filters.purokId && filters.purokId !== "all") {
-        whereConditions.push(`h.purok_id = $${paramIndex}`);
-        queryParams.push(filters.purokId);
-        paramIndex++;
-      }
-
       // Add search filter
       if (filters.search) {
         whereConditions.push(`(
@@ -1399,29 +1274,28 @@ class Barangay {
 
       const whereClause = whereConditions.join(" AND ");
 
-      // Export residents data with joined barangay and purok information
+      // Export residents data with joined barangay information
       const residentsResult = await client.query(
         `SELECT 
           r.id,
           r.last_name,
           r.first_name,
           r.middle_name,
-          r.suffix,
+          r.extension_name,
           r.sex,
           r.civil_status,
           r.birthdate,
-          r.birthplace,
+          r.birth_region,
           r.contact_number,
           r.email,
           r.occupation,
           r.monthly_income,
           r.employment_status,
           r.education_attainment,
-          r.resident_status,
+          r.status,
           r.picture_path,
           r.indigenous_person,
           b.barangay_name,
-          p.purok_name,
           h.house_number,
           h.street,
           CASE 
@@ -1437,24 +1311,23 @@ class Barangay {
         LEFT JOIN barangays b ON r.barangay_id = b.id
         LEFT JOIN (
           -- Get household info for house heads
-          SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+          SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN households h ON h.house_head = r.id
           UNION
           -- Get household info for family heads
-          SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+          SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN families f ON f.family_head = r.id
           JOIN households h ON h.id = f.household_id
           UNION
           -- Get household info for family members
-          SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+          SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN family_members fm ON fm.family_member = r.id
           JOIN families f ON f.id = fm.family_id
           JOIN households h ON h.id = f.household_id
         ) h ON h.resident_id = r.id
-        LEFT JOIN puroks p ON h.purok_id = p.id
         WHERE ${whereClause}
         ORDER BY r.last_name, r.first_name`,
         queryParams
@@ -1492,25 +1365,24 @@ class Barangay {
       if (residentsResult.rows.length > 0) {
         const processedResidents = residentsResult.rows.map((resident) => ({
           Barangay: resident.barangay_name,
-          Purok: resident.purok_name || "",
           "House Number": resident.house_number || "",
           Street: resident.street || "",
           "Resident ID": resident.id,
           "Last Name": resident.last_name,
           "First Name": resident.first_name,
           "Middle Name": resident.middle_name || "",
-          Suffix: resident.suffix || "",
+          Suffix: resident.extension_name || "",
           Sex: resident.sex,
           "Civil Status": resident.civil_status,
           "Birth Date": resident.birthdate,
-          "Birth Place": resident.birthplace || "",
+          "Birth Place": resident.birth_region || "",
           "Contact Number": resident.contact_number || "",
           Email: resident.email || "",
           Occupation: resident.occupation || "",
           "Monthly Income": resident.monthly_income || "",
           "Employment Status": resident.employment_status || "",
           "Education Attainment": resident.education_attainment || "",
-          "Resident Status": resident.resident_status,
+          "Resident Status": resident.status,
           "Indigenous Person": resident.indigenous_person ? "Yes" : "No",
         }));
 
@@ -1705,8 +1577,8 @@ class Barangay {
           // Insert resident
           const result = await client.query(
             `INSERT INTO residents (
-              id, barangay_id, first_name, last_name, middle_name, suffix,
-              birthdate, birthplace, sex, civil_status, contact_number,
+              id, barangay_id, first_name, last_name, middle_name, extension_name,
+              birthdate, birth_region, sex, civil_status, contact_number,
               email, occupation, employment_status, education_attainment, created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
             RETURNING id`,
@@ -1716,9 +1588,9 @@ class Barangay {
               row.first_name,
               row.last_name,
               row.middle_name || null,
-              row.suffix || null,
+              row.extension_name || null,
               row.birth_date,
-              row.birth_place || null,
+              row.birth_region || row.birth_place || null,
               row.gender?.toLowerCase(),
               row.civil_status?.toLowerCase(),
               row.contact_number || null,
@@ -1777,13 +1649,6 @@ class Barangay {
       let queryParams = [barangayId];
       let paramIndex = 2;
 
-      // Add purok filter
-      if (filters.purokId && filters.purokId !== "all") {
-        whereConditions.push(`h.purok_id = $${paramIndex}`);
-        queryParams.push(filters.purokId);
-        paramIndex++;
-      }
-
       // Add search filter
       if (filters.search) {
         whereConditions.push(`(
@@ -1798,13 +1663,12 @@ class Barangay {
 
       const whereClause = whereConditions.join(" AND ");
 
-      // Export households data with family members for all puroks in barangay
+      // Export households data with family members
       const householdsResult = await client.query(
         `SELECT 
           h.id as household_id,
           h.house_number,
           h.street,
-          h.purok_id,
           h.barangay_id,
           h.house_head,
           h.housing_type,
@@ -1813,7 +1677,6 @@ class Barangay {
           h.water_source,
           h.toilet_facility,
           h.area,
-          p.purok_name,
           b.barangay_name,
           -- House head information
           r_house_head.first_name as house_head_first_name,
@@ -1885,15 +1748,14 @@ class Barangay {
             ELSE ''
           END as full_address
         FROM households h
-        LEFT JOIN puroks p ON h.purok_id = p.id
         LEFT JOIN barangays b ON h.barangay_id = b.id
         LEFT JOIN residents r_house_head ON h.house_head = r_house_head.id
         LEFT JOIN families f ON f.household_id = h.id
         LEFT JOIN residents r_family_head ON f.family_head = r_family_head.id
         LEFT JOIN family_members fm ON fm.family_id = f.id
-        LEFT JOIN residents r_member ON fm.family_member = r_member.id
-        WHERE ${whereClause}
-        ORDER BY p.purok_name, h.house_number, h.street, f.family_group, r_member.last_name, r_member.first_name`,
+         LEFT JOIN residents r_member ON fm.family_member = r_member.id
+         WHERE ${whereClause}
+         ORDER BY h.house_number, h.street, f.family_group, r_member.last_name, r_member.first_name`,
         queryParams
       );
 
@@ -1903,26 +1765,15 @@ class Barangay {
       // Extract barangay name from query results (used in empty-sheet fallback)
       const barangayName = householdsResult.rows[0]?.barangay_name || 'Unknown';
 
-      // Group households by purok
-      const householdsByPurok = {};
-      householdsResult.rows.forEach((row) => {
-        const purokName = row.purok_name || "Unknown Purok";
-        if (!householdsByPurok[purokName]) {
-          householdsByPurok[purokName] = [];
-        }
-        householdsByPurok[purokName].push(row);
-      });
+      // Create a single sheet with all households (purok no longer exists in v2)
+      const allHouseholds = householdsResult.rows;
 
-      // Create a sheet for each purok
-      Object.keys(householdsByPurok).forEach((purokName) => {
-        const purokHouseholds = householdsByPurok[purokName];
+      // Process data to include family members
+      const processedRows = [];
+      const processedFamilies = new Set(); // Track processed families to avoid duplicates
+      const processedHouseholds = new Set(); // Track processed households to avoid duplicating house head and address
 
-        // Process data to include family members
-        const processedRows = [];
-        const processedFamilies = new Set(); // Track processed families to avoid duplicates
-        const processedHouseholds = new Set(); // Track processed households to avoid duplicating house head and address
-
-        purokHouseholds.forEach((row) => {
+      allHouseholds.forEach((row) => {
           const familyKey = `${row.household_id}-${row.family_id}`;
           const householdKey = `${row.household_id}`;
 
@@ -1992,15 +1843,12 @@ class Barangay {
         householdsSheet["!cols"] = columnWidths;
 
         // Create sheet name (sanitize for Excel)
-        const sheetName = purokName
-          .replace(/[\[\]*?/\\]/g, "")
-          .substring(0, 31);
+        const sheetName = "Households";
         XLSX.default.utils.book_append_sheet(
           workbook,
           householdsSheet,
           sheetName
         );
-      });
 
       // Check if workbook has any sheets
       if (workbook.SheetNames.length === 0) {
@@ -2094,33 +1942,15 @@ class Barangay {
           if (
             !row.house_number ||
             !row.house_head_name ||
-            !row.street ||
-            !row.purok_name
+            !row.street
           ) {
             errors.push(
               `Row ${
                 i + 2
-              }: Missing required fields (house_number, house_head_name, street, purok_name)`
+              }: Missing required fields (house_number, house_head_name, street)`
             );
             continue;
           }
-
-          // Find purok by name
-          const purokCheck = await client.query(
-            "SELECT id FROM puroks WHERE purok_name = $1 AND barangay_id = $2",
-            [row.purok_name.trim(), barangayId]
-          );
-
-          if (purokCheck.rows.length === 0) {
-            errors.push(
-              `Row ${i + 2}: Purok "${
-                row.purok_name
-              }" does not exist in this barangay. Please add the purok first.`
-            );
-            continue;
-          }
-
-          const purokId = purokCheck.rows[0].id;
 
           // Check if household number already exists
           const existingHousehold = await client.query(
@@ -2139,7 +1969,7 @@ class Barangay {
 
           // Find resident by name (house head) - use JavaScript for better name matching
           const allResidents = await client.query(
-            `SELECT id, first_name, last_name, middle_name, suffix
+            `SELECT id, first_name, last_name, middle_name, extension_name
              FROM residents 
              WHERE barangay_id = $1`,
             [barangayId]
@@ -2154,27 +1984,27 @@ class Barangay {
               resident.first_name,
               resident.middle_name,
               resident.last_name,
-              resident.suffix
+              resident.extension_name
             ].filter(Boolean).join(' ').toLowerCase();
             
             const nameWithInitial = [
               resident.first_name,
               resident.middle_name ? resident.middle_name.charAt(0) + '.' : null,
               resident.last_name,
-              resident.suffix
+              resident.extension_name
             ].filter(Boolean).join(' ').toLowerCase();
             
             const nameOnly = [
               resident.first_name,
               resident.last_name,
-              resident.suffix
+              resident.extension_name
             ].filter(Boolean).join(' ').toLowerCase();
             
             const lastNameFirst = [
               resident.last_name,
               resident.first_name,
               resident.middle_name,
-              resident.suffix
+              resident.extension_name
             ].filter(Boolean).join(', ').toLowerCase();
 
             if (fullName === searchName ||
@@ -2198,16 +2028,15 @@ class Barangay {
           // Insert household with resident ID
           const householdResult = await client.query(
             `INSERT INTO households (
-              barangay_id, house_number, house_head, street, purok_id,
+              barangay_id, house_number, house_head, street,
               housing_type, electricity, water_source, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
             RETURNING id`,
             [
               barangayId,
               row.house_number,
-              houseHeadId, // Use resident ID, not name
+              houseHeadId,
               row.street,
-              purokId, // Use purok ID from name lookup
               row.housing_type || null,
               row.electricity === 'Yes' ? true : (row.electricity === 'No' ? false : null),
               row.water_source || null,
@@ -2255,7 +2084,7 @@ class Barangay {
 
               // Get all residents and match by name in JavaScript for better flexibility
               const allResidents = await client.query(
-                `SELECT id, first_name, last_name, middle_name, suffix
+                `SELECT id, first_name, last_name, middle_name, extension_name
                  FROM residents 
                  WHERE barangay_id = $1`,
                 [barangayId]
@@ -2268,27 +2097,27 @@ class Barangay {
                   resident.first_name,
                   resident.middle_name,
                   resident.last_name,
-                  resident.suffix
+                  resident.extension_name
                 ].filter(Boolean).join(' ').toLowerCase();
                 
                 const nameWithInitial = [
                   resident.first_name,
                   resident.middle_name ? resident.middle_name.charAt(0) + '.' : null,
                   resident.last_name,
-                  resident.suffix
+                  resident.extension_name
                 ].filter(Boolean).join(' ').toLowerCase();
                 
                 const nameOnly = [
                   resident.first_name,
                   resident.last_name,
-                  resident.suffix
+                  resident.extension_name
                 ].filter(Boolean).join(' ').toLowerCase();
                 
                 const lastNameFirst = [
                   resident.last_name,
                   resident.first_name,
                   resident.middle_name,
-                  resident.suffix
+                  resident.extension_name
                 ].filter(Boolean).join(', ').toLowerCase();
                 
                 const searchName = memberName.toLowerCase();

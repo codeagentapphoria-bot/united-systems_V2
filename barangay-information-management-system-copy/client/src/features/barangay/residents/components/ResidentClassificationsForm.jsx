@@ -35,9 +35,10 @@ const ResidentClassificationsForm = ({
   onCancel,
   loading = false,
   classificationOptions = [],
+  municipalityId,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { classificationTypes, loading: typesLoading } = useClassificationTypes();
+  const { classificationTypes, loading: typesLoading } = useClassificationTypes(municipalityId);
   const [localClassificationOptions, setLocalClassificationOptions] = useState(
     []
   );

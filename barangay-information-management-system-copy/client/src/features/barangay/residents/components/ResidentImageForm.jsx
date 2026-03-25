@@ -25,7 +25,7 @@ const ResidentImageForm = ({
   useEffect(() => {
     if (resident?.picture_path) {
       const SERVER_URL =
-        import.meta.env.VITE_SERVER_URL || "http://13.211.71.85";
+        import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
       setImagePreview(
         `${SERVER_URL}/${resident.picture_path.replace(/\\/g, "/")}`
       );

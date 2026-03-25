@@ -44,9 +44,9 @@ export const listSoloParentBeneficiariesValidation: ValidationChain[] = [
 ];
 
 export const createSeniorBeneficiaryValidation: ValidationChain[] = [
-  body('citizenId').isUUID().withMessage('Citizen ID is required'),
+  body('residentId').isUUID().withMessage('Resident ID is required'),
   body('pensionTypes').isArray({ min: 1 }).withMessage('At least one pension type is required'),
-  body('pensionTypes.*').isUUID().withMessage('Pension type IDs must be valid UUIDs'),
+  body('pensionTypes.*').isString().notEmpty().withMessage('Pension type IDs must be non-empty strings'),
   ...governmentProgramsValidation('governmentPrograms'),
 ];
 
@@ -56,15 +56,15 @@ export const updateSeniorBeneficiaryValidation: ValidationChain[] = [
     .optional()
     .isArray({ min: 1 })
     .withMessage('At least one pension type is required'),
-  body('pensionTypes.*').optional().isUUID().withMessage('Pension type IDs must be valid UUIDs'),
+  body('pensionTypes.*').optional().isString().notEmpty().withMessage('Pension type IDs must be non-empty strings'),
   body('status').optional().isIn(beneficiaryStatusValues).withMessage('Invalid status'),
   body('remarks').optional().isString(),
   ...governmentProgramsValidation('governmentPrograms'),
 ];
 
 export const createPWDBeneficiaryValidation: ValidationChain[] = [
-  body('citizenId').isUUID().withMessage('Citizen ID is required'),
-  body('disabilityType').isUUID().withMessage('Disability type ID must be a valid UUID'),
+  body('residentId').isUUID().withMessage('Resident ID is required'),
+  body('disabilityType').isString().notEmpty().withMessage('Disability type ID is required'),
   body('disabilityLevel').isString().trim().notEmpty().withMessage('Disability level is required'),
   body('monetaryAllowance').optional().isBoolean(),
   body('assistedDevice').optional().isBoolean(),
@@ -74,7 +74,7 @@ export const createPWDBeneficiaryValidation: ValidationChain[] = [
 
 export const updatePWDBeneficiaryValidation: ValidationChain[] = [
   param('id').isUUID().withMessage(uuidMessage),
-  body('disabilityType').optional().isUUID().withMessage('Disability type ID must be a valid UUID'),
+  body('disabilityType').optional().isString().notEmpty(),
   body('disabilityLevel').optional().isString().trim().notEmpty(),
   body('monetaryAllowance').optional().isBoolean(),
   body('assistedDevice').optional().isBoolean(),
@@ -85,28 +85,28 @@ export const updatePWDBeneficiaryValidation: ValidationChain[] = [
 ];
 
 export const createStudentBeneficiaryValidation: ValidationChain[] = [
-  body('citizenId').isUUID().withMessage('Citizen ID is required'),
-  body('gradeLevel').isUUID().withMessage('Grade level ID must be a valid UUID'),
+  body('residentId').isUUID().withMessage('Resident ID is required'),
+  body('gradeLevel').isString().notEmpty().withMessage('Grade level ID is required'),
   ...governmentProgramsValidation('programs'),
 ];
 
 export const updateStudentBeneficiaryValidation: ValidationChain[] = [
   param('id').isUUID().withMessage(uuidMessage),
-  body('gradeLevel').optional().isUUID().withMessage('Grade level ID must be a valid UUID'),
+  body('gradeLevel').optional().isString().notEmpty(),
   body('status').optional().isIn(beneficiaryStatusValues),
   body('remarks').optional().isString(),
   ...governmentProgramsValidation('programs'),
 ];
 
 export const createSoloParentBeneficiaryValidation: ValidationChain[] = [
-  body('citizenId').isUUID().withMessage('Citizen ID is required'),
-  body('category').isUUID().withMessage('Category ID must be a valid UUID'),
+  body('residentId').isUUID().withMessage('Resident ID is required'),
+  body('category').isString().notEmpty().withMessage('Category ID is required'),
   ...governmentProgramsValidation('assistancePrograms'),
 ];
 
 export const updateSoloParentBeneficiaryValidation: ValidationChain[] = [
   param('id').isUUID().withMessage(uuidMessage),
-  body('category').optional().isUUID().withMessage('Category ID must be a valid UUID'),
+  body('category').optional().isString().notEmpty(),
   body('status').optional().isIn(beneficiaryStatusValues),
   body('remarks').optional().isString(),
   ...governmentProgramsValidation('assistancePrograms'),

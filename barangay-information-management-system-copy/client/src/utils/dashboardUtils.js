@@ -140,6 +140,7 @@ export const calculateTrend = (current, previous) => {
 };
 
 // Helper function to get filter description
+// Note: puroks parameter kept for backward compatibility but puroks table removed in v2
 export const getFilterDescription = (
   baseDescription,
   selectedBarangay,
@@ -156,11 +157,7 @@ export const getFilterDescription = (
       description += ` (${barangay.barangay_name})`;
     }
   }
-  if (selectedPurok) {
-    const purok = puroks.find((p) => p.purok_id.toString() === selectedPurok);
-    if (purok) {
-      description += ` - ${purok.purok_name}`;
-    }
-  }
+  // Puroks removed in v2 - selectedPurok is no longer used
+  // Keeping parameter for backward compatibility but purok filtering is disabled
   return description;
 };

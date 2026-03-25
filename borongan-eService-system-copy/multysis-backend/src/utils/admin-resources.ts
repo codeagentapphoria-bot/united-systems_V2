@@ -11,8 +11,7 @@ export interface ResourceOption {
 export const getAdminResources = (): ResourceOption[] => {
   const resources: ResourceOption[] = [
     { value: 'dashboard', label: 'Dashboard', description: 'Main dashboard access' },
-    { value: 'subscribers', label: 'Subscribers', description: 'Subscriber management' },
-    { value: 'citizens', label: 'Citizens', description: 'Citizen management' },
+    { value: 'residents', label: 'Residents', description: 'Resident management' },
     { value: 'e-government', label: 'E-government', description: 'E-government main section' },
     {
       value: 'e-government-rpt',

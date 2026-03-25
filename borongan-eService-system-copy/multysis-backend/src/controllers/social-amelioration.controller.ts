@@ -55,7 +55,7 @@ export const getSeniorBeneficiariesController = async (req: Request, res: Respon
 export const createSeniorBeneficiaryController = async (req: Request, res: Response) => {
   try {
     const payload: CreateSeniorBeneficiaryData = {
-      citizenId: req.body.citizenId,
+      residentId: req.body.residentId,
       pensionTypes: req.body.pensionTypes,
       governmentPrograms: req.body.governmentPrograms,
       status: parseStatus(req.body.status),
@@ -67,7 +67,7 @@ export const createSeniorBeneficiaryController = async (req: Request, res: Respo
     emitBeneficiaryNew({
       beneficiaryId: record.id,
       type: 'SENIOR_CITIZEN',
-      citizenId: record.citizenId,
+      residentId: record.residentId,
       status: record.status || undefined,
       programIds: record.governmentPrograms?.map((p: any) => p.id || p) || undefined,
       createdAt: record.createdAt,
@@ -102,7 +102,7 @@ export const updateSeniorBeneficiaryController = async (req: Request, res: Respo
 
     // Emit WebSocket event for beneficiary update
     emitBeneficiaryUpdate(req.params.id, 'SENIOR_CITIZEN', {
-      citizenId: record.citizenId,
+      residentId: record.residentId,
       status: record.status || undefined,
       oldStatus,
       programIds: record.governmentPrograms?.map((p: any) => p.id || p) || undefined,
@@ -122,16 +122,16 @@ export const updateSeniorBeneficiaryController = async (req: Request, res: Respo
 
 export const deleteSeniorBeneficiaryController = async (req: Request, res: Response) => {
   try {
-    // Get record before deletion to get citizenId
+    // Get record before deletion to get residentId
     const record = await prisma.seniorCitizenBeneficiary.findUnique({
       where: { id: req.params.id },
     });
-    const citizenId = record?.citizenId;
+    const residentId = record?.residentId;
 
     await socialAmeliorationService.deleteSeniorBeneficiary(req.params.id);
 
     // Emit WebSocket event for beneficiary deletion
-    emitBeneficiaryDelete(req.params.id, 'SENIOR_CITIZEN', citizenId);
+    emitBeneficiaryDelete(req.params.id, 'SENIOR_CITIZEN', residentId);
 
     res
       .status(200)
@@ -163,7 +163,7 @@ export const getPWDBeneficiariesController = async (req: Request, res: Response)
 export const createPWDBeneficiaryController = async (req: Request, res: Response) => {
   try {
     const payload: CreatePWDBeneficiaryData = {
-      citizenId: req.body.citizenId,
+      residentId: req.body.residentId,
       disabilityType: req.body.disabilityType,
       disabilityLevel: req.body.disabilityLevel,
       monetaryAllowance: req.body.monetaryAllowance,
@@ -179,7 +179,7 @@ export const createPWDBeneficiaryController = async (req: Request, res: Response
     emitBeneficiaryNew({
       beneficiaryId: record.id,
       type: 'PWD',
-      citizenId: record.citizenId,
+      residentId: record.residentId,
       status: record.status || undefined,
       programIds: record.governmentPrograms?.map((p: any) => p.id || p) || undefined,
       createdAt: record.createdAt,
@@ -215,7 +215,7 @@ export const updatePWDBeneficiaryController = async (req: Request, res: Response
 
     // Emit WebSocket event for beneficiary update
     emitBeneficiaryUpdate(req.params.id, 'PWD', {
-      citizenId: record.citizenId,
+      residentId: record.residentId,
       status: record.status || undefined,
       oldStatus,
       programIds: record.governmentPrograms?.map((p: any) => p.id || p) || undefined,
@@ -232,16 +232,16 @@ export const updatePWDBeneficiaryController = async (req: Request, res: Response
 
 export const deletePWDBeneficiaryController = async (req: Request, res: Response) => {
   try {
-    // Get record before deletion to get citizenId
+    // Get record before deletion to get residentId
     const record = await prisma.pWDBeneficiary.findUnique({
       where: { id: req.params.id },
     });
-    const citizenId = record?.citizenId;
+    const residentId = record?.residentId;
 
     await socialAmeliorationService.deletePWDBeneficiary(req.params.id);
 
     // Emit WebSocket event for beneficiary deletion
-    emitBeneficiaryDelete(req.params.id, 'PWD', citizenId);
+    emitBeneficiaryDelete(req.params.id, 'PWD', residentId);
 
     res.status(200).json({ status: 'success', message: 'PWD beneficiary removed successfully' });
   } catch (error: any) {
@@ -268,7 +268,7 @@ export const getStudentBeneficiariesController = async (req: Request, res: Respo
 export const createStudentBeneficiaryController = async (req: Request, res: Response) => {
   try {
     const payload: CreateStudentBeneficiaryData = {
-      citizenId: req.body.citizenId,
+      residentId: req.body.residentId,
       gradeLevel: req.body.gradeLevel,
       programs: req.body.programs,
       status: parseStatus(req.body.status),
@@ -280,7 +280,7 @@ export const createStudentBeneficiaryController = async (req: Request, res: Resp
     emitBeneficiaryNew({
       beneficiaryId: record.id,
       type: 'STUDENT',
-      citizenId: record.citizenId,
+      residentId: record.residentId,
       status: record.status || undefined,
       programIds: record.programs?.map((p: any) => p.id || p) || undefined,
       createdAt: record.createdAt,
@@ -312,7 +312,7 @@ export const updateStudentBeneficiaryController = async (req: Request, res: Resp
 
     // Emit WebSocket event for beneficiary update
     emitBeneficiaryUpdate(req.params.id, 'STUDENT', {
-      citizenId: record.citizenId,
+      residentId: record.residentId,
       status: record.status || undefined,
       oldStatus,
       programIds: record.programs?.map((p: any) => p.id || p) || undefined,
@@ -329,16 +329,16 @@ export const updateStudentBeneficiaryController = async (req: Request, res: Resp
 
 export const deleteStudentBeneficiaryController = async (req: Request, res: Response) => {
   try {
-    // Get record before deletion to get citizenId
+    // Get record before deletion to get residentId
     const record = await prisma.studentBeneficiary.findUnique({
       where: { id: req.params.id },
     });
-    const citizenId = record?.citizenId;
+    const residentId = record?.residentId;
 
     await socialAmeliorationService.deleteStudentBeneficiary(req.params.id);
 
     // Emit WebSocket event for beneficiary deletion
-    emitBeneficiaryDelete(req.params.id, 'STUDENT', citizenId);
+    emitBeneficiaryDelete(req.params.id, 'STUDENT', residentId);
 
     res
       .status(200)
@@ -370,7 +370,7 @@ export const getSoloParentBeneficiariesController = async (req: Request, res: Re
 export const createSoloParentBeneficiaryController = async (req: Request, res: Response) => {
   try {
     const payload: CreateSoloParentBeneficiaryData = {
-      citizenId: req.body.citizenId,
+      residentId: req.body.residentId,
       category: req.body.category,
       assistancePrograms: req.body.assistancePrograms,
       status: parseStatus(req.body.status),
@@ -382,7 +382,7 @@ export const createSoloParentBeneficiaryController = async (req: Request, res: R
     emitBeneficiaryNew({
       beneficiaryId: record.id,
       type: 'SOLO_PARENT',
-      citizenId: record.citizenId,
+      residentId: record.residentId,
       status: record.status || undefined,
       programIds: record.assistancePrograms?.map((p: any) => p.id || p) || undefined,
       createdAt: record.createdAt,
@@ -420,7 +420,7 @@ export const updateSoloParentBeneficiaryController = async (req: Request, res: R
 
     // Emit WebSocket event for beneficiary update
     emitBeneficiaryUpdate(req.params.id, 'SOLO_PARENT', {
-      citizenId: record.citizenId,
+      residentId: record.residentId,
       status: record.status || undefined,
       oldStatus,
       programIds: record.assistancePrograms?.map((p: any) => p.id || p) || undefined,
@@ -440,16 +440,16 @@ export const updateSoloParentBeneficiaryController = async (req: Request, res: R
 
 export const deleteSoloParentBeneficiaryController = async (req: Request, res: Response) => {
   try {
-    // Get record before deletion to get citizenId
+    // Get record before deletion to get residentId
     const record = await prisma.soloParentBeneficiary.findUnique({
       where: { id: req.params.id },
     });
-    const citizenId = record?.citizenId;
+    const residentId = record?.residentId;
 
     await socialAmeliorationService.deleteSoloParentBeneficiary(req.params.id);
 
     // Emit WebSocket event for beneficiary deletion
-    emitBeneficiaryDelete(req.params.id, 'SOLO_PARENT', citizenId);
+    emitBeneficiaryDelete(req.params.id, 'SOLO_PARENT', residentId);
 
     res
       .status(200)

@@ -17,12 +17,12 @@ export interface EService {
 
 export const eServiceService = {
   async getAllEServices(): Promise<EService[]> {
-    const response = await api.get('/e-services');
+    const response = await api.get('/services/active');
     return response.data.data;
   },
 
   async getEService(id: string): Promise<EService> {
-    const response = await api.get(`/e-services/${id}`);
+    const response = await api.get(`/services/${id}`);
     return response.data.data;
   },
 };

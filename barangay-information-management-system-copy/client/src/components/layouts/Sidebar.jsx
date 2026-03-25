@@ -21,10 +21,12 @@ import {
   Clock,
   Globe,
   Archive,
-  MessageSquare,
   BookOpen,
   Key,
-  Server
+  Server,
+  ClipboardList,
+  CreditCard,
+  FileBadge2,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -105,35 +107,38 @@ export const Sidebar = ({ userType, role, onLogout }) => {
   // Navigation items based on user type - memoized to prevent re-renders
   const navItems = useMemo(() => {
   const municipalityNavItems = [
-      { title: "Dashboard", icon: Home, path: "/admin/municipality/dashboard" },
-      { title: "Residents", icon: Users, path: "/admin/municipality/residents" },
-      { title: "Households", icon: Building, path: "/admin/municipality/households" },
-      { title: "Pets", icon: Heart, path: "/admin/municipality/pets" },
-      { title: "Barangays", icon: Building, path: "/admin/municipality/barangays" },
-      { title: "Geographical Map", icon: Globe, path: "/admin/municipality/geomap" },
-      { title: "Accounts", icon: Users, path: "/admin/municipality/accounts" },
-      { title: "Activities", icon: Activity, path: "/admin/municipality/activities" },
-      { title: "Open API", icon: Key, path: "/admin/municipality/openapi" },
-      { title: "System Management", icon: Server, path: "/admin/municipality/system-management" },
-      { title: "Settings", icon: Settings, path: "/admin/municipality/settings" },
-      { title: "Guide", icon: BookOpen, path: "/admin/municipality/guide" },
+      { title: "Dashboard",             icon: Home,          path: "/admin/municipality/dashboard" },
+      { title: "Residents",             icon: Users,         path: "/admin/municipality/residents" },
+      { title: "Households",            icon: Building,      path: "/admin/municipality/households" },
+      { title: "Pets",                  icon: Heart,         path: "/admin/municipality/pets" },
+      { title: "Barangays",             icon: Building,      path: "/admin/municipality/barangays" },
+      { title: "Registrations",         icon: ClipboardList, path: "/admin/municipality/registrations" },
+      { title: "Bulk ID",               icon: CreditCard,    path: "/admin/municipality/bulk-id" },
+      { title: "Certificate Templates", icon: FileBadge2,    path: "/admin/municipality/certificate-templates" },
+      { title: "Geographical Map",      icon: Globe,         path: "/admin/municipality/geomap" },
+      { title: "Accounts",              icon: Users,         path: "/admin/municipality/accounts" },
+      { title: "Activities",            icon: Activity,      path: "/admin/municipality/activities" },
+      { title: "Open API",              icon: Key,           path: "/admin/municipality/openapi" },
+      { title: "System Management",     icon: Server,        path: "/admin/municipality/system-management" },
+      { title: "Settings",              icon: Settings,      path: "/admin/municipality/settings" },
+      { title: "Guide",                 icon: BookOpen,      path: "/admin/municipality/guide" },
   ];
 
   const barangayNavItems = [
-      { title: "Dashboard", icon: Home, path: "/admin/barangay/dashboard" },
-      { title: "Residents", icon: Users, path: "/admin/barangay/residents" },
-      { title: "Households", icon: Building, path: "/admin/barangay/households" },
-      { title: "Pets", icon: Heart, path: "/admin/barangay/pets" },
-      { title: "Puroks", icon: MapPin, path: "/admin/barangay/puroks" },
-      { title: "Officials", icon: Crown, path: "/admin/barangay/officials" },
-      { title: "Requests", icon: MessageSquare, path: "/admin/barangay/requests" },
-      { title: "Archives", icon: Archive, path: "/admin/barangay/archives" },
-      { title: "Inventory", icon: Package, path: "/admin/barangay/inventory" },
-      { title: "Geographical Map", icon: Globe, path: "/admin/barangay/geomap" },
-      { title: "Accounts", icon: Users, path: "/admin/barangay/accounts" },
-      { title: "Activities", icon: Activity, path: "/admin/barangay/activities" },
-      { title: "Settings", icon: Settings, path: "/admin/barangay/settings" },
-      { title: "Guide", icon: BookOpen, path: "/admin/barangay/guide" },
+      { title: "Dashboard",        icon: Home,          path: "/admin/barangay/dashboard" },
+      { title: "Residents",        icon: Users,         path: "/admin/barangay/residents" },
+      { title: "Households",       icon: Building,      path: "/admin/barangay/households" },
+      { title: "Pets",             icon: Heart,         path: "/admin/barangay/pets" },
+      { title: "Officials",        icon: Crown,         path: "/admin/barangay/officials" },
+      { title: "Registrations",    icon: ClipboardList, path: "/admin/barangay/registrations" },
+      { title: "Certificates",     icon: FileBadge2,    path: "/admin/barangay/certificates" },
+      { title: "Archives",         icon: Archive,       path: "/admin/barangay/archives" },
+      { title: "Inventory",        icon: Package,       path: "/admin/barangay/inventory" },
+      { title: "Geographical Map", icon: Globe,         path: "/admin/barangay/geomap" },
+      { title: "Accounts",         icon: Users,         path: "/admin/barangay/accounts" },
+      { title: "Activities",       icon: Activity,      path: "/admin/barangay/activities" },
+      { title: "Settings",         icon: Settings,      path: "/admin/barangay/settings" },
+      { title: "Guide",            icon: BookOpen,      path: "/admin/barangay/guide" },
     ];
 
     return userType === "municipality" ? municipalityNavItems : barangayNavItems;
@@ -324,7 +329,7 @@ export const Sidebar = ({ userType, role, onLogout }) => {
                           {item.title === "Households" && "Manage household data"}
                           {item.title === "Pets" && "Manage pet registrations"}
                           {item.title === "Barangays" && "Manage barangay information"}
-                          {item.title === "Puroks" && "Manage purok divisions"}
+                          {/* Puroks removed in v2 */}
                           {item.title === "Officials" && "Manage barangay officials"}
                           {item.title === "Archives" && "View archived records"}
                           {item.title === "Inventory" && "Manage barangay inventory"}

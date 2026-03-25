@@ -156,11 +156,10 @@ export const RequestServiceModal: React.FC<RequestServiceModalProps> = ({
   const form = useForm<CreateTransactionInput & Record<string, any>>({
     resolver: zodResolver(fullSchema),
     defaultValues: {
-      subscriberId: currentUser?.id || '',
       serviceId: service?.id || '',
       serviceData: {},
       paymentAmount: service?.defaultAmount ? Number(service.defaultAmount) : undefined,
-      isResidentOfBorongan: false,
+      isLocalResident: false,
       remarks: '',
       preferredAppointmentDate: '',
     },
@@ -221,11 +220,10 @@ export const RequestServiceModal: React.FC<RequestServiceModalProps> = ({
   useEffect(() => {
     if (service) {
       form.reset({
-        subscriberId: currentUser?.id || '',
         serviceId: service.id,
         serviceData: {},
         paymentAmount: service.defaultAmount ? Number(service.defaultAmount) : undefined,
-        isResidentOfBorongan: false,
+        isLocalResident: false,
         remarks: '',
         preferredAppointmentDate: '',
       });
@@ -312,11 +310,11 @@ export const RequestServiceModal: React.FC<RequestServiceModalProps> = ({
       });
 
       const transactionData: CreateTransactionInput = {
-        subscriberId: currentUser.id,
+        residentId: currentUser.id,
         serviceId: service.id,
         serviceData: Object.keys(serviceData).length > 0 ? serviceData : undefined,
         paymentAmount: data.paymentAmount,
-        isResidentOfBorongan: data.isResidentOfBorongan,
+        isLocalResident: data.isLocalResident,
         remarks: data.remarks,
         preferredAppointmentDate: service.requiresAppointment && data.preferredAppointmentDate
           ? data.preferredAppointmentDate
@@ -768,16 +766,16 @@ export const RequestServiceModal: React.FC<RequestServiceModalProps> = ({
                     <div className="flex items-center space-x-2">
                       <input
                         type="checkbox"
-                        id="isResidentOfBorongan"
-                        {...form.register('isResidentOfBorongan')}
+                        id="isLocalResident"
+                        {...form.register('isLocalResident')}
                         className="rounded border-gray-300"
                         disabled={isSubmitting}
                       />
                       <label
-                        htmlFor="isResidentOfBorongan"
+                        htmlFor="isLocalResident"
                         className="text-sm text-gray-700 cursor-pointer"
                       >
-                        I am a resident of Borongan City
+                        I am a resident of this municipality
                       </label>
                     </div>
 

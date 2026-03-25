@@ -186,39 +186,16 @@ class Pet {
       if (page < 1 || perPage < 1) {
         throw new Error("Page and perPage must be positive integers");
       }
-      let query = `SELECT p.id AS pet_id, p.uuid, p.owner_id, p.pet_name, p.species, p.breed, p.sex, p.birthdate, p.color, p.picture_path, p.description, p.created_at, p.updated_at, 
+      let query = `SELECT p.id AS pet_id, p.uuid, p.owner_id, p.pet_name, p.species, p.breed, p.sex, p.birthdate, p.color, p.picture_path, p.description, p.created_at, p.updated_at,
                    CONCAT(r.first_name, ' ', r.last_name) AS owner_name,
                    r.contact_number AS owner_contact,
                    b.barangay_name,
-                   pu.purok_name,
                    CASE WHEN p.picture_path IS NOT NULL THEN CONCAT('${
                      process.env.BASE_URL || "http://localhost:5000"
                    }/', p.picture_path) ELSE NULL END AS picture_path
                    FROM pets p
                    LEFT JOIN residents r ON p.owner_id = r.id
-                   LEFT JOIN barangays b ON r.barangay_id = b.id
-                   LEFT JOIN (
-                     -- Get purok info for house heads
-                     SELECT r.id as resident_id, p.id as purok_id, p.purok_name
-                     FROM residents r
-                     JOIN households h ON h.house_head = r.id
-                     JOIN puroks p ON p.id = h.purok_id
-                     UNION
-                     -- Get purok info for family heads
-                     SELECT r.id as resident_id, p.id as purok_id, p.purok_name
-                     FROM residents r
-                     JOIN families f ON f.family_head = r.id
-                     JOIN households h ON h.id = f.household_id
-                     JOIN puroks p ON p.id = h.purok_id
-                     UNION
-                     -- Get purok info for family members
-                     SELECT r.id as resident_id, p.id as purok_id, p.purok_name
-                     FROM residents r
-                     JOIN family_members fm ON fm.family_member = r.id
-                     JOIN families f ON f.id = fm.family_id
-                     JOIN households h ON h.id = f.household_id
-                     JOIN puroks p ON p.id = h.purok_id
-                   ) pu ON pu.resident_id = r.id`;
+                   LEFT JOIN barangays b ON r.barangay_id = b.id`;
       const whereClauses = [];
       const values = [];
       let paramIndex = 1;
@@ -233,23 +210,6 @@ class Pet {
           `(p.pet_name ILIKE $${paramIndex++} OR CONCAT(r.first_name, ' ', r.last_name) ILIKE $${paramIndex++})`
         );
         values.push(`%${search}%`, `%${search}%`);
-      }
-
-      if (purokId) {
-        whereClauses.push(`r.id IN (
-          -- Get house heads in this purok
-          SELECT h.house_head 
-          FROM households h 
-          WHERE h.purok_id = $${paramIndex++}
-          UNION
-          -- Get family members in this purok
-          SELECT fm.family_member
-          FROM family_members fm
-          JOIN families f ON f.id = fm.family_id
-          JOIN households h ON h.id = f.household_id
-          WHERE h.purok_id = $${paramIndex - 1}
-        )`);
-        values.push(purokId);
       }
 
       if (userTargetType === "municipality") {
@@ -276,7 +236,6 @@ class Pet {
         "color",
         "owner_name",
         "barangay_name",
-        "purok_name",
       ];
       let validSortBy = allowedSortFields.includes(sortBy)
         ? sortBy
@@ -284,13 +243,10 @@ class Pet {
       const validSortOrder =
         sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
 
-      // Handle special case for owner_name sorting
       if (validSortBy === "owner_name") {
         validSortBy = "CONCAT(r.first_name, ' ', r.last_name)";
       } else if (validSortBy === "barangay_name") {
         validSortBy = "b.barangay_name";
-      } else if (validSortBy === "purok_name") {
-        validSortBy = "pu.purok_name";
       } else {
         validSortBy = `p.${validSortBy}`;
       }
@@ -302,22 +258,7 @@ class Pet {
       // Count query
       let countQuery = `SELECT COUNT(*) AS total FROM pets p
                        LEFT JOIN residents r ON p.owner_id = r.id
-                       LEFT JOIN barangays b ON r.barangay_id = b.id
-                       LEFT JOIN (
-                         -- Get purok info for house heads
-                         SELECT r.id as resident_id, p.id as purok_id, p.purok_name
-                         FROM residents r
-                         JOIN households h ON h.house_head = r.id
-                         JOIN puroks p ON p.id = h.purok_id
-                         UNION
-                         -- Get purok info for family members
-                         SELECT r.id as resident_id, p.id as purok_id, p.purok_name
-                         FROM residents r
-                         JOIN family_members fm ON fm.family_member = r.id
-                         JOIN families f ON f.id = fm.family_id
-                         JOIN households h ON h.id = f.household_id
-                         JOIN puroks p ON p.id = h.purok_id
-                       ) pu ON pu.resident_id = r.id`;
+                       LEFT JOIN barangays b ON r.barangay_id = b.id`;
       const countWhereClauses = [];
       const countValues = [];
       let countParamIndex = 1;
@@ -330,22 +271,6 @@ class Pet {
           `(p.pet_name ILIKE $${countParamIndex++} OR CONCAT(r.first_name, ' ', r.last_name) ILIKE $${countParamIndex++})`
         );
         countValues.push(`%${search}%`, `%${search}%`);
-      }
-      if (purokId) {
-        countWhereClauses.push(`r.id IN (
-          -- Get house heads in this purok
-          SELECT h.house_head 
-          FROM households h 
-          WHERE h.purok_id = $${countParamIndex++}
-          UNION
-          -- Get family members in this purok
-          SELECT fm.family_member
-          FROM family_members fm
-          JOIN families f ON f.id = fm.family_id
-          JOIN households h ON h.id = f.household_id
-          WHERE h.purok_id = $${countParamIndex - 1}
-        )`);
-        countValues.push(purokId);
       }
       if (userTargetType === "municipality") {
         countWhereClauses.push(`b.municipality_id = $${countParamIndex++}`);
@@ -532,28 +457,25 @@ class Pet {
             COALESCE(h.house_number, ''),
             CASE WHEN h.house_number IS NOT NULL AND h.street IS NOT NULL THEN ' ' ELSE '' END,
             COALESCE(h.street, ''),
-            CASE WHEN (h.house_number IS NOT NULL OR h.street IS NOT NULL) AND pu.purok_name IS NOT NULL THEN ', ' ELSE '' END,
-            COALESCE(pu.purok_name, ''),
-            CASE WHEN (h.house_number IS NOT NULL OR h.street IS NOT NULL OR pu.purok_name IS NOT NULL) AND b.barangay_name IS NOT NULL THEN ', ' ELSE '' END,
+            CASE WHEN (h.house_number IS NOT NULL OR h.street IS NOT NULL) AND b.barangay_name IS NOT NULL THEN ', ' ELSE '' END,
             COALESCE(b.barangay_name, ''),
-            CASE WHEN (h.house_number IS NOT NULL OR h.street IS NOT NULL OR pu.purok_name IS NOT NULL OR b.barangay_name IS NOT NULL) AND m.municipality_name IS NOT NULL THEN ', ' ELSE '' END,
+            CASE WHEN (h.house_number IS NOT NULL OR h.street IS NOT NULL OR b.barangay_name IS NOT NULL) AND m.municipality_name IS NOT NULL THEN ', ' ELSE '' END,
             COALESCE(m.municipality_name, '')
           ) AS address
         FROM pets p
         LEFT JOIN residents r ON p.owner_id = r.id
         LEFT JOIN (
-          SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+          SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN households h ON h.house_head = r.id
           UNION
-          SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+          SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN family_members fm ON fm.family_member = r.id
           JOIN families f ON f.id = fm.family_id
           JOIN households h ON h.id = f.household_id
         ) h ON h.resident_id = r.id
-        LEFT JOIN puroks pu ON h.purok_id = pu.id
-        LEFT JOIN barangays b ON pu.barangay_id = b.id
+        LEFT JOIN barangays b ON b.id = r.barangay_id
         LEFT JOIN municipalities m ON b.municipality_id = m.id
         WHERE p.uuid = $1
       `;

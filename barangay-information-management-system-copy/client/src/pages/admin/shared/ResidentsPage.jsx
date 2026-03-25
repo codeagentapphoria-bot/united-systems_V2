@@ -123,7 +123,8 @@ const ResidentsPage = ({ role }) => {
   });
   
   // Use dynamic classification types
-  const { classificationTypes, loading: typesLoading } = useClassificationTypes();
+  const [municipalityId, setMunicipalityId] = useState(null);
+  const { classificationTypes, loading: typesLoading } = useClassificationTypes(municipalityId);
   const [classificationOptions, setClassificationOptions] = useState([]);
   const barangayId = user?.target_id;
   const [residents, setResidents] = useState([]);
@@ -132,7 +133,7 @@ const ResidentsPage = ({ role }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterClassification, setFilterClassification] = useState("all");
   const [filterPurok, setFilterPurok] = useState("");
-  const [puroks, setPuroks] = useState([]);
+  // Puroks removed - v2 schema no longer has puroks table
   const [barangays, setBarangays] = useState([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
@@ -305,17 +306,6 @@ const ResidentsPage = ({ role }) => {
     return () => clearTimeout(searchDebounceRef.current);
   }, [searchInput]);
 
-  // Fetch puroks for filter
-  useEffect(() => {
-    if (!barangayId) return;
-    api
-      .get(`/list/${barangayId}/purok`)
-      .then((res) => {
-        setPuroks(res.data.data || []);
-      })
-      .catch(() => setPuroks([]));
-  }, [barangayId]);
-
   // Fetch barangays for filter
 
   useEffect(() => {
@@ -326,6 +316,26 @@ const ResidentsPage = ({ role }) => {
       })
       .catch(() => setBarangays([]));
   }, []);
+
+  // Fetch municipality ID based on user role
+  useEffect(() => {
+    const fetchMunicipalityId = async () => {
+      if (user?.target_type === 'municipality') {
+        setMunicipalityId(user.target_id);
+      } else if (user?.target_type === 'barangay' && barangayId) {
+        try {
+          const res = await api.get(`/${barangayId}/barangay`);
+          const barangay = res.data?.data || res.data;
+          if (barangay?.municipality_id || barangay?.municipalityId) {
+            setMunicipalityId(barangay.municipality_id || barangay.municipalityId);
+          }
+        } catch (err) {
+          console.error('Error fetching barangay:', err);
+        }
+      }
+    };
+    fetchMunicipalityId();
+  }, [user, barangayId]);
 
   // Function to fetch residents data
   const fetchResidents = useCallback(async () => {
@@ -521,7 +531,7 @@ const ResidentsPage = ({ role }) => {
     setActiveTab("info");
     setViewResident(null);
     try {
-      const res = await api.get(`/${resident.resident_id}/resident`);
+      const res = await api.get(`/${resident.id}/resident`);
       setViewResident(res.data.data);
       // Open view dialog, edit functionality will be handled within it
     } catch (err) {
@@ -537,7 +547,7 @@ const ResidentsPage = ({ role }) => {
     setEditResidentError("");
     setEditResident(null);
     try {
-      const res = await api.get(`/${resident.resident_id}/resident`);
+      const res = await api.get(`/${resident.id}/resident`);
       setEditResident(res.data.data);
       setEditInfoDialogOpen(true);
       // Close the view dialog when opening edit dialog
@@ -554,7 +564,7 @@ const ResidentsPage = ({ role }) => {
     setEditResidentError("");
     setEditResident(null);
     try {
-      const res = await api.get(`/${resident.resident_id}/resident`);
+      const res = await api.get(`/${resident.id}/resident`);
       setEditResident(res.data.data);
       setEditClassificationsDialogOpen(true);
       // Close the view dialog when opening edit dialog
@@ -571,7 +581,7 @@ const ResidentsPage = ({ role }) => {
     setEditResidentError("");
     setEditResident(null);
     try {
-      const res = await api.get(`/${resident.resident_id}/resident`);
+      const res = await api.get(`/${resident.id}/resident`);
       setEditResident(res.data.data);
       setEditImageDialogOpen(true);
       // Close the view dialog when opening edit dialog
@@ -608,14 +618,16 @@ const ResidentsPage = ({ role }) => {
         sex: resident.sex,
         civilStatus: resident.civil_status,
         birthdate: resident.birthdate,
-        birthplace: resident.birthplace,
+        birth_region: resident.birth_region,
+        birth_province: resident.birth_province,
+        birth_municipality: resident.birth_municipality,
         contactNumber: resident.contact_number,
         email: resident.email,
         occupation: resident.occupation,
         monthlyIncome: resident.monthly_income,
         employmentStatus: resident.employment_status,
         educationAttainment: resident.education_attainment,
-        residentStatus: resident.resident_status,
+        residentStatus: resident.status,
         indigenousPerson: formValues.indigenous_person,
         classifications: formattedClassifications,
         picturePath: resident.picture_path, // Preserve existing image
@@ -642,14 +654,16 @@ const ResidentsPage = ({ role }) => {
         sex: editResident.sex,
         civilStatus: editResident.civil_status,
         birthdate: editResident.birthdate,
-        birthplace: editResident.birthplace,
+        birth_region: editResident.birth_region,
+        birth_province: editResident.birth_province,
+        birth_municipality: editResident.birth_municipality,
         contactNumber: editResident.contact_number,
         email: editResident.email,
         occupation: editResident.occupation,
         monthlyIncome: editResident.monthly_income,
         employmentStatus: editResident.employment_status,
         educationAttainment: editResident.education_attainment,
-        residentStatus: editResident.resident_status,
+        residentStatus: editResident.status,
         indigenousPerson: editResident.indigenous_person,
         classifications: formattedClassifications,
         picturePath: editResident.picture_path, // Will be updated with new image
@@ -676,14 +690,16 @@ const ResidentsPage = ({ role }) => {
         sex: formValues.sex,
         civilStatus: formValues.civil_status,
         birthdate: formValues.birthdate,
-        birthplace: formValues.birthplace,
+        birth_region: formValues.birth_region,
+        birth_province: formValues.birth_province,
+        birth_municipality: formValues.birth_municipality,
         contactNumber: formValues.contact_number,
         email: formValues.email,
         occupation: formValues.occupation,
         monthlyIncome: formValues.monthly_income,
         employmentStatus: formValues.employment_status,
         educationAttainment: formValues.education_attainment,
-        residentStatus: formValues.resident_status,
+        residentStatus: formValues.status,
         indigenousPerson: formValues.indigenous_person,
         classifications: formattedClassifications,
         picturePath: editResident.picture_path, // Preserve existing image
@@ -717,18 +733,18 @@ const ResidentsPage = ({ role }) => {
               }
             }
 
-            return await api.put(`/${data.resident_id}/resident`, formData, {
+            return await api.put(`/${data.id}/resident`, formData, {
               headers: {
                 "Content-Type": "multipart/form-data",
               },
             });
           } else {
             // For other updates, use JSON payload
-            return await api.put(`/${data.resident_id}/resident`, data.payload);
+            return await api.put(`/${data.id}/resident`, data.payload);
           }
         },
         { 
-          resident_id: editResident.resident_id,
+          id: editResident.id,
           payload,
           formValues,
           dialogType
@@ -1297,16 +1313,7 @@ const ResidentsPage = ({ role }) => {
                 "Import"
               )}
             </Button>
-            <AddResidentDialog
-              role={role}
-              onSuccess={async () => {
-                // Handle successful creation with auto-refresh
-                await executeRefresh();
-
-                setSearchInput("");
-                setSearchTerm("");
-              }}
-            />
+{/* AddResidentDialog removed — R2: resident registration happens via E-Services portal only */}
           </div>
         )}
         {role === "municipality" && (
@@ -1334,7 +1341,6 @@ const ResidentsPage = ({ role }) => {
         setSearchInput={setSearchInput}
         filterPurok={filterPurok}
         setFilterPurok={setFilterPurok}
-        puroks={puroks}
         filterClassification={filterClassification}
         setFilterClassification={setFilterClassification}
         classificationOptions={classificationOptions}
@@ -1531,6 +1537,7 @@ const ResidentsPage = ({ role }) => {
                   loading={editResidentLoading}
                   role={role}
                   classificationOptions={classificationOptions}
+                  municipalityId={municipalityId}
                 />
               </div>
           ) : null}

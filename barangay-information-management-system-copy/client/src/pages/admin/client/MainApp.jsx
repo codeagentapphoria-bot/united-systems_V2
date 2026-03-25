@@ -6,7 +6,6 @@ import { ResidentsPage } from "@/pages/admin/ResidentsPage";
 import { HouseholdsPage } from "@/pages/admin/HouseholdsPage";
 import { PetsPage } from "@/pages/admin/PetsPage";
 import { VaccinesPage } from "@/pages/admin/VaccinesPage";
-import { PuroksPage } from "@/pages/admin/PuroksPage";
 import { ArchivesPage } from "@/pages/admin/ArchivesPage";
 import { InventoryPage } from "@/pages/admin/InventoryPage";
 import { RequestsPage } from "@/pages/admin/RequestsPage";
@@ -33,8 +32,6 @@ export const MainApp = ({ userType, role, onLogout }) => {
         return <HouseholdsPage />;
       case "officials":
         return <OfficialsPage />;
-      case "puroks":
-        return <PuroksPage />;
       case "archives":
         return <ArchivesPage />;
       case "inventory":

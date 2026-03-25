@@ -11,7 +11,7 @@ import { cn, formatDateWithoutTimezone, formatIdType } from '@/lib/utils';
 import { adminRegistrationService, type RegistrationRequestResponse, type RegistrationRequestFilters } from '@/services/api/citizen-registration.service';
 import { logger } from '@/utils/logger';
 import React, { useEffect, useState } from 'react';
-import { FiAlertCircle, FiCheck, FiEye, FiSearch, FiTrash2, FiX, FiZoomIn } from 'react-icons/fi';
+import { FiAlertCircle, FiCheck, FiEye, FiSearch, FiX, FiZoomIn } from 'react-icons/fi';
 
 type StatusFilter = 'ALL' | 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'REQUIRES_RESUBMISSION';
 
@@ -175,19 +175,22 @@ export const AdminRegistrationWorkflow: React.FC = () => {
     <DashboardLayout menuItems={adminMenuItems}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Registration Requests (Read-Only)</h1>
+          <p className="text-gray-500">View portal registration requests submitted by residents</p>
+        </div>
+
+        {/* Read-only notice */}
+        <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+          <FiAlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Citizen Registration Workflow</h1>
-            <p className="text-gray-500">Review and manage citizen registration requests</p>
+            <p className="font-semibold">Approvals are managed in BIMS</p>
+            <p className="mt-0.5">
+              To approve or reject a registration, log in to the BIMS admin portal and go to
+              <strong> Registrations</strong>. This page is read-only — it shows the list but
+              does not allow actions to avoid conflicts with the BIMS approval workflow.
+            </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => setIsCleanupModalOpen(true)}
-            className="text-red-600 border-red-300 hover:bg-red-50"
-          >
-            <FiTrash2 className="mr-2 h-4 w-4" />
-            Cleanup Rejected
-          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -288,6 +291,7 @@ export const AdminRegistrationWorkflow: React.FC = () => {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* View-only: approve/reject actions removed — use BIMS admin */}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -295,36 +299,8 @@ export const AdminRegistrationWorkflow: React.FC = () => {
                             >
                               <FiEye className="h-4 w-4" />
                             </Button>
-                            {request.status === 'PENDING' && (
+                            {false && request.status === 'UNDER_REVIEW' && (
                               <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleReviewClick(request, 'APPROVED')}
-                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                >
-                                  <FiCheck className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleReviewClick(request, 'REJECTED')}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <FiX className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                            {request.status === 'UNDER_REVIEW' && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleReviewClick(request, 'APPROVED')}
-                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                >
-                                  <FiCheck className="h-4 w-4" />
-                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"

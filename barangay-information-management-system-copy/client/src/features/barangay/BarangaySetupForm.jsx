@@ -21,15 +21,12 @@ import { Separator } from "@/components/ui/separator";
 import { 
   Upload, 
   XCircle, 
-  Plus, 
-  Trash2, 
   MapPin, 
   LogOut, 
   Building2,
   Mail,
   Phone,
   Camera,
-  Users,
   Shield
 } from "lucide-react";
 import api from "@/utils/api";
@@ -89,9 +86,7 @@ const BarangaySetupForm = ({
   });
   
   const { handleSubmit, control, setValue, formState: { errors, isSubmitting } } = form;
-  const [puroks, setPuroks] = useState([
-    { purokName: "", purokLeader: "", description: "" },
-  ]);
+  // puroks state removed — puroks table dropped in v2
 
   const handleLogout = () => {
     logout();
@@ -196,25 +191,7 @@ const BarangaySetupForm = ({
     setSelectedLocation(coordinates);
   };
 
-  // Add handlers for dynamic purok list
-  const handlePurokChange = (idx, field, value) => {
-    setPuroks((prev) => {
-      const updated = [...prev];
-      updated[idx][field] = value;
-      return updated;
-    });
-  };
-  
-  const addPurok = () => {
-    setPuroks((prev) => [
-      ...prev,
-      { purokName: "", purokLeader: "", description: "" },
-    ]);
-  };
-  
-  const removePurok = (idx) => {
-    setPuroks((prev) => prev.filter((_, i) => i !== idx));
-  };
+  // handlePurokChange / addPurok / removePurok removed — puroks table dropped in v2
 
   const checkForConflicts = async (barangayName, barangayCode) => {
     try {
@@ -266,7 +243,7 @@ const BarangaySetupForm = ({
         formData.append("latitude", selectedLocation[0]);
         formData.append("longitude", selectedLocation[1]);
       } else {
-        // Default coordinates for Borongan City
+        // Default fallback coordinates (override via map selection)
         formData.append("latitude", 11.6081);
         formData.append("longitude", 125.4311);
       }
@@ -289,19 +266,7 @@ const BarangaySetupForm = ({
           },
         });
         
-        // --- Add: Create Puroks ---
-        const barangayId = targetId; // already created
-        for (const purok of puroks) {
-          if (purok.purokName.trim()) {
-            await api.post("/purok", {
-              barangayId,
-              purokName: purok.purokName,
-              purokLeader: purok.purokLeader,
-              description: purok.description,
-            });
-          }
-        }
-        
+        // Puroks removed in v2 — no longer created during setup
         let setupOk = false;
         let setupData = null;
         let lastError = null;
@@ -582,96 +547,7 @@ const BarangaySetupForm = ({
                       </div>
                     </div>
 
-                    <Separator />
-
-                    {/* Puroks Section */}
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                          <Users className="w-5 h-5 text-primary" />
-                          Puroks
-                        </h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Add the puroks within your barangay
-                        </p>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        {puroks.map((purok, idx) => (
-                          <Card key={idx} className="bg-muted/30">
-                            <CardContent className="p-4">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                  <FormLabel className="text-sm font-medium text-foreground">
-                                    Purok Name
-                                    <span className="text-destructive">*</span>
-                                  </FormLabel>
-                                  <Input
-                                    placeholder="Enter purok name"
-                                    value={purok.purokName}
-                                    onChange={(e) =>
-                                      handlePurokChange(idx, "purokName", e.target.value)
-                                    }
-                                    className="mt-1"
-                                  />
-                                </div>
-                                <div>
-                                  <FormLabel className="text-sm font-medium text-foreground">
-                                    Purok Leader
-                                  </FormLabel>
-                                  <Input
-                                    placeholder="Enter purok leader (optional)"
-                                    value={purok.purokLeader}
-                                    onChange={(e) =>
-                                      handlePurokChange(idx, "purokLeader", e.target.value)
-                                    }
-                                    className="mt-1"
-                                  />
-                                </div>
-                                <div className="flex gap-2">
-                                  <div className="flex-1">
-                                    <FormLabel className="text-sm font-medium text-foreground">
-                                      Description
-                                    </FormLabel>
-                                    <Input
-                                      placeholder="Enter description (optional)"
-                                      value={purok.description}
-                                      onChange={(e) =>
-                                        handlePurokChange(idx, "description", e.target.value)
-                                      }
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                  {puroks.length > 1 && (
-                                    <div className="flex items-end">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => removePurok(idx)}
-                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                        
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={addPurok}
-                          className="w-fit flex items-center gap-2"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add Purok
-                        </Button>
-                      </div>
-                    </div>
+                    {/* Puroks section removed — puroks table dropped in v2 */}
 
                     <Separator />
 

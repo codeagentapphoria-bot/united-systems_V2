@@ -5,9 +5,9 @@ import { parseTimeString } from '../utils/timeParser';
 const REFRESH_TOKEN_EXPIRES = process.env.REFRESH_TOKEN_EXPIRES || '30d';
 
 export interface CreateRefreshTokenData {
-  userId?: string;
-  subscriberId?: string;
-  token: string; // Plain text token (will be hashed)
+  userId?: string;      // eservice_users.id  (admin portal)
+  residentId?: string;  // residents.id        (portal residents)
+  token: string;        // Plain text token (hashed before storage)
   deviceInfo?: string;
   ipAddress?: string;
   userAgent?: string;
@@ -16,7 +16,7 @@ export interface CreateRefreshTokenData {
 export interface RefreshTokenResult {
   id: string;
   userId: string | null;
-  subscriberId: string | null;
+  residentId: string | null;
   expiresAt: Date;
   deviceInfo: string | null;
   ipAddress: string | null;
@@ -24,23 +24,21 @@ export interface RefreshTokenResult {
 }
 
 /**
- * Create a new refresh token in the database
- * The token is hashed before storage for security
+ * Create a new refresh token in the database.
+ * The token is hashed before storage for security.
  */
 export const createRefreshToken = async (
   data: CreateRefreshTokenData
 ): Promise<RefreshTokenResult> => {
-  // Hash the token before storing
   const hashedToken = await hash(data.token, 10);
 
-  // Calculate expiration date
   const expiresInMs = parseTimeString(REFRESH_TOKEN_EXPIRES);
   const expiresAt = new Date(Date.now() + expiresInMs);
 
   const refreshToken = await prisma.refreshToken.create({
     data: {
       userId: data.userId || null,
-      subscriberId: data.subscriberId || null,
+      residentId: data.residentId || null,
       token: hashedToken,
       deviceInfo: data.deviceInfo || null,
       ipAddress: data.ipAddress || null,
@@ -52,7 +50,7 @@ export const createRefreshToken = async (
   return {
     id: refreshToken.id,
     userId: refreshToken.userId,
-    subscriberId: refreshToken.subscriberId,
+    residentId: refreshToken.residentId,
     expiresAt: refreshToken.expiresAt,
     deviceInfo: refreshToken.deviceInfo,
     ipAddress: refreshToken.ipAddress,
@@ -61,36 +59,24 @@ export const createRefreshToken = async (
 };
 
 /**
- * Find a refresh token by plain text token
- * Compares the provided token with hashed tokens in the database
- * OPTIMIZED: Limits search to recent tokens to prevent performance issues
+ * Find a refresh token by plain text value.
+ * Compares against hashed tokens in the database.
+ * Limits search to recent tokens to prevent expensive bcrypt scans.
  */
 export const findRefreshToken = async (token: string): Promise<RefreshTokenResult | null> => {
   const now = new Date();
-
-  // CRITICAL FIX: Limit search to recent tokens only (last 7 days)
-  // This prevents loading thousands of tokens and doing expensive bcrypt comparisons
-  // Most active refresh tokens are used within 7 days of creation
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const tokens = await prisma.refreshToken.findMany({
     where: {
       revokedAt: null,
-      expiresAt: {
-        gt: now,
-      },
-      createdAt: {
-        gte: sevenDaysAgo, // Only check tokens created in last 7 days
-      },
+      expiresAt: { gt: now },
+      createdAt: { gte: sevenDaysAgo },
     },
-    take: 500, // Hard limit to prevent memory issues
-    orderBy: {
-      createdAt: 'desc', // Check newest tokens first (more likely to match)
-    },
+    take: 500,
+    orderBy: { createdAt: 'desc' },
   });
 
-  // Compare the provided token with each hashed token
-  // bcrypt.compare is intentionally slow, so we limit the number of comparisons
   for (const dbToken of tokens) {
     try {
       const isMatch = await compare(token, dbToken.token);
@@ -98,15 +84,14 @@ export const findRefreshToken = async (token: string): Promise<RefreshTokenResul
         return {
           id: dbToken.id,
           userId: dbToken.userId,
-          subscriberId: dbToken.subscriberId,
+          residentId: dbToken.residentId,
           expiresAt: dbToken.expiresAt,
           deviceInfo: dbToken.deviceInfo,
           ipAddress: dbToken.ipAddress,
           userAgent: dbToken.userAgent,
         };
       }
-    } catch (error) {
-      // Continue to next token if comparison fails
+    } catch {
       continue;
     }
   }
@@ -115,7 +100,7 @@ export const findRefreshToken = async (token: string): Promise<RefreshTokenResul
 };
 
 /**
- * Revoke a refresh token by ID
+ * Revoke a single refresh token by ID.
  */
 export const revokeRefreshToken = async (tokenId: string, reason?: string): Promise<void> => {
   await prisma.refreshToken.update({
@@ -128,27 +113,23 @@ export const revokeRefreshToken = async (tokenId: string, reason?: string): Prom
 };
 
 /**
- * Revoke all refresh tokens for a user (for forced logout)
+ * Revoke all active tokens for a user or resident (forced logout).
  */
 export const revokeAllUserTokens = async (
   userId?: string,
-  subscriberId?: string,
+  residentId?: string,
   reason?: string
 ): Promise<void> => {
-  const where: any = {
-    revokedAt: null, // Only revoke non-revoked tokens
-  };
-
-  if (userId) {
-    where.userId = userId;
-  } else if (subscriberId) {
-    where.subscriberId = subscriberId;
-  } else {
-    throw new Error('Either userId or subscriberId must be provided');
+  if (!userId && !residentId) {
+    throw new Error('Either userId or residentId must be provided');
   }
 
+  const where: Record<string, unknown> = { revokedAt: null };
+  if (userId) where.userId = userId;
+  else where.residentId = residentId;
+
   await prisma.refreshToken.updateMany({
-    where,
+    where: where as any,
     data: {
       revokedAt: new Date(),
       revokedReason: reason || 'Forced logout',
@@ -157,44 +138,32 @@ export const revokeAllUserTokens = async (
 };
 
 /**
- * Clean up expired and revoked tokens
- * This should be run periodically (e.g., via a cron job)
+ * Delete all expired and revoked tokens (run periodically).
  */
 export const cleanupExpiredTokens = async (): Promise<number> => {
   const now = new Date();
-
-  // Delete tokens that are expired or revoked
   const result = await prisma.refreshToken.deleteMany({
     where: {
       OR: [{ expiresAt: { lt: now } }, { revokedAt: { not: null } }],
     },
   });
-
   return result.count;
 };
 
 /**
- * Get refresh token by ID (for validation)
+ * Get a refresh token by ID (for direct validation).
  */
 export const getRefreshTokenById = async (tokenId: string): Promise<RefreshTokenResult | null> => {
-  const token = await prisma.refreshToken.findUnique({
-    where: { id: tokenId },
-  });
+  const token = await prisma.refreshToken.findUnique({ where: { id: tokenId } });
+  if (!token) return null;
 
-  if (!token) {
-    return null;
-  }
-
-  // Check if token is revoked or expired
   const now = new Date();
-  if (token.revokedAt || token.expiresAt < now) {
-    return null;
-  }
+  if (token.revokedAt || token.expiresAt < now) return null;
 
   return {
     id: token.id,
     userId: token.userId,
-    subscriberId: token.subscriberId,
+    residentId: token.residentId,
     expiresAt: token.expiresAt,
     deviceInfo: token.deviceInfo,
     ipAddress: token.ipAddress,

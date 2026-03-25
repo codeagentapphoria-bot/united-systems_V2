@@ -71,24 +71,14 @@ export const getAdminMenuItems = async (notificationCounts?: NotificationCounts)
 
   return [
     { path: '/admin/dashboard', label: 'Dashboard', icon: <FiHome /> },
-    { path: '/admin/subscribers', label: 'Subscribers', icon: <FiUsers /> },
-    
-    // Separator: Citizen top
-    { type: 'separator' as const },
-    
-    { 
-      path: '/admin/citizens', 
-      label: 'Citizens', 
-      icon: <FiUsers />,
-    },
+    { path: '/admin/residents', label: 'Residents', icon: <FiUsers /> },
     { 
       path: '/admin/registration-workflow', 
-      label: 'Registration Workflow', 
+      label: 'Registration Requests', 
       icon: <FiClipboard />,
       badgeCount: notificationCounts?.pendingCitizens || 0,
     },
     
-    // Separator: Citizen bottom
     { type: 'separator' as const },
     
     { 
@@ -188,10 +178,8 @@ export const getAdminMenuItems = async (notificationCounts?: NotificationCounts)
 // Default export for backward compatibility (will use empty submenu initially)
 export const adminMenuItems: MenuItem[] = [
   { path: '/admin/dashboard', label: 'Dashboard', icon: <FiHome /> },
-  { path: '/admin/subscribers', label: 'Subscribers', icon: <FiUsers /> },
-  { type: 'separator' as const },
-  { path: '/admin/citizens', label: 'Citizens', icon: <FiUsers /> },
-  { path: '/admin/registration-workflow', label: 'Registration Workflow', icon: <FiClipboard /> },
+  { path: '/admin/residents', label: 'Residents', icon: <FiUsers /> },
+  { path: '/admin/registration-workflow', label: 'Registration Requests', icon: <FiClipboard /> },
   { type: 'separator' as const },
   { 
     path: '/admin/e-government', 

@@ -237,13 +237,6 @@ class Municipality {
         paramIndex++;
       }
 
-      // Add purok filter
-      if (filters.purokId && filters.purokId !== "all") {
-        whereConditions.push(`h.purok_id = $${paramIndex}`);
-        queryParams.push(filters.purokId);
-        paramIndex++;
-      }
-
       // Add search filter
       if (filters.search) {
         whereConditions.push(`(
@@ -269,29 +262,28 @@ class Municipality {
 
       const whereClause = whereConditions.join(" AND ");
 
-      // Export residents data with joined barangay and purok information for all barangays in municipality
+      // Export residents data with joined barangay information for all barangays in municipality
       const residentsResult = await client.query(
         `SELECT 
           r.id,
           r.last_name,
           r.first_name,
           r.middle_name,
-          r.suffix,
+          r.extension_name,
           r.sex,
           r.civil_status,
           r.birthdate,
-          r.birthplace,
+          r.birth_region,
           r.contact_number,
           r.email,
           r.occupation,
           r.monthly_income,
           r.employment_status,
           r.education_attainment,
-          r.resident_status,
+          r.status,
           r.picture_path,
           r.indigenous_person,
           b.barangay_name,
-          p.purok_name,
           h.house_number,
           h.street,
           CASE 
@@ -307,24 +299,23 @@ class Municipality {
         LEFT JOIN barangays b ON r.barangay_id = b.id
         LEFT JOIN (
           -- Get household info for house heads
-          SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+          SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN households h ON h.house_head = r.id
           UNION
           -- Get household info for family heads
-          SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+          SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN families f ON f.family_head = r.id
           JOIN households h ON h.id = f.household_id
           UNION
           -- Get household info for family members
-          SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+          SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN family_members fm ON fm.family_member = r.id
           JOIN families f ON f.id = fm.family_id
           JOIN households h ON h.id = f.household_id
         ) h ON h.resident_id = r.id
-        LEFT JOIN puroks p ON h.purok_id = p.id
         WHERE ${whereClause}
         ORDER BY b.barangay_name, r.last_name, r.first_name`,
         queryParams
@@ -357,25 +348,24 @@ class Municipality {
       if (residentsResult.rows.length > 0) {
         const processedResidents = residentsResult.rows.map((resident) => ({
           Barangay: resident.barangay_name,
-          Purok: resident.purok_name || "",
           "House Number": resident.house_number || "",
           Street: resident.street || "",
           "Resident ID": resident.id,
           "Last Name": resident.last_name,
           "First Name": resident.first_name,
           "Middle Name": resident.middle_name || "",
-          Suffix: resident.suffix || "",
+          Suffix: resident.extension_name || "",
           Sex: resident.sex,
           "Civil Status": resident.civil_status,
           "Birth Date": resident.birthdate,
-          "Birth Place": resident.birthplace || "",
+          "Birth Place": resident.birth_region || "",
           "Contact Number": resident.contact_number || "",
           Email: resident.email || "",
           Occupation: resident.occupation || "",
           "Monthly Income": resident.monthly_income || "",
           "Employment Status": resident.employment_status || "",
           "Education Attainment": resident.education_attainment || "",
-          "Resident Status": resident.resident_status,
+          "Resident Status": resident.status,
           "Indigenous Person": resident.indigenous_person ? "Yes" : "No",
         }));
 
@@ -451,13 +441,6 @@ class Municipality {
         paramIndex++;
       }
 
-      // Add purok filter
-      if (filters.purokId && filters.purokId !== "all") {
-        whereConditions.push(`h.purok_id = $${paramIndex}`);
-        queryParams.push(filters.purokId);
-        paramIndex++;
-      }
-
       // Add search filter
       if (filters.search) {
         whereConditions.push(`(
@@ -478,8 +461,8 @@ class Municipality {
           h.id as household_id,
           h.house_number,
           h.street,
-          h.purok_id,
           h.barangay_id,
+          h.house_head,
           h.house_head,
           h.housing_type,
           h.structure_type,
@@ -487,7 +470,6 @@ class Municipality {
           h.water_source,
           h.toilet_facility,
           h.area,
-          p.purok_name,
           b.barangay_name,
           -- House head information
           r_house_head.first_name as house_head_first_name,
@@ -559,7 +541,6 @@ class Municipality {
             ELSE ''
           END as full_address
         FROM households h
-        LEFT JOIN puroks p ON h.purok_id = p.id
         LEFT JOIN barangays b ON h.barangay_id = b.id
         LEFT JOIN residents r_house_head ON h.house_head = r_house_head.id
         LEFT JOIN families f ON f.household_id = h.id
@@ -567,7 +548,7 @@ class Municipality {
         LEFT JOIN family_members fm ON fm.family_id = f.id
         LEFT JOIN residents r_member ON fm.family_member = r_member.id
         WHERE ${whereClause}
-        ORDER BY b.barangay_name, p.purok_name, h.house_number, h.street, f.family_group, r_member.last_name, r_member.first_name`,
+        ORDER BY b.barangay_name, h.house_number, h.street, f.family_group, r_member.last_name, r_member.first_name`,
         queryParams
       );
 
@@ -602,10 +583,6 @@ class Municipality {
             processedFamilies.add(familyKey);
 
             processedRows.push({
-              // Basic Information (include purok column for municipality export)
-              Purok: processedHouseholds.has(householdKey)
-                ? ""
-                : row.purok_name || "",
               Address: processedHouseholds.has(householdKey)
                 ? ""
                 : row.full_address || "",
@@ -636,8 +613,6 @@ class Municipality {
           // Add family members (excluding family head to avoid duplication)
           if (row.member_id && row.member_id !== row.family_head_id) {
             processedRows.push({
-              // Basic Information (include purok column for municipality export)
-              Purok: "", // Empty to avoid duplication
               Address: "", // Empty to avoid duplication
               "House Head Name": "", // Empty to avoid duplication
               Group: "", // Empty to avoid duplication

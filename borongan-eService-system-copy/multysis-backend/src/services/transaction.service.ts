@@ -16,16 +16,22 @@ import { Prisma } from '@prisma/client';
 import { computeTaxForTransaction } from './tax-computation.service';
 
 export interface CreateTransactionData {
-  subscriberId: string;
+  // Resident applicant (required if no guest fields)
+  residentId?: string;
+  // Guest applicant (required if no residentId)
+  applicantName?: string;
+  applicantContact?: string;
+  applicantEmail?: string;
+  applicantAddress?: string;
   serviceId: string;
   paymentAmount?: number;
-  isResidentOfBorongan?: boolean;
+  isLocalResident?: boolean;
   permitType?: string;
   validIdToPresent?: string;
   remarks?: string;
-  serviceData?: Record<string, unknown>; // Dynamic service-specific data
-  preferredAppointmentDate?: Date; // User's preferred appointment date/time
-  applicationDate?: Date; // Date application was actually submitted (for tax version selection)
+  serviceData?: Record<string, unknown>;
+  preferredAppointmentDate?: Date;
+  applicationDate?: Date;
 }
 
 const generateTransactionId = (serviceCode: string, year: number, count: number): string => {
@@ -39,13 +45,20 @@ const generateReferenceNumber = (serviceCode: string, year: number, count: numbe
 };
 
 export const createTransaction = async (data: CreateTransactionData) => {
-  // Verify subscriber exists
-  const subscriber = await prisma.subscriber.findUnique({
-    where: { id: data.subscriberId },
-  });
+  // Validate: must have either a residentId or guest applicant info
+  if (!data.residentId && !data.applicantName) {
+    throw new CustomError('Either residentId or applicantName is required', 400);
+  }
 
-  if (!subscriber) {
-    throw new Error('Subscriber not found');
+  // Verify resident exists (only if residentId provided)
+  let resident = null;
+  if (data.residentId) {
+    resident = await prisma.resident.findUnique({
+      where: { id: data.residentId },
+    });
+    if (!resident) {
+      throw new CustomError('Resident not found', 404);
+    }
   }
 
   // Verify service exists
@@ -125,18 +138,22 @@ export const createTransaction = async (data: CreateTransactionData) => {
   }
 
   const year = new Date().getFullYear();
-  const count = await prisma.transaction.count({
-    where: {
-      serviceId: data.serviceId,
-      createdAt: {
-        gte: new Date(`${year}-01-01`),
-        lt: new Date(`${year + 1}-01-01`),
-      },
-    },
-  });
+  const prefix = service.code.substring(0, 2).toUpperCase();
 
-  const transactionId = generateTransactionId(service.code, year, count);
-  const referenceNumber = generateReferenceNumber(service.code, year, count);
+  // Query the max existing sequence number for this prefix+year across ALL transactions.
+  // Using COUNT per service-ID is unsafe: services with the same 2-char prefix share the
+  // same transaction_id namespace (e.g. TEST_SVC_A and TEST_SVC_B both produce "TE-YYYY-NNN"),
+  // so a stale transaction from a deleted service causes a unique-constraint collision for
+  // the new service.  Using the global max guarantees a strictly-increasing sequence.
+  const [maxResult] = await prisma.$queryRaw<Array<{ max_seq: bigint | null }>>`
+    SELECT MAX(CAST(SPLIT_PART(transaction_id, '-', 3) AS INTEGER)) AS max_seq
+    FROM transactions
+    WHERE transaction_id ~ ${`^${prefix}-${year}-[0-9]+$`}
+  `;
+  const nextCount = Number(maxResult?.max_seq ?? 0);
+
+  const transactionId = generateTransactionId(service.code, year, nextCount);
+  const referenceNumber = generateReferenceNumber(service.code, year, nextCount);
 
   // Determine default payment status from service
   const paymentStatuses = service.paymentStatuses as string[] | null;
@@ -148,13 +165,17 @@ export const createTransaction = async (data: CreateTransactionData) => {
   // Create transaction
   const transaction = await prisma.transaction.create({
     data: {
-      subscriberId: data.subscriberId,
+      residentId: data.residentId || null,
+      applicantName: data.applicantName || null,
+      applicantContact: data.applicantContact || null,
+      applicantEmail: data.applicantEmail || null,
+      applicantAddress: data.applicantAddress || null,
       serviceId: data.serviceId,
       transactionId,
       referenceNumber,
       paymentStatus: defaultPaymentStatus,
       paymentAmount: data.paymentAmount || service.defaultAmount || 0,
-      isResidentOfBorongan: data.isResidentOfBorongan ?? false,
+      isLocalResident: data.isLocalResident ?? false,
       permitType: data.permitType,
       validIdToPresent: data.validIdToPresent,
       remarks: data.remarks,
@@ -195,27 +216,16 @@ export const createTransaction = async (data: CreateTransactionData) => {
     });
   }
 
-  return (prisma as any).transaction.findUnique({
+  return prisma.transaction.findUniqueOrThrow({
     where: { id: transaction.id },
     include: {
-      subscriber: {
-        include: {
-          citizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-            },
-          },
-          nonCitizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-            },
-          },
+      resident: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          contactNumber: true,
+          email: true,
         },
       },
       service: true,
@@ -245,12 +255,12 @@ export const createTransaction = async (data: CreateTransactionData) => {
 };
 
 export const getTransactions = async (
-  subscriberId: string,
+  residentId: string,
   serviceId?: string,
   page: number = 1,
   limit: number = 10
 ) => {
-  const where: any = { subscriberId };
+  const where: any = { residentId };
   if (serviceId) {
     where.serviceId = serviceId;
   }
@@ -326,29 +336,16 @@ export const getTransaction = async (
   userType?: 'admin' | 'subscriber' | 'dev',
   _userId?: string
 ) => {
-  const transaction = await (prisma as any).transaction.findUnique({
+  const transaction = await prisma.transaction.findUnique({
     where: { id },
     include: {
-      subscriber: {
-        include: {
-          citizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-              email: true,
-            },
-          },
-          nonCitizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-              email: true,
-            },
-          },
+      resident: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          contactNumber: true,
+          email: true,
         },
       },
       service: true,
@@ -388,26 +385,13 @@ export const updateTransaction = async (
   const oldTransaction = await prisma.transaction.findUnique({
     where: { id },
     include: {
-      subscriber: {
-        include: {
-          citizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-              email: true,
-            },
-          },
-          nonCitizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-              email: true,
-            },
-          },
+      resident: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          contactNumber: true,
+          email: true,
         },
       },
       service: true,
@@ -437,30 +421,17 @@ export const updateTransaction = async (
     }),
   };
 
-  const updatedTransaction = await (prisma as any).transaction.update({
+  const updatedTransaction = await prisma.transaction.update({
     where: { id },
     data: updateData,
     include: {
-      subscriber: {
-        include: {
-          citizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-              email: true,
-            },
-          },
-          nonCitizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-              email: true,
-            },
-          },
+      resident: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          contactNumber: true,
+          email: true,
         },
       },
       service: true,
@@ -484,18 +455,18 @@ export const updateTransaction = async (
     addDevLog('info', 'Transaction updated', {
       transactionId: id,
       transactionNumber: oldTransaction.transactionId,
-      subscriberId: oldTransaction.subscriberId,
+      residentId: oldTransaction.residentId,
       changes: changes.join(', '),
     });
   }
 
   // Send email notifications (non-blocking)
   try {
-    const subscriber = updatedTransaction.subscriber;
-    const subscriberName = subscriber.citizen
-      ? `${subscriber.citizen.firstName} ${subscriber.citizen.lastName}`
-      : `${subscriber.nonCitizen.firstName} ${subscriber.nonCitizen.lastName}`;
-    const subscriberEmail = subscriber.citizen?.email || subscriber.nonCitizen?.email;
+    const resident = updatedTransaction.resident;
+    const subscriberName = resident
+      ? `${resident.firstName} ${resident.lastName}`
+      : updatedTransaction.applicantName || 'Applicant';
+    const subscriberEmail = resident?.email;
 
     if (subscriberEmail) {
       // Payment status change notification
@@ -631,7 +602,7 @@ export const updateTransaction = async (
 export interface GetTransactionsByServiceFilters {
   paymentStatus?: string;
   status?: string;
-  isResidentOfBorongan?: boolean;
+  isLocalResident?: boolean;
   search?: string; // Search by reference number, transaction ID, or subscriber name
   startDate?: Date;
   endDate?: Date;
@@ -666,8 +637,8 @@ export const getTransactionsByService = async (
     where.status = filters.status;
   }
 
-  if (filters.isResidentOfBorongan !== undefined) {
-    where.isResidentOfBorongan = filters.isResidentOfBorongan;
+  if (filters.isLocalResident !== undefined) {
+    where.isLocalResident = filters.isLocalResident;
   }
 
   if (filters.startDate || filters.endDate) {
@@ -714,29 +685,16 @@ export const getTransactionsByService = async (
 
   // Fetch all matching transactions (we'll apply serviceData filters in memory)
   let [allTransactions, total] = await Promise.all([
-    (prisma as any).transaction.findMany({
+    prisma.transaction.findMany({
       where,
       include: {
-        subscriber: {
-          include: {
-            citizen: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
-                email: true,
-              },
-            },
-            nonCitizen: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
-                email: true,
-              },
-            },
+        resident: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            contactNumber: true,
+            email: true,
           },
         },
         service: true,
@@ -815,8 +773,8 @@ export const getTransactionsByService = async (
     if (filters.status) {
       subscriberWhere.status = filters.status;
     }
-    if (filters.isResidentOfBorongan !== undefined) {
-      subscriberWhere.isResidentOfBorongan = filters.isResidentOfBorongan;
+    if (filters.isLocalResident !== undefined) {
+      subscriberWhere.isLocalResident = filters.isLocalResident;
     }
     if (filters.startDate || filters.endDate) {
       subscriberWhere.createdAt = {};
@@ -830,52 +788,27 @@ export const getTransactionsByService = async (
 
     subscriberWhere.OR = [
       {
-        subscriber: {
-          citizen: {
-            OR: [
-              { firstName: { contains: filters.search, mode: 'insensitive' } },
-              { lastName: { contains: filters.search, mode: 'insensitive' } },
-              { phoneNumber: { contains: filters.search, mode: 'insensitive' } },
-            ],
-          },
+        resident: {
+          OR: [
+            { firstName: { contains: filters.search, mode: 'insensitive' } },
+            { lastName: { contains: filters.search, mode: 'insensitive' } },
+            { contactNumber: { contains: filters.search, mode: 'insensitive' } },
+          ],
         },
       },
-      {
-        subscriber: {
-          nonCitizen: {
-            OR: [
-              { firstName: { contains: filters.search, mode: 'insensitive' } },
-              { lastName: { contains: filters.search, mode: 'insensitive' } },
-              { phoneNumber: { contains: filters.search, mode: 'insensitive' } },
-            ],
-          },
-        },
-      },
+      { applicantName: { contains: filters.search, mode: 'insensitive' } },
     ];
 
-    const subscriberTransactions = await (prisma as any).transaction.findMany({
+    const subscriberTransactions = await prisma.transaction.findMany({
       where: subscriberWhere,
       include: {
-        subscriber: {
-          include: {
-            citizen: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
-                email: true,
-              },
-            },
-            nonCitizen: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
-                email: true,
-              },
-            },
+        resident: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            contactNumber: true,
+            email: true,
           },
         },
         service: true,
@@ -1200,7 +1133,7 @@ export const getAppointmentAvailability = async (
 // Request update from portal user
 export const requestTransactionUpdate = async (
   transactionId: string,
-  subscriberId: string,
+  residentId: string,
   description: string,
   updatedServiceData: any,
   preferredAppointmentDate?: string
@@ -1213,8 +1146,8 @@ export const requestTransactionUpdate = async (
     throw new Error('Transaction not found');
   }
 
-  // Verify ownership
-  if (transaction.subscriberId !== subscriberId) {
+  // Verify ownership — guest transactions (null residentId) cannot request updates
+  if (!transaction.residentId || transaction.residentId !== residentId) {
     throw new Error('Access denied');
   }
 
@@ -1245,7 +1178,7 @@ export const requestTransactionUpdate = async (
       updateData.preferredAppointmentDate = preferredAppointmentDate || null;
     }
 
-    return (prisma as any).transaction.update({
+    return prisma.transaction.update({
       where: { id: transactionId },
       data: updateData,
     });
@@ -1270,7 +1203,7 @@ export const requestTransactionUpdate = async (
         : Prisma.JsonNull,
   };
 
-  return (prisma as any).transaction.update({
+  return prisma.transaction.update({
     where: { id: transactionId },
     data: updateData,
   });
@@ -1286,7 +1219,7 @@ export const adminRequestTransactionUpdate = async (transactionId: string, descr
     throw new Error('Transaction not found');
   }
 
-  return (prisma as any).transaction.update({
+  return prisma.transaction.update({
     where: { id: transactionId },
     data: {
       updateRequestStatus: 'PENDING_ADMIN',
@@ -1335,13 +1268,13 @@ export const reviewTransactionUpdateRequest = async (transactionId: string, appr
       updateData.preferredAppointmentDate = pendingAppointmentDate;
     }
 
-    return (prisma as any).transaction.update({
+    return prisma.transaction.update({
       where: { id: transactionId },
       data: updateData,
     });
   } else {
     // Reject the request - clear pending data
-    return (prisma as any).transaction.update({
+    return prisma.transaction.update({
       where: { id: transactionId },
       data: {
         updateRequestStatus: 'REJECTED',
@@ -1387,26 +1320,13 @@ export const getAppointments = async (startDate?: Date, endDate?: Date, date?: D
   const appointments = await prisma.transaction.findMany({
     where,
     include: {
-      subscriber: {
-        include: {
-          citizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-              email: true,
-            },
-          },
-          nonCitizen: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-              email: true,
-            },
-          },
+      resident: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          contactNumber: true,
+          email: true,
         },
       },
       service: {

@@ -14,6 +14,7 @@ import {
   getTransactionController,
   getTransactionsByServiceController,
   getTransactionsController,
+  trackTransactionController,
   updateTransactionController,
   requestTransactionUpdateController,
   adminRequestTransactionUpdateController,
@@ -23,7 +24,7 @@ import {
   getTaxComputationController,
   computeTaxController,
 } from '../controllers/tax-profile.controller';
-import { verifyAdmin, verifyToken } from '../middleware/auth';
+import { verifyAdmin, verifyToken, optionalAuth } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import {
   createTransactionNoteValidation,
@@ -49,9 +50,12 @@ import {
 
 const router = Router();
 
+// Public: track any transaction by reference number (no auth — for guests + residents)
+router.get('/track/:referenceNumber', trackTransactionController);
+
 // Get transactions for a subscriber (admin or subscriber can access)
 router.get(
-  '/subscriber/:subscriberId',
+  '/subscriber/:residentId',
   verifyToken,
   validate(getTransactionsValidation),
   getTransactionsController
@@ -74,8 +78,10 @@ router.get(
 // Get single transaction (admin or subscriber can access)
 router.get('/:id', verifyToken, validate(getTransactionValidation), getTransactionController);
 
-// Create transaction (subscriber can create, admin can also create)
-router.post('/', verifyToken, validate(createTransactionValidation), createTransactionController);
+// Create transaction — optionalAuth allows both authenticated residents and unauthenticated guests.
+// The controller enforces: if authenticated, residentId must match req.user.id.
+// If unauthenticated, applicantName must be present (guest flow).
+router.post('/', optionalAuth, validate(createTransactionValidation), createTransactionController);
 
 // Update transaction (admin only)
 router.put('/:id', verifyAdmin, validate(updateTransactionValidation), updateTransactionController);

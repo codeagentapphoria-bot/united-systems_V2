@@ -248,7 +248,7 @@ const MunicipalitySetupForm = ({
         formData.append("latitude", selectedLocation[0]);
         formData.append("longitude", selectedLocation[1]);
       } else {
-        // Default coordinates for Borongan City
+        // Default fallback coordinates (override via map selection)
         formData.append("latitude", 11.6081);
         formData.append("longitude", 125.4311);
       }
@@ -270,6 +270,20 @@ const MunicipalitySetupForm = ({
             'Content-Type': 'multipart/form-data',
           },
         });
+
+        // Create barangays from GIS data in the background
+        if (selectedMunicipality?.gis_code) {
+          try {
+            await api.post("/setup/municipality", {
+              gis_municipality_code: selectedMunicipality.gis_code,
+              province: data.province,
+              region: data.region,
+            });
+          } catch (gisError) {
+            // Non-fatal — barangays may already exist
+            logger.warn("Background barangay creation warning:", gisError);
+          }
+        }
 
         // Use the new setup completion handler
         await handleSetupCompletion(

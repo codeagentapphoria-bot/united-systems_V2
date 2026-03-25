@@ -28,9 +28,9 @@ export const getAdminNotificationCounts = async (): Promise<AdminNotificationCou
       unread_messages: number; 
     }[]>`
       SELECT 
-        (SELECT CAST(COUNT(*) AS INTEGER) FROM citizens WHERE residency_status = 'PENDING') as pending_citizens,
+        (SELECT CAST(COUNT(*) AS INTEGER) FROM residents WHERE status = 'pending') as pending_citizens,
         (SELECT CAST(COUNT(*) AS INTEGER) FROM transactions WHERE update_request_status = 'PENDING_ADMIN') as pending_update_requests,
-        (SELECT CAST(COUNT(*) AS INTEGER) FROM transaction_notes WHERE is_read = false AND sender_type = 'SUBSCRIBER') as unread_messages
+        (SELECT CAST(COUNT(*) AS INTEGER) FROM transaction_notes WHERE is_read = false AND sender_type = 'RESIDENT') as unread_messages
     `,
     // Get pending applications per service code
     prisma.$queryRaw<{ code: string; count: number }[]>`
@@ -74,12 +74,12 @@ export const getAdminNotificationCounts = async (): Promise<AdminNotificationCou
 };
 
 export const getSubscriberNotificationCounts = async (
-  subscriberId: string
+  residentId: string
 ): Promise<SubscriberNotificationCounts> => {
   // 1. Count transactions with updateRequestStatus = 'PENDING_PORTAL' for this subscriber
   const pendingUpdateRequests = await prisma.transaction.count({
     where: {
-      subscriberId,
+      residentId,
       updateRequestStatus: UpdateRequestStatus.PENDING_PORTAL,
     },
   });
@@ -90,7 +90,7 @@ export const getSubscriberNotificationCounts = async (
       isRead: false,
       senderType: TransactionNoteSenderType.ADMIN,
       transaction: {
-        subscriberId,
+        residentId,
       },
     },
   });
@@ -103,7 +103,7 @@ export const getSubscriberNotificationCounts = async (
 
   const statusUpdates = await prisma.transaction.count({
     where: {
-      subscriberId,
+      residentId,
       updatedAt: {
         gte: oneDayAgo,
       },
@@ -141,9 +141,9 @@ export interface DashboardStatistics {
   totalTransactionsThisMonth: number;
   totalRevenue: number;
   totalRevenueThisMonth: number;
-  totalSubscribers: number;
-  totalCitizens: number;
-  totalNonCitizens: number;
+  totalResidents: number;
+  totalActiveResidents: number;
+  totalPendingResidents: number;
   activeServicesCount: number;
 
   // Transaction breakdowns
@@ -158,7 +158,7 @@ export interface DashboardStatistics {
 
   // Trends
   transactionTrends: Array<{ date: string; count: number; revenue: number }>; // Daily/Monthly
-  subscriberGrowthTrends: Array<{ date: string; citizens: number; nonCitizens: number }>;
+  subscriberGrowthTrends: Array<{ date: string; active: number; pending: number }>;
 
   // Citizen status
   citizensByStatus: Record<string, number>;
@@ -169,7 +169,7 @@ export interface DashboardStatistics {
     transactionId: string;
     serviceName: string;
     serviceCode: string;
-    subscriberName: string;
+    residentName: string;
     paymentStatus: string;
     status: string | null;
     paymentAmount: number;
@@ -179,8 +179,8 @@ export interface DashboardStatistics {
     id: string;
     firstName: string;
     lastName: string;
-    phoneNumber: string | null;
-    residencyStatus: string;
+    contactNumber: string | null;
+    status: string;
     createdAt: string;
   }>;
 
@@ -206,9 +206,9 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
   const [
     totalTransactions,
     totalTransactionsThisMonth,
-    totalSubscribers,
-    totalCitizens,
-    totalNonCitizens,
+    totalResidents,
+    totalActiveResidents,
+    totalPendingResidents,
     activeServicesCount,
     revenueAggregation,
     revenueThisMonthAggregation,
@@ -231,9 +231,9 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
     prisma.transaction.count({
       where: { createdAt: { gte: startOfMonth } },
     }),
-    prisma.subscriber.count(),
-    prisma.citizen.count(),
-    prisma.nonCitizen.count(),
+    prisma.resident.count(),
+    prisma.resident.count({ where: { status: 'active' } }),
+    prisma.resident.count({ where: { status: 'pending' } }),
     prisma.service.count({
       where: { isActive: true },
     }),
@@ -260,8 +260,8 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
     prisma.service.findMany({
       select: { id: true, code: true, name: true },
     }),
-    prisma.citizen.groupBy({
-      by: ['residencyStatus'],
+    prisma.resident.groupBy({
+      by: ['status'],
       _count: { id: true },
     }),
     prisma.seniorCitizenBeneficiary.count({ where: { status: 'ACTIVE' } }),
@@ -280,23 +280,20 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
         paymentAmount: true,
         createdAt: true,
         service: { select: { name: true, code: true } },
-        subscriber: {
-          select: {
-            citizen: { select: { firstName: true, lastName: true } },
-            nonCitizen: { select: { firstName: true, lastName: true } },
-          },
+        resident: {
+          select: { firstName: true, lastName: true },
         },
       },
     }),
-    prisma.citizen.findMany({
+    prisma.resident.findMany({
       take: 20,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         firstName: true,
         lastName: true,
-        phoneNumber: true,
-        residencyStatus: true,
+        contactNumber: true,
+        status: true,
         createdAt: true,
       },
     }),
@@ -310,15 +307,15 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
     `,
     prisma.$queryRaw<{ date: Date; count: number }[]>`
       SELECT DATE_TRUNC('month', created_at) as date, CAST(COUNT(id) AS INTEGER) as count
-      FROM citizens
-      WHERE created_at >= ${twelveMonthsAgo}
+      FROM residents
+      WHERE status = 'active' AND created_at >= ${twelveMonthsAgo}
       GROUP BY date
       ORDER BY date ASC
     `,
     prisma.$queryRaw<{ date: Date; count: number }[]>`
       SELECT DATE_TRUNC('month', created_at) as date, CAST(COUNT(id) AS INTEGER) as count
-      FROM non_citizens
-      WHERE created_at >= ${twelveMonthsAgo}
+      FROM residents
+      WHERE status = 'pending' AND created_at >= ${twelveMonthsAgo}
       GROUP BY date
       ORDER BY date ASC
     `,
@@ -341,7 +338,7 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
 
   const citizensByStatusMap: Record<string, number> = {};
   citizensByStatus.forEach((item) => {
-    citizensByStatusMap[item.residencyStatus] = item._count.id;
+    citizensByStatusMap[item.status ?? 'unknown'] = item._count.id;
   });
 
   // 3. Process Service Breakdowns
@@ -365,57 +362,57 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
     revenue: t.revenue,
   }));
 
-  const subscriberGrowthMap = new Map<string, { citizens: number; nonCitizens: number }>();
-  citizenGrowthRaw.forEach((c) => {
+  // Resident growth trends (active vs pending registrations per month)
+  const residentGrowthMap = new Map<string, { active: number; pending: number }>();
+  (citizenGrowthRaw as any[]).forEach((c) => {
     const dateKey = c.date.toISOString().split('T')[0];
-    const existing = subscriberGrowthMap.get(dateKey) || { citizens: 0, nonCitizens: 0 };
-    subscriberGrowthMap.set(dateKey, { ...existing, citizens: c.count });
+    const existing = residentGrowthMap.get(dateKey) || { active: 0, pending: 0 };
+    residentGrowthMap.set(dateKey, { ...existing, active: Number(c.count) });
   });
-
-  nonCitizenGrowthRaw.forEach((nc) => {
+  (nonCitizenGrowthRaw as any[]).forEach((nc) => {
     const dateKey = nc.date.toISOString().split('T')[0];
-    const existing = subscriberGrowthMap.get(dateKey) || { citizens: 0, nonCitizens: 0 };
-    subscriberGrowthMap.set(dateKey, { ...existing, nonCitizens: nc.count });
+    const existing = residentGrowthMap.get(dateKey) || { active: 0, pending: 0 };
+    residentGrowthMap.set(dateKey, { ...existing, pending: Number(nc.count) });
   });
+  const subscriberGrowthTrends: Array<{ date: string; active: number; pending: number }> =
+    Array.from(residentGrowthMap.entries())
+      .map(([date, data]) => ({ date, ...data }))
+      .sort((a, b) => a.date.localeCompare(b.date));
 
-  const subscriberGrowthTrends = Array.from(subscriberGrowthMap.entries())
-    .map(([date, data]) => ({ date, ...data }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  // 5. Recent Activity Processing
-  const recentTransactions = recentTransactionsData.map((t) => ({
-    id: t.id,
-    transactionId: t.transactionId,
-    serviceName: t.service.name,
-    serviceCode: t.service.code,
-    subscriberName: t.subscriber.citizen
-      ? `${t.subscriber.citizen.firstName} ${t.subscriber.citizen.lastName}`
-      : t.subscriber.nonCitizen
-        ? `${t.subscriber.nonCitizen.firstName} ${t.subscriber.nonCitizen.lastName}`
+  // Recent Activity Processing
+  const recentTransactions: DashboardStatistics['recentTransactions'] =
+    recentTransactionsData.map((t: any) => ({
+      id: t.id,
+      transactionId: t.transactionId,
+      serviceName: t.service.name,
+      serviceCode: t.service.code,
+      residentName: t.resident
+        ? `${t.resident.firstName} ${t.resident.lastName}`
         : 'Unknown',
-    paymentStatus: t.paymentStatus,
-    status: t.status,
-    paymentAmount: Number(t.paymentAmount || 0),
-    createdAt: t.createdAt.toISOString(),
-  }));
+      paymentStatus: t.paymentStatus,
+      status: t.status,
+      paymentAmount: Number(t.paymentAmount || 0),
+      createdAt: t.createdAt.toISOString(),
+    }));
 
-  const recentCitizens = recentCitizensData.map((c) => ({
-    id: c.id,
-    firstName: c.firstName,
-    lastName: c.lastName,
-    phoneNumber: c.phoneNumber,
-    residencyStatus: c.residencyStatus,
-    createdAt: c.createdAt.toISOString(),
-  }));
+  const recentCitizens: DashboardStatistics['recentCitizens'] =
+    recentCitizensData.map((c: any) => ({
+      id: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      contactNumber: c.contactNumber,
+      status: c.status,
+      createdAt: c.createdAt.toISOString(),
+    }));
 
   return {
     totalTransactions,
     totalTransactionsThisMonth,
     totalRevenue,
     totalRevenueThisMonth,
-    totalSubscribers,
-    totalCitizens,
-    totalNonCitizens,
+    totalResidents,
+    totalActiveResidents,
+    totalPendingResidents,
     activeServicesCount,
     transactionsByStatus,
     transactionsByPaymentStatus,

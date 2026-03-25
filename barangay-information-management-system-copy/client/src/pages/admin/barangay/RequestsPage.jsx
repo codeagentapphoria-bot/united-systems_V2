@@ -119,7 +119,7 @@ const sanitizeHtml = (input) => {
 };
 
 // Server URL for background images
-  const SERVER_URL = import.meta.env.VITE_API_BASE_URL || "http://13.211.71.85/api";
+  const SERVER_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
 // Add custom styles for QR scanner with unique ID to avoid conflicts
 const qrScannerStyles = `
@@ -375,9 +375,7 @@ const CertificateTemplate = ({ request, onClose }) => {
           .replace(/\b\w/g, (l) => l.toUpperCase()) || "Full Name";
 
     const address = residentInfo
-      ? `${residentInfo.house_number || ""} ${residentInfo.street || ""}, ${
-          residentInfo.purok_name || ""
-        }`.trim()
+      ? `${residentInfo.house_number || ""} ${residentInfo.street || ""}`.trim()
       : request.address || "Complete Address";
 
     const purpose = sanitizeHtml(request.purpose || "Purpose");
@@ -1283,7 +1281,7 @@ const RequestsPage = () => {
           request.type === "certificate" && request.resident_info
             ? `${request.resident_info.house_number || ""} ${
                 request.resident_info.street || ""
-              } ${request.resident_info.purok_name || ""}`.toLowerCase()
+              }`.toLowerCase()
             : request.address?.toLowerCase() || "";
 
         const purpose = request.purpose?.toLowerCase() || "";
@@ -2689,8 +2687,7 @@ const RequestsPage = () => {
                       selectedRequest.resident_info
                         ? `${
                             selectedRequest.resident_info.house_number || ""
-                          } ${selectedRequest.resident_info.street || ""}, ${
-                            selectedRequest.resident_info.purok_name || ""
+                          } ${selectedRequest.resident_info.street || ""
                           }`.trim() || "Not specified"
                         : selectedRequest.address || "Not specified"}
                     </div>
@@ -2853,8 +2850,7 @@ const RequestsPage = () => {
                         selectedRequest.resident_info
                           ? `${
                               selectedRequest.resident_info.house_number || ""
-                            } ${selectedRequest.resident_info.street || ""}, ${
-                              selectedRequest.resident_info.purok_name || ""
+                            } ${selectedRequest.resident_info.street || ""
                             }`.trim() || "Not specified"
                           : selectedRequest.address}
                       </span>

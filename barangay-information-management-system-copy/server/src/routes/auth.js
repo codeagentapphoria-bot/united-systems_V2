@@ -15,7 +15,6 @@ router.post("/reset-password", resetPasswordWithCode);
 router.post("/refresh", protect, refreshUserToken);
 
 router.get("/me", protect, (req, res) => {
-  console.log("User details:", req.user);
   res.status(200).json({
     status: "success",
     data: { user: req.user },

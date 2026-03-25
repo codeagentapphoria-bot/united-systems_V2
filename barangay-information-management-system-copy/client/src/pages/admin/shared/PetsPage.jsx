@@ -125,7 +125,7 @@ const PetsPage = () => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
   const [isGeneratingQR, setIsGeneratingQR] = useState(false);
 
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://13.211.71.85";
+  const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
 
   // Helper to get full image URL
   const getPetImageUrl = (picture_path) => {
@@ -421,7 +421,6 @@ const PetsPage = () => {
         setFilterSpecies={setFilterSpecies}
         filterPurok={filterPurok}
         setFilterPurok={setFilterPurok}
-        puroks={puroks}
         barangays={barangays}
         role={user?.target_type}
         setPage={setPage}
@@ -1067,13 +1066,6 @@ const PetsPage = () => {
                             <span className="font-semibold">Street:</span>
                             <span className="ml-1">
                               {selectedPet.street || "-"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-primary" />
-                            <span className="font-semibold">Purok:</span>
-                            <span className="ml-1">
-                              {selectedPet.purok_name || "-"}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">

@@ -48,7 +48,7 @@ export const usePortalNotifications = ({
 
   const fetchCounts = useCallback(async () => {
     // Only fetch if user is subscriber
-    if (!user || user.role !== 'subscriber') {
+    if (!user || user.role !== 'resident') {
       return;
     }
 
@@ -83,7 +83,7 @@ export const usePortalNotifications = ({
 
   // Set up polling
   useEffect(() => {
-    if (!autoFetch || !enabled || !user || user.role !== 'subscriber') {
+    if (!autoFetch || !enabled || !user || user.role !== 'resident') {
       return;
     }
 
@@ -117,7 +117,7 @@ export const usePortalNotifications = ({
         }
       } else {
         // Tab is visible, resume polling
-        if (autoFetch && enabled && user && user.role === 'subscriber' && !intervalRef.current) {
+        if (autoFetch && enabled && user && user.role === 'resident' && !intervalRef.current) {
           fetchCounts();
           intervalRef.current = setInterval(() => {
             if (enabled && isMountedRef.current) {

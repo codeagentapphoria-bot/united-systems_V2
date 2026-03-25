@@ -244,83 +244,46 @@ export default function SetupAccount() {
 
   const onSubmit = async (data) => {
     if (isLoading) return;
-    
+
     setIsLoading(true);
     try {
-      // Check for email conflicts before creating user
-      const conflictCheck = await checkForEmailConflicts(data.email);
-
-      if (conflictCheck.hasConflicts) {
-        const conflictMessages = conflictCheck.conflicts.map(c => c.message).join(", ");
+      // Use the public complete-account-setup endpoint — no auth required.
+      // The setup token acts as authentication for this operation.
+      const activeToken = token || setupData?.token;
+      if (!activeToken) {
         toast({
-          title: "Email Conflict Error",
-          description: conflictMessages,
+          title: "Invalid setup link",
+          description: "Setup token is missing. Please use the link from your email.",
           variant: "destructive",
         });
         return;
       }
 
-      // Create new user account
-      const targetBarangayId = setupData?.barangayId || barangayId;
-      console.log("🏢 Using barangay ID:", targetBarangayId, "from setupData:", setupData?.barangayId, "from URL:", barangayId);
-      
       const formData = new FormData();
-      formData.append("targetType", "barangay");
-      formData.append("targetId", targetBarangayId);
+      formData.append("token", activeToken);
       formData.append("fullname", data.fullName);
-      formData.append("email", data.email);
       formData.append("password", data.password);
-      formData.append("role", "admin");
 
-      // Add picture file if selected
       if (selectedFile) {
         formData.append("picturePath", selectedFile);
-      } else {}
-
-      // Debug: Log form data being sent
-      console.log("📤 Submitting form data:");
-      for (let [key, value] of formData.entries()) {
-        console.log(`  ${key}:`, value);
       }
 
-      const response = await api.post("/user", formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      await api.post("/complete-account-setup", formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      logger.debug("Setup response:", response);
-      toast({ 
+      toast({
         title: "Account setup complete!",
-        description: "You can now log in with your new account.",
+        description: "You can now log in with your new credentials.",
       });
       navigate(ADMIN_ROUTES.LOGIN);
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-  console.error("Setup error:", error);
-}
-      
-      // Handle specific errors
-      if (error.response?.status === 409) {
-        const errorMessage = error.response?.data?.message || "An account with this email already exists.";
-        toast({ 
-          title: "Account already exists",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      } else if (error.response?.status === 400) {
-        toast({ 
-          title: "Validation error",
-          description: error.response?.data?.message || "Please check your input and try again.",
-          variant: "destructive",
-        });
-      } else {
-        toast({ 
-          title: "Error setting up account",
-          description: "Please try again or contact support.",
-          variant: "destructive",
-        });
-      }
+      logger.error("Setup error:", error);
+      toast({
+        title: "Error setting up account",
+        description: error.response?.data?.message || "Please try again or contact support.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

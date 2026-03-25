@@ -29,14 +29,14 @@ const classificationTypeSchema = z.object({
   })).optional(),
 });
 
-const ClassificationTypeManager = () => {
+const ClassificationTypeManager = ({ municipalityId }) => {
   const {
     classificationTypes,
     loading,
     createClassificationType,
     updateClassificationType,
     deleteClassificationType,
-  } = useClassificationTypes();
+  } = useClassificationTypes(municipalityId);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingType, setEditingType] = useState(null);

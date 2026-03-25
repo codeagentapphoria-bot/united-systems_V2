@@ -47,7 +47,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  const isSubscriber = user?.role === 'subscriber';
+  const isSubscriber = user?.role === 'resident';
   const hasNotifications = isSubscriber && counts.total > 0;
 
   const navigationItems = [
@@ -148,7 +148,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
                       <FiUser size={18} />
                     </div>
                     <span className="hidden sm:inline text-sm font-medium">
-                      {user.name || user.phoneNumber || 'User'}
+                      {user.name || user.username || 'User'}
                     </span>
                     <FiChevronDown size={16} className="hidden sm:block" />
                   </Button>

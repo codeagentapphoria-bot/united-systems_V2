@@ -71,7 +71,7 @@ export const emitTransactionUpdate = (
 export const emitTransactionNoteRead = (
   noteId: string,
   transactionId: string,
-  senderType: 'ADMIN' | 'SUBSCRIBER',
+  senderType: 'ADMIN' | 'RESIDENT',
   isRead: boolean
 ): void => {
   const io = getSocketInstance();
@@ -211,7 +211,7 @@ export const emitAppointmentNew = (appointment: {
   serviceCode?: string;
   appointmentDate: Date | string;
   appointmentStatus?: string;
-  subscriberId: string;
+  residentId: string;
 }): void => {
   const io = getSocketInstance();
   if (io) {
@@ -224,14 +224,14 @@ export const emitAppointmentNew = (appointment: {
           ? appointment.appointmentDate.toISOString()
           : appointment.appointmentDate,
       appointmentStatus: appointment.appointmentStatus || 'PENDING',
-      subscriberId: appointment.subscriberId,
+      residentId: appointment.residentId,
     };
 
     // Notify admins
     io.to('admins').emit('appointment:new', payload);
 
-    // Notify the subscriber
-    io.to(`user:${appointment.subscriberId}`).emit('notification:new', {
+    // Notify the resident
+    io.to(`user:${appointment.residentId}`).emit('notification:new', {
       type: 'appointment_created',
       message: 'Your appointment has been scheduled',
       transactionId: appointment.transactionId,
@@ -248,7 +248,7 @@ export const emitAppointmentUpdate = (
     oldAppointmentStatus?: string;
     serviceId?: string;
     serviceCode?: string;
-    subscriberId?: string;
+    residentId?: string;
     updatedAt: Date;
   }
 ): void => {
@@ -265,7 +265,7 @@ export const emitAppointmentUpdate = (
       oldAppointmentStatus: update.oldAppointmentStatus,
       serviceId: update.serviceId,
       serviceCode: update.serviceCode,
-      subscriberId: update.subscriberId,
+      residentId: update.residentId,
       updatedAt: update.updatedAt.toISOString(),
     };
 
@@ -275,9 +275,9 @@ export const emitAppointmentUpdate = (
     // Also notify admins
     io.to('admins').emit('appointment:update', payload);
 
-    // Notify subscriber if status changed
-    if (update.subscriberId && update.oldAppointmentStatus !== update.appointmentStatus) {
-      io.to(`user:${update.subscriberId}`).emit('notification:new', {
+    // Notify resident if status changed
+    if (update.residentId && update.oldAppointmentStatus !== update.appointmentStatus) {
+      io.to(`user:${update.residentId}`).emit('notification:new', {
         type: 'appointment_update',
         message: `Your appointment status has been updated to ${update.appointmentStatus || 'unknown'}`,
         transactionId,
@@ -289,7 +289,7 @@ export const emitAppointmentUpdate = (
 
 export const emitNewTransaction = (transaction: {
   id: string;
-  subscriberId: string;
+  residentId: string;
   transactionId: string;
   serviceId: string;
   status?: string;
@@ -311,8 +311,8 @@ export const emitNewTransaction = (transaction: {
           : transaction.createdAt,
     } as NewTransactionPayload);
 
-    // Notify the subscriber
-    io.to(`user:${transaction.subscriberId}`).emit('notification:new', {
+    // Notify the resident
+    io.to(`user:${transaction.residentId}`).emit('notification:new', {
       type: 'transaction_created',
       message: 'Your transaction has been created',
       transactionId: transaction.id,
@@ -324,7 +324,7 @@ export const emitNewTransaction = (transaction: {
 export const emitBeneficiaryNew = (beneficiary: {
   beneficiaryId: string;
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT';
-  citizenId: string;
+  residentId: string;
   status?: string;
   programIds?: string[];
   createdAt: Date | string;
@@ -334,7 +334,7 @@ export const emitBeneficiaryNew = (beneficiary: {
     io.to('admins').emit('beneficiary:new', {
       beneficiaryId: beneficiary.beneficiaryId,
       type: beneficiary.type,
-      citizenId: beneficiary.citizenId,
+      residentId: beneficiary.residentId,
       status: beneficiary.status,
       programIds: beneficiary.programIds,
       createdAt:
@@ -349,7 +349,7 @@ export const emitBeneficiaryUpdate = (
   beneficiaryId: string,
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT',
   update: {
-    citizenId?: string;
+    residentId?: string;
     status?: string;
     oldStatus?: string;
     programIds?: string[];
@@ -361,7 +361,7 @@ export const emitBeneficiaryUpdate = (
     io.to('admins').emit('beneficiary:update', {
       beneficiaryId,
       type,
-      citizenId: update.citizenId,
+      residentId: update.residentId,
       status: update.status,
       oldStatus: update.oldStatus,
       programIds: update.programIds,
@@ -373,14 +373,14 @@ export const emitBeneficiaryUpdate = (
 export const emitBeneficiaryDelete = (
   beneficiaryId: string,
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT',
-  citizenId?: string
+  residentId?: string
 ): void => {
   const io = getSocketInstance();
   if (io) {
     io.to('admins').emit('beneficiary:delete', {
       beneficiaryId,
       type,
-      citizenId,
+      residentId,
     } as BeneficiaryDeletePayload);
   }
 };

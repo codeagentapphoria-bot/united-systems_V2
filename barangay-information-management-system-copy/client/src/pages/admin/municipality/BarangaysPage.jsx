@@ -86,7 +86,14 @@ import { useUnifiedAutoRefresh } from "@/hooks/useUnifiedAutoRefresh";
 const BarangaysPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
+  const [adminForm, setAdminForm] = useState({ fullname: "", email: "", password: "" });
+  const [adminFormErrors, setAdminFormErrors] = useState({});
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+  const [showAddAdminForm, setShowAddAdminForm] = useState(false);
   const [barangays, setBarangays] = useState([]);
   const [selectedMunicipality, setSelectedMunicipality] = useState("all");
   const [isBarangayLoaded, setIsBarangayLoaded] = useState(false);
@@ -288,9 +295,9 @@ const BarangaysPage = () => {
 
   const [municipalityOptions, setMunicipalityOptions] = useState([]); // For filter dropdown
 
-  const fetchBarangays = async () => {
+  const fetchBarangays = async (search = "") => {
     try {
-      const response = await api.get("/public/list/barangay");
+      const response = await api.get(`/public/list/barangay?perPage=100${search ? `&search=${encodeURIComponent(search)}` : ''}`);
       const barangayData = response.data.data.data;
       setBarangays(barangayData);
       // Extract unique municipality_ids for filter dropdown
@@ -307,9 +314,19 @@ const BarangaysPage = () => {
   };
 
   useEffect(() => {
-    fetchBarangays();
+    fetchBarangays("");
     fetchAdminUsers();
   }, []);
+
+  // Debounce search term and fetch from server
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      fetchBarangays(searchTerm);
+      setCurrentPage(1); // Reset to first page on search
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Fetch admin users for each barangay
   const fetchAdminUsers = async () => {
@@ -360,7 +377,7 @@ const BarangaysPage = () => {
       const response = await api.get(`/public/${barangayId}/barangay`);
       const barangay = response.data.data;
       if (barangay.organizational_chart_path) {
-        const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://13.211.71.85";
+        const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
         setOrgChartPaths(prev => ({
           ...prev,
           [barangayId]: `${SERVER_URL}/${barangay.organizational_chart_path}`
@@ -528,7 +545,41 @@ const BarangaysPage = () => {
       }
     });
 
-  // Fetch barangay stats after barangays are loaded
+  // Pagination
+  const totalPages = Math.ceil(filteredAndSortedBarangays.length / itemsPerPage);
+  const paginatedBarangays = filteredAndSortedBarangays.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Fetch stats on demand (when user clicks "Load Stats")
+  const fetchBarangayStats = async (barangayId) => {
+    setBarangayStats(prev => ({ ...prev, [barangayId]: { loading: true } }));
+    try {
+      const [householdStats, populationStats, familyStats, petStats] = await Promise.all([
+        api.get("/statistics/total-households", { params: { barangayId } }),
+        api.get("/statistics/total-population", { params: { barangayId } }),
+        api.get("/statistics/total-families", { params: { barangayId } }),
+        api.get("/statistics/total-registered-pets", { params: { barangayId } }),
+      ]);
+      
+      setBarangayStats(prev => ({
+        ...prev,
+        [barangayId]: {
+          households: householdStats.data.data?.total_households || 0,
+          residents: parseInt(populationStats.data.data?.total_population) || 0,
+          families: familyStats.data.data?.total_families || 0,
+          pets: petStats.data.data?.total_pets || 0,
+          loading: false
+        }
+      }));
+    } catch (err) {
+      setBarangayStats(prev => ({ ...prev, [barangayId]: { loading: false, households: 0, residents: 0, families: 0, pets: 0 } }));
+    }
+  };
+
+  /*
+  // Old automatic stats fetch - disabled to prevent rate limiting
   useEffect(() => {
     const fetchStats = async () => {
       const statsPromises = barangays.map(async (barangay) => {
@@ -577,6 +628,7 @@ const BarangaysPage = () => {
     };
     if (barangays.length) fetchStats();
   }, [barangays]);
+  */
 
   // Aggregate stats
   const totalHouseholds = Object.values(barangayStats).reduce(
@@ -658,167 +710,6 @@ const BarangaysPage = () => {
               variant="outline"
               size="sm"
             />
-            <Dialog open={isAddDialogOpen} onOpenChange={handleDialogChange}>
-              <DialogTrigger asChild>
-                <Button className="flex items-center gap-2 text-xs sm:text-sm w-full sm:w-auto">
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Add Barangay</span>
-                  <span className="sm:hidden">Add</span>
-                </Button>
-              </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw]">
-              <DialogHeader>
-                <DialogTitle>Add New Barangay</DialogTitle>
-                <DialogDescription>
-                  Enter the barangay's information below
-                </DialogDescription>
-              </DialogHeader>
-              {/* Progress Bar */}
-              <div className="mb-4">
-                <Progress value={step === 1 ? 50 : 100} />
-                <div className="flex justify-between text-xs mt-1">
-                  <span
-                    className={step === 1 ? "font-bold" : "text-muted-foreground"}
-                  >
-                    Barangay Info
-                  </span>
-                  <span
-                    className={step === 2 ? "font-bold" : "text-muted-foreground"}
-                  >
-                    Account Info
-                  </span>
-                </div>
-              </div>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)}>
-                  {step === 1 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 py-4">
-                      <FormField
-                        control={form.control}
-                        name="barangayName"
-                        render={({ field }) => (
-                          <FormItem className="col-span-2">
-                            <FormLabel>Barangay Name</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter barangay name"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="barangayCode"
-                        render={({ field }) => (
-                          <FormItem className="col-span-2">
-                            <FormLabel>Barangay Code</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter barangay code"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  )}
-                  {step === 2 && (
-                    <>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-base">Account Info</span>
-                      </div>
-                      <div className="mb-4 px-3 py-2 rounded bg-muted text-muted-foreground text-sm">
-                        After saving, an email will be sent to the provided
-                        address with instructions to set the password for the
-                        barangay admin user.
-                        <br />
-                        The email address will serve as the login for the barangay
-                        admin user.
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 py-4">
-                        <FormField
-                          control={form.control}
-                          name="fullName"
-                          render={({ field }) => (
-                            <FormItem className="col-span-2">
-                              <FormLabel>Full Name</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter full name" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem className="col-span-2">
-                              <FormLabel>Email</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="email"
-                                  placeholder="Enter email"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </>
-                  )}
-                  <div className="flex justify-end gap-2 mt-4">
-                    <Button
-                      className="mr-auto"
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsAddDialogOpen(false)}
-                      disabled={isSubmitting}
-                    >
-                      Cancel
-                    </Button>
-                    {step === 2 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setStep(1)}
-                        disabled={isSubmitting}
-                      >
-                        Back
-                      </Button>
-                    )}
-                    {step === 1 && (
-                      <Button
-                        type="button"
-                        variant="hero"
-                        onClick={() => setStep(2)}
-                        disabled={!canGoNext}
-                      >
-                        Next
-                      </Button>
-                    )}
-                    {step === 2 && (
-                      <Button
-                        type="submit"
-                        variant="hero"
-                        disabled={!canSubmit || isSubmitting}
-                      >
-                        {isSubmitting ? "Saving..." : "Save Barangay"}
-                      </Button>
-                    )}
-
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-            </Dialog>
           </div>
         </div>
 
@@ -1152,11 +1043,11 @@ const BarangaysPage = () => {
             {/* Barangay List - Grid or Table View */}
             {viewMode === "grid" ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredAndSortedBarangays.map((barangay) => (
+                {paginatedBarangays.map((barangay) => (
                   <Card key={barangay.id} className="hover:shadow-lg transition-shadow cursor-pointer">
                     <div onClick={() => {
                       setSelectedBarangay(barangay);
-                      setIsViewDialogOpen(true);
+                      setIsAdminDialogOpen(true);
                     }}>
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
@@ -1213,10 +1104,10 @@ const BarangaysPage = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredAndSortedBarangays.map((barangay) => (
+                      {paginatedBarangays.map((barangay) => (
                         <TableRow className="cursor-pointer" key={barangay.id} onClick={() => {
                           setSelectedBarangay(barangay);
-                          setIsViewDialogOpen(true);
+                          setIsAdminDialogOpen(true);
                         }}>
                           <TableCell className="text-xs sm:text-sm font-medium">
                             {barangay.barangay_name}
@@ -1228,10 +1119,22 @@ const BarangaysPage = () => {
                             {barangay.email || "-"}
                           </TableCell>
                           <TableCell className="text-xs sm:text-sm">
-                            {barangayStats[barangay.id]?.households || 0}
+                            {barangayStats[barangay.id]?.loading ? (
+                              <span className="text-muted-foreground">Loading...</span>
+                            ) : barangayStats[barangay.id]?.households !== undefined ? (
+                              barangayStats[barangay.id].households
+                            ) : (
+                              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); fetchBarangayStats(barangay.id); }} className="h-6 text-xs">Load</Button>
+                            )}
                           </TableCell>
                           <TableCell className="text-xs sm:text-sm">
-                            {barangayStats[barangay.id]?.residents || 0}
+                            {barangayStats[barangay.id]?.loading ? (
+                              <span className="text-muted-foreground">...</span>
+                            ) : barangayStats[barangay.id]?.residents !== undefined ? (
+                              barangayStats[barangay.id].residents
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </TableCell>
 
                         </TableRow>
@@ -1241,11 +1144,50 @@ const BarangaysPage = () => {
                 </CardContent>
               </Card>
             )}
+            {/* Pagination Controls - applies to both grid and table views */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedBarangays.length)} of {filteredAndSortedBarangays.length} barangays
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(page)}
+                        className="w-8 h-8 p-0"
+                      >
+                        {page}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="officials" className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {filteredAndSortedBarangays.map((barangay) => (
+              {paginatedBarangays.map((barangay) => (
                 <Card key={barangay.id} className="hover:shadow-lg transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1313,7 +1255,7 @@ const BarangaysPage = () => {
 
           <TabsContent value="orgChart" className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {filteredAndSortedBarangays.map((barangay) => (
+              {paginatedBarangays.map((barangay) => (
                 <Card key={barangay.id} className="hover:shadow-lg transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1570,6 +1512,151 @@ const BarangaysPage = () => {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Barangay Admin Dialog */}
+        <Dialog open={isAdminDialogOpen} onOpenChange={(open) => {
+          setIsAdminDialogOpen(open);
+          if (!open) {
+            setShowAddAdminForm(false);
+            setAdminForm({ fullname: "", email: "" });
+            setAdminFormErrors({});
+          }
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Manage Barangay Admin</DialogTitle>
+              <DialogDescription>
+                {selectedBarangay?.barangay_name} — {selectedBarangay?.barangay_code}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {/* Current Admin */}
+              {adminUsers[selectedBarangay?.id] ? (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Current Admin</Label>
+                  <div className="p-3 bg-gray-50 rounded-lg flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{adminUsers[selectedBarangay.id].full_name || adminUsers[selectedBarangay.id].fullname || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">{adminUsers[selectedBarangay.id].email}</p>
+                    </div>
+                    <Badge variant="outline" className="text-green-600 border-green-300">Active</Badge>
+                  </div>
+                </div>
+              ) : (
+                !showAddAdminForm && (
+                  <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
+                    <User className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                    <p className="font-medium text-sm">No admin assigned</p>
+                    <p className="text-xs mt-1">Add an admin to manage this barangay.</p>
+                  </div>
+                )
+              )}
+
+              {/* Add Admin Form */}
+              {showAddAdminForm ? (
+                <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
+                  <p className="text-xs text-muted-foreground">
+                    An email will be sent to the admin with a link to complete their account setup and set their password.
+                  </p>
+                  <div className="space-y-1">
+                    <Label className="text-sm">Full Name</Label>
+                    <Input
+                      placeholder="Enter full name"
+                      value={adminForm.fullname}
+                      onChange={(e) => setAdminForm(prev => ({ ...prev, fullname: e.target.value }))}
+                    />
+                    {adminFormErrors.fullname && <p className="text-xs text-red-500">{adminFormErrors.fullname}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm">Email</Label>
+                    <Input
+                      type="email"
+                      placeholder="Enter email address"
+                      value={adminForm.email}
+                      onChange={(e) => setAdminForm(prev => ({ ...prev, email: e.target.value }))}
+                    />
+                    {adminFormErrors.email && <p className="text-xs text-red-500">{adminFormErrors.email}</p>}
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        setShowAddAdminForm(false);
+                        setAdminForm({ fullname: "", email: "" });
+                        setAdminFormErrors({});
+                      }}
+                      disabled={isAddingAdmin}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      disabled={isAddingAdmin}
+                      onClick={async () => {
+                        // Validate
+                        const errors = {};
+                        if (!adminForm.fullname.trim()) errors.fullname = "Full name is required";
+                        if (!adminForm.email.trim()) errors.email = "Email is required";
+                        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminForm.email)) errors.email = "Invalid email format";
+                        if (Object.keys(errors).length) {
+                          setAdminFormErrors(errors);
+                          return;
+                        }
+
+                        setIsAddingAdmin(true);
+                        try {
+                          // 1. Create user
+                          await api.post("/user", {
+                            targetType: "barangay",
+                            targetId: String(selectedBarangay.id),
+                            fullname: adminForm.fullname,
+                            email: adminForm.email,
+                            role: "admin",
+                          });
+
+                          // 2. Send setup email
+                          await sendSetupEmail({
+                            barangayName: selectedBarangay.barangay_name,
+                            barangayCode: selectedBarangay.barangay_code,
+                            fullName: adminForm.fullname,
+                            email: adminForm.email,
+                            barangayId: selectedBarangay.id,
+                            toast,
+                          });
+
+                          // 3. Refresh admin users list
+                          await fetchAdminUsers();
+
+                          setShowAddAdminForm(false);
+                          setAdminForm({ fullname: "", email: "" });
+                          setAdminFormErrors({});
+                          setIsAdminDialogOpen(false);
+                          toast({ title: "Admin added", description: `Setup email sent to ${adminForm.email}` });
+                        } catch (err) {
+                          const msg = err.response?.data?.message || "Failed to add admin";
+                          toast({ title: "Error", description: msg, variant: "destructive" });
+                        } finally {
+                          setIsAddingAdmin(false);
+                        }
+                      }}
+                    >
+                      {isAddingAdmin ? "Adding..." : "Add & Send Email"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  className="w-full"
+                  onClick={() => setShowAddAdminForm(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {adminUsers[selectedBarangay?.id] ? "Replace Admin" : "Add Admin"}
+                </Button>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
 

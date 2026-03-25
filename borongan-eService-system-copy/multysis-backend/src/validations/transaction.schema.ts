@@ -1,16 +1,22 @@
 import { body, param, query, ValidationChain } from 'express-validator';
 
 export const createTransactionValidation: ValidationChain[] = [
-  body('subscriberId').isUUID().withMessage('Invalid subscriber ID'),
-  body('serviceId').isUUID().withMessage('Invalid service ID'),
+  // residentId is optional — absent means guest submission (applicantName required instead)
+  body('residentId').optional().isString().notEmpty(),
+  body('serviceId').isString().notEmpty().withMessage('Service ID is required'),
+  // Guest applicant fields (required when residentId is absent)
+  body('applicantName').optional().trim(),
+  body('applicantContact').optional().trim(),
+  body('applicantEmail').optional().isEmail().withMessage('Invalid applicant email'),
+  body('applicantAddress').optional().trim(),
   body('paymentAmount')
     .optional()
     .isFloat({ min: 0 })
     .withMessage('Payment amount must be a positive number'),
-  body('isResidentOfBorongan')
+  body('isLocalResident')
     .optional()
     .isBoolean()
-    .withMessage('isResidentOfBorongan must be a boolean'),
+    .withMessage('isLocalResident must be a boolean'),
   body('permitType').optional().trim(),
   body('validIdToPresent').optional().trim(),
   body('remarks').optional().trim(),
@@ -63,8 +69,8 @@ export const updateTransactionValidation: ValidationChain[] = [
 ];
 
 export const getTransactionsValidation: ValidationChain[] = [
-  param('subscriberId').isUUID().withMessage('Invalid subscriber ID'),
-  query('serviceId').optional().isUUID().withMessage('Invalid service ID'),
+  param('residentId').isUUID().withMessage('Invalid resident ID'),
+  query('serviceId').optional().isString().notEmpty(),
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit')
     .optional()

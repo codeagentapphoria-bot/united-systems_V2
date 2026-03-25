@@ -31,7 +31,7 @@ const InventoryForm = ({
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(
     inventory?.file_path 
-      ? `${import.meta.env.VITE_API_BASE_URL || 'http://13.211.71.85/api'}/${inventory.file_path}`
+      ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/${inventory.file_path}`
       : null
   );
 

@@ -27,10 +27,11 @@ const AdminRegistrationWorkflow = lazy(() => import('../pages/admin/AdminRegistr
 const DevLogin = lazy(() => import('../pages/dev/DevLogin').then(m => ({ default: m.DevLogin })));
 const DevDashboard = lazy(() => import('../pages/dev/DevDashboard').then(m => ({ default: m.DevDashboard })));
 
-// Portal Pages
-const PortalSignup = lazy(() => import('../pages/portal/PortalSignup').then(m => ({ default: m.PortalSignup })));
-const CitizenRegister = lazy(() => import('../pages/portal/CitizenRegister').then(m => ({ default: m.CitizenRegister })));
-const RegistrationStatusPage = lazy(() => import('../pages/portal/RegistrationStatus').then(m => ({ default: m.RegistrationStatusPage })));
+// Portal Pages — v2
+const ResidentRegister = lazy(() => import('../pages/portal/ResidentRegister').then(m => ({ default: m.ResidentRegister })));
+const RegistrationStatus = lazy(() => import('../pages/portal/RegistrationStatus').then(m => ({ default: m.RegistrationStatus })));
+const PortalMyID = lazy(() => import('../pages/portal/PortalMyID').then(m => ({ default: m.PortalMyID })));
+const PortalMyHousehold = lazy(() => import('../pages/portal/PortalMyHousehold').then(m => ({ default: m.PortalMyHousehold })));
 const PortalHome = lazy(() => import('../pages/portal/PortalHome').then(m => ({ default: m.PortalHome })));
 const PortalEGovernment = lazy(() => import('../pages/portal/PortalEGovernment').then(m => ({ default: m.PortalEGovernment })));
 const PortalEBills = lazy(() => import('../pages/portal/PortalEBills').then(m => ({ default: m.PortalEBills })));
@@ -38,6 +39,8 @@ const PortalEServices = lazy(() => import('../pages/portal/PortalEServices').the
 const PortalENews = lazy(() => import('../pages/portal/PortalENews').then(m => ({ default: m.PortalENews })));
 const PortalFAQs = lazy(() => import('../pages/portal/PortalFAQs').then(m => ({ default: m.PortalFAQs })));
 const PortalProfile = lazy(() => import('../pages/portal/PortalProfile').then(m => ({ default: m.PortalProfile })));
+const PortalGuestApply = lazy(() => import('../pages/portal/PortalGuestApply').then(m => ({ default: m.PortalGuestApply })));
+const PortalTrack = lazy(() => import('../pages/portal/PortalTrack').then(m => ({ default: m.PortalTrack })));
 
 // Loading component
 const LoadingFallback = () => (
@@ -280,29 +283,42 @@ export const router = createBrowserRouter([
       },
       {
         path: 'login',
+        // PortalLogin is rendered inline in PortalHome (via LoginSheet) or directly
         element: <Navigate to="/portal" replace />,
       },
       {
-        path: 'signup',
-        element: (
-          <LazyWrapper>
-            <PortalSignup />
-          </LazyWrapper>
-        ),
-      },
-      {
+        // New resident registration wizard (4 steps)
         path: 'register',
         element: (
           <LazyWrapper>
-            <CitizenRegister />
+            <ResidentRegister />
           </LazyWrapper>
         ),
       },
       {
+        // Check registration status by username
         path: 'register/status',
         element: (
           <LazyWrapper>
-            <RegistrationStatusPage />
+            <RegistrationStatus />
+          </LazyWrapper>
+        ),
+      },
+      {
+        // Resident ID card view + download
+        path: 'my-id',
+        element: (
+          <LazyWrapper>
+            <PortalMyID />
+          </LazyWrapper>
+        ),
+      },
+      {
+        // Household self-registration + member management
+        path: 'my-household',
+        element: (
+          <LazyWrapper>
+            <PortalMyHousehold />
           </LazyWrapper>
         ),
       },
@@ -351,6 +367,24 @@ export const router = createBrowserRouter([
         element: (
           <LazyWrapper>
             <PortalProfile />
+          </LazyWrapper>
+        ),
+      },
+      {
+        // Guest application — no login required
+        path: 'apply-as-guest',
+        element: (
+          <LazyWrapper>
+            <PortalGuestApply />
+          </LazyWrapper>
+        ),
+      },
+      {
+        // Public transaction tracker — no login required
+        path: 'track',
+        element: (
+          <LazyWrapper>
+            <PortalTrack />
           </LazyWrapper>
         ),
       },

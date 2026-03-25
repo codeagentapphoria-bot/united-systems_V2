@@ -2,10 +2,12 @@ import api from '../utils/api';
 import { handleErrorSilently } from '../utils/errorHandler';
 
 export const classificationTypeService = {
-  // Get all classification types for the current barangay
-  async getClassificationTypes() {
+  // Get all classification types for the current municipality
+  async getClassificationTypes(municipalityId) {
     try {
-      const response = await api.get('/classification-types');
+      const response = await api.get('/classification-types', {
+        params: { municipalityId }
+      });
       return response.data;
     } catch (error) {
       handleErrorSilently(error, 'Fetch Classification Types');

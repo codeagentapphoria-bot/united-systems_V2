@@ -28,21 +28,10 @@ export const UPDATE_BARANGAY = `
   RETURNING id;
 `;
 
-export const INSERT_PUROK = `
-  INSERT INTO puroks (barangay_id, purok_name, purok_leader, description)
-  VALUES ($1, $2, $3, $4)
-  RETURNING id;
-`;
-
-export const UPDATE_PUROK = `
-  UPDATE puroks SET
-    barangay_id = $2,
-    purok_name = $3,
-    purok_leader = $4,
-    description = $5
-  WHERE id = $1
-  RETURNING id;
-`;
+// DEPRECATED: puroks table removed in v2 schema
+// These queries are kept as tombstone exports to prevent import errors
+export const INSERT_PUROK = null;
+export const UPDATE_PUROK = null;
 
 export const ADD_OFFICIAL = `
   INSERT INTO officials (
@@ -84,7 +73,7 @@ export const GET_OFFICIALS_LIST = `
     r.last_name,
     r.first_name,
     r.middle_name,
-    r.suffix,
+    r.extension_name,
     r.occupation,
     r.contact_number,
     r.email,
@@ -108,7 +97,7 @@ export const GET_OFFICIAL_INFO = `
     r.last_name,
     r.first_name,
     r.middle_name,
-    r.suffix,
+    r.extension_name,
     r.occupation,
     r.contact_number,
     r.email,

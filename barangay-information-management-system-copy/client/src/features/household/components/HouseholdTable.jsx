@@ -68,10 +68,7 @@ const HouseholdTable = ({
         <Table>
           <TableHeader>
             <TableRow>
-              {user.target_type === "barangay" &&
-                renderSortableHeader("purok_name", "Purok")}
-              {user.target_type === "municipality" &&
-                renderSortableHeader("barangay_name", "Barangay Name")}
+              {renderSortableHeader("barangay_name", "Barangay")}
               {renderSortableHeader("house_head", "House Head")}
               {renderSortableHeader("house_number", "Address")}
               {renderSortableHeader(
@@ -107,13 +104,7 @@ const HouseholdTable = ({
                   className="cursor-pointer hover:bg-muted/50"
                 >
                   <TableCell>
-                    <div>
-                      <div className="font-medium">
-                        {user.target_type === "barangay"
-                          ? household.purok_name
-                          : household.barangay_name}
-                      </div>
-                    </div>
+                    <div className="font-medium">{household.barangay_name || ""}</div>
                   </TableCell>
                   <TableCell className="font-medium">
                     {household.house_head}
@@ -122,12 +113,6 @@ const HouseholdTable = ({
                     {household.house_number}
                     {household.house_number && household.street ? ", " : " "}
                     {household.street}
-                    {user.target_type === "municipality" && (
-                      <>
-                        {household.house_number || household.street ? ", " : ""}
-                        {household.purok_name}
-                      </>
-                    )}
                   </TableCell>
                   <TableCell className="font-medium">
                     ₱

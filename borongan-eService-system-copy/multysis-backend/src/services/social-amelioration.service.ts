@@ -29,10 +29,10 @@ const buildSearchClauses = (search?: string) => {
   if (!search) return undefined;
   const contains = { contains: search, mode: 'insensitive' as const };
   return [
-    { citizen: { firstName: contains } },
-    { citizen: { middleName: contains } },
-    { citizen: { lastName: contains } },
-    { citizen: { extensionName: contains } },
+    { resident: { firstName: contains } },
+    { resident: { middleName: contains } },
+    { resident: { lastName: contains } },
+    { resident: { extensionName: contains } },
   ];
 };
 
@@ -120,11 +120,7 @@ const getBeneficiaryPrograms = async (
 };
 
 const seniorInclude = {
-  citizen: {
-    include: {
-      placeOfBirth: true,
-    },
-  },
+  resident: true,
   pensionTypes: {
     include: {
       setting: true,
@@ -133,29 +129,17 @@ const seniorInclude = {
 } as any;
 
 const pwdInclude = {
-  citizen: {
-    include: {
-      placeOfBirth: true,
-    },
-  },
+  resident: true,
   disabilityType: true,
 } as any;
 
 const studentInclude = {
-  citizen: {
-    include: {
-      placeOfBirth: true,
-    },
-  },
+  resident: true,
   gradeLevel: true,
 } as any;
 
 const soloParentInclude = {
-  citizen: {
-    include: {
-      placeOfBirth: true,
-    },
-  },
+  resident: true,
   category: true,
 } as any;
 
@@ -165,23 +149,19 @@ type StudentWithRelations = any;
 type SoloParentWithRelations = any;
 
 const formatSeniorBeneficiary = async (record: SeniorWithRelations) => {
-  const { pensionTypes, citizen, ...rest } = record as any;
-
-  // Fetch programs manually since we can't use Prisma relations
+  const { pensionTypes, resident, ...rest } = record as any;
   const programs = await getBeneficiaryPrograms('SENIOR_CITIZEN', record.id);
-
   return {
     ...rest,
     governmentPrograms: programs.map((p: any) => p.programId) ?? [],
     pensionTypes: pensionTypes?.map((pivot: any) => pivot.settingId) ?? [],
     pensionTypeNames: pensionTypes?.map((pivot: any) => pivot.setting?.name).filter(Boolean) ?? [],
-    citizen: citizen
+    resident: resident
       ? {
-          ...citizen,
-          citizenPicture: citizen.citizenPicture ? getFileUrl(citizen.citizenPicture) : null,
-          proofOfResidency: citizen.proofOfResidency ? getFileUrl(citizen.proofOfResidency) : null,
-          proofOfIdentification: citizen.proofOfIdentification
-            ? getFileUrl(citizen.proofOfIdentification)
+          ...resident,
+          picturePath: resident.picturePath ? getFileUrl(resident.picturePath) : null,
+          proofOfIdentification: resident.proofOfIdentification
+            ? getFileUrl(resident.proofOfIdentification)
             : null,
         }
       : undefined,
@@ -189,23 +169,19 @@ const formatSeniorBeneficiary = async (record: SeniorWithRelations) => {
 };
 
 const formatPWDBeneficiary = async (record: PWDWithRelations) => {
-  const { disabilityType, citizen, ...rest } = record as any;
-
-  // Fetch programs manually since we can't use Prisma relations
+  const { disabilityType, resident, ...rest } = record as any;
   const programs = await getBeneficiaryPrograms('PWD', record.id);
-
   return {
     ...rest,
     governmentPrograms: programs.map((p: any) => p.programId) ?? [],
     disabilityType: disabilityType?.id || rest.disabilityTypeId,
     disabilityTypeName: disabilityType?.name || null,
-    citizen: citizen
+    resident: resident
       ? {
-          ...citizen,
-          citizenPicture: citizen.citizenPicture ? getFileUrl(citizen.citizenPicture) : null,
-          proofOfResidency: citizen.proofOfResidency ? getFileUrl(citizen.proofOfResidency) : null,
-          proofOfIdentification: citizen.proofOfIdentification
-            ? getFileUrl(citizen.proofOfIdentification)
+          ...resident,
+          picturePath: resident.picturePath ? getFileUrl(resident.picturePath) : null,
+          proofOfIdentification: resident.proofOfIdentification
+            ? getFileUrl(resident.proofOfIdentification)
             : null,
         }
       : undefined,
@@ -213,23 +189,19 @@ const formatPWDBeneficiary = async (record: PWDWithRelations) => {
 };
 
 const formatStudentBeneficiary = async (record: StudentWithRelations) => {
-  const { gradeLevel, citizen, ...rest } = record as any;
-
-  // Fetch programs manually since we can't use Prisma relations
+  const { gradeLevel, resident, ...rest } = record as any;
   const programs = await getBeneficiaryPrograms('STUDENT', record.id);
-
   return {
     ...rest,
     programs: programs.map((p: any) => p.programId) ?? [],
     gradeLevel: gradeLevel?.id || rest.gradeLevelId,
     gradeLevelName: gradeLevel?.name || null,
-    citizen: citizen
+    resident: resident
       ? {
-          ...citizen,
-          citizenPicture: citizen.citizenPicture ? getFileUrl(citizen.citizenPicture) : null,
-          proofOfResidency: citizen.proofOfResidency ? getFileUrl(citizen.proofOfResidency) : null,
-          proofOfIdentification: citizen.proofOfIdentification
-            ? getFileUrl(citizen.proofOfIdentification)
+          ...resident,
+          picturePath: resident.picturePath ? getFileUrl(resident.picturePath) : null,
+          proofOfIdentification: resident.proofOfIdentification
+            ? getFileUrl(resident.proofOfIdentification)
             : null,
         }
       : undefined,
@@ -237,23 +209,19 @@ const formatStudentBeneficiary = async (record: StudentWithRelations) => {
 };
 
 const formatSoloParentBeneficiary = async (record: SoloParentWithRelations) => {
-  const { category, citizen, ...rest } = record as any;
-
-  // Fetch programs manually since we can't use Prisma relations
+  const { category, resident, ...rest } = record as any;
   const programs = await getBeneficiaryPrograms('SOLO_PARENT', record.id);
-
   return {
     ...rest,
     assistancePrograms: programs.map((p: any) => p.programId) ?? [],
     category: category?.id || rest.categoryId,
     categoryName: category?.name || null,
-    citizen: citizen
+    resident: resident
       ? {
-          ...citizen,
-          citizenPicture: citizen.citizenPicture ? getFileUrl(citizen.citizenPicture) : null,
-          proofOfResidency: citizen.proofOfResidency ? getFileUrl(citizen.proofOfResidency) : null,
-          proofOfIdentification: citizen.proofOfIdentification
-            ? getFileUrl(citizen.proofOfIdentification)
+          ...resident,
+          picturePath: resident.picturePath ? getFileUrl(resident.picturePath) : null,
+          proofOfIdentification: resident.proofOfIdentification
+            ? getFileUrl(resident.proofOfIdentification)
             : null,
         }
       : undefined,
@@ -261,7 +229,7 @@ const formatSoloParentBeneficiary = async (record: SoloParentWithRelations) => {
 };
 
 export interface CreateSeniorBeneficiaryData {
-  citizenId: string;
+  residentId: string;
   pensionTypes: string[]; // Array of SocialAmeliorationSetting IDs
   governmentPrograms?: string[];
   status?: BeneficiaryStatus;
@@ -276,7 +244,7 @@ export interface UpdateSeniorBeneficiaryData {
 }
 
 export interface CreatePWDBeneficiaryData {
-  citizenId: string;
+  residentId: string;
   disabilityType: string; // SocialAmeliorationSetting ID
   disabilityLevel: string;
   monetaryAllowance?: boolean;
@@ -299,7 +267,7 @@ export interface UpdatePWDBeneficiaryData {
 }
 
 export interface CreateStudentBeneficiaryData {
-  citizenId: string;
+  residentId: string;
   gradeLevel: string; // SocialAmeliorationSetting ID
   programs?: string[];
   status?: BeneficiaryStatus;
@@ -314,7 +282,7 @@ export interface UpdateStudentBeneficiaryData {
 }
 
 export interface CreateSoloParentBeneficiaryData {
-  citizenId: string;
+  residentId: string;
   category: string; // SocialAmeliorationSetting ID
   assistancePrograms?: string[];
   status?: BeneficiaryStatus;
@@ -488,7 +456,7 @@ export const socialAmeliorationService = {
 
     const record = await prisma.seniorCitizenBeneficiary.create({
       data: {
-        citizenId: data.citizenId,
+        residentId: data.residentId,
         seniorCitizenId: seniorCitizenId as any,
         status: data.status || BeneficiaryStatus.ACTIVE,
         remarks: data.remarks,
@@ -636,7 +604,7 @@ export const socialAmeliorationService = {
 
     const record = await prisma.pWDBeneficiary.create({
       data: {
-        citizenId: data.citizenId,
+        residentId: data.residentId,
         pwdId: pwdId as any,
         disabilityTypeId: data.disabilityType,
         disabilityLevel: data.disabilityLevel,
@@ -780,7 +748,7 @@ export const socialAmeliorationService = {
 
     const record = await prisma.studentBeneficiary.create({
       data: {
-        citizenId: data.citizenId,
+        residentId: data.residentId,
         studentId: studentId as any,
         gradeLevelId: data.gradeLevel,
         status: data.status || BeneficiaryStatus.ACTIVE,
@@ -916,7 +884,7 @@ export const socialAmeliorationService = {
 
     const record = await prisma.soloParentBeneficiary.create({
       data: {
-        citizenId: data.citizenId,
+        residentId: data.residentId,
         soloParentId: soloParentId as any,
         categoryId: data.category,
         status: data.status || BeneficiaryStatus.ACTIVE,

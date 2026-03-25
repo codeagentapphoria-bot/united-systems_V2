@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
         const isSetup = Boolean(
           municipalityData && municipalityData.municipality_name && municipalityData.municipality_code && municipalityData.municipality_logo_path
         );
-        
+
         return {
           isSetup,
           data: municipalityData,

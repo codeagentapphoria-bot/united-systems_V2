@@ -1,14 +1,16 @@
 export interface User {
   id: string;
-  phoneNumber: string;
   name: string;
   email?: string;
-  role: 'admin' | 'user' | 'subscriber' | 'developer';
+  username?: string;
+  residentId?: string;
+  role: 'admin' | 'resident' | 'developer';
+  status?: string;
   createdAt: string;
 }
 
 export interface LoginCredentials {
-  phoneNumber: string;
+  username: string;
   password: string;
 }
 
@@ -17,7 +19,7 @@ export interface SignupData {
   middleName?: string;
   lastName: string;
   email?: string;
-  phoneNumber: string;
+  username: string;
   password: string;
   confirmPassword: string;
   acceptTerms: boolean;
@@ -27,8 +29,10 @@ export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (credentials: LoginCredentials | { email: string; password: string }, isAdmin?: boolean, isDev?: boolean) => Promise<any>;
-  signup: (data: SignupData) => Promise<any>;
+  login: (
+    credentials: { username: string; password: string } | { email: string; password: string },
+    isAdmin?: boolean,
+    isDev?: boolean
+  ) => Promise<any>;
   logout: () => void;
 }
-

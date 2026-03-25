@@ -1,3 +1,8 @@
+// =============================================================================
+// DEPRECATED — Contains puroks DDL and households.purok_id FK which do not
+// exist in the v2 schema. Use united-database/seed.sql instead.
+// Running this against a v2 database WILL FAIL.
+// =============================================================================
 import bcrypt from "bcrypt";
 import { pool } from "../config/db.js";
 import logger from "../utils/logger.js";
@@ -214,7 +219,7 @@ class DatabaseSeeder {
           last_name VARCHAR(50) NOT NULL,
           first_name VARCHAR(50) NOT NULL,
           middle_name VARCHAR(50),
-          suffix VARCHAR(10),
+          extension_name VARCHAR(10),
           sex VARCHAR(10) NOT NULL CHECK (sex IN('male', 'female')),
           civil_status VARCHAR(25) NOT NULL CHECK (civil_status IN ('single', 'married', 'widowed', 'separated', 'divorced')),
           birthdate DATE NOT NULL,

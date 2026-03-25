@@ -41,8 +41,17 @@ export const upsertUser = async (req, res, next) => {
   let { targetType, targetId, fullname, email, password, role, removePicture } = req.body;
   const { userId } = req.params;
 
-  if (!targetType) targetType = req.user.target_type;
-  if (!targetId) targetId = req.user.target_id;
+  // Treat the string "undefined" (from FormData serialization) as missing
+  if (targetType === 'undefined') targetType = undefined;
+  if (targetId === 'undefined') targetId = undefined;
+  if (role === 'undefined') role = undefined;
+
+  // For new users (POST), fall back to the authenticated user's context if not provided.
+  // For updates (PUT), the service loads the existing values from the DB — don't overwrite here.
+  if (!userId) {
+    if (!targetType && req.user) targetType = req.user.target_type;
+    if (!targetId && req.user) targetId = req.user.target_id;
+  }
 
   // Safely extract picturePath from uploaded files
   let picturePath = null;

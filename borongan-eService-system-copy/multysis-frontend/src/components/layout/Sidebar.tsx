@@ -25,8 +25,7 @@ interface MenuItem {
 // List of implemented routes
 const implementedRoutes = [
   '/admin/dashboard',
-  '/admin/subscribers',
-  '/admin/citizens',
+  '/admin/residents',
   '/admin/registration-workflow',
   '/admin/e-government/social-amelioration',
   '/admin/e-government/reports',

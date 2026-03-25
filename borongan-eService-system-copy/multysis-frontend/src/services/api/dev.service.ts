@@ -97,14 +97,13 @@ export const devService = {
       }
       
       return {
-        user: {
-          id: result.user.id,
-          name: result.user.name,
-          email: result.user.email,
-          phoneNumber: '',
-          role: result.user.role,
-          createdAt: result.user.createdAt || new Date().toISOString(),
-        },
+          user: {
+            id: result.user.id,
+            name: result.user.name,
+            email: result.user.email,
+            role: result.user.role,
+            createdAt: result.user.createdAt || new Date().toISOString(),
+          },
         token: 'stored-in-cookie', // Tokens are in HTTP-only cookies
       };
     } catch (error: any) {

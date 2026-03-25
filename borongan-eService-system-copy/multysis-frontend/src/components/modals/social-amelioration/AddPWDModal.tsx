@@ -102,7 +102,7 @@ export const AddPWDModal: React.FC<AddPWDModalProps> = ({
     if (existingBeneficiary) {
       toast({
         variant: 'destructive',
-        title: 'Citizen Already Registered',
+        title: 'Resident Already Registered',
         description: 'This citizen is already registered as a PWD. Please edit the existing record instead.',
       });
       return;
@@ -126,7 +126,7 @@ export const AddPWDModal: React.FC<AddPWDModalProps> = ({
 
   const handleAddNewCitizen = () => {
     handleClose();
-    navigate('/admin/citizens');
+    navigate('/admin/subscribers');
   };
 
   return (
@@ -141,9 +141,9 @@ export const AddPWDModal: React.FC<AddPWDModalProps> = ({
         <div className="flex-1 overflow-y-auto px-6">
           {existingBeneficiary && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <h4 className="text-sm font-semibold text-red-800 mb-2">Citizen Already Registered</h4>
+              <h4 className="text-sm font-semibold text-red-800 mb-2">Resident Already Registered</h4>
               <p className="text-sm text-red-700 mb-3">
-                This citizen ({selectedCitizen?.firstName} {selectedCitizen?.lastName}) is already registered as a PWD. Please edit the existing record instead.
+                This resident ({selectedCitizen?.firstName} {selectedCitizen?.lastName}) is already registered as a PWD. Please edit the existing record instead.
               </p>
               {onEdit && (
                 <Button

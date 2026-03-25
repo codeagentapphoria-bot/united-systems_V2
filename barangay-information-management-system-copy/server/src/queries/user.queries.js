@@ -84,7 +84,7 @@ export const GET_USER_BY_ID = `
       ELSE NULL
     END as target_name
   FROM bims_users u
-  LEFT JOIN barangays b ON u.target_id = b.id AND u.target_type = 'barangay'
-  LEFT JOIN municipalities m ON u.target_id = m.id AND u.target_type = 'municipality'
+  LEFT JOIN barangays b ON u.target_id = b.id::text AND u.target_type = 'barangay'
+  LEFT JOIN municipalities m ON u.target_id = m.id::text AND u.target_type = 'municipality'
   WHERE u.id = $1;
 `;

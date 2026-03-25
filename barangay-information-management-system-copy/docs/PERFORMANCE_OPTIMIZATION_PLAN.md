@@ -121,8 +121,8 @@ ON residents(barangay_id, resident_status, last_name, first_name);
 CREATE INDEX IF NOT EXISTS idx_residents_classification_search
 ON resident_classifications(classification_type, resident_id);
 
-CREATE INDEX IF NOT EXISTS idx_households_barangay_purok
-ON households(barangay_id, purok_id);
+CREATE INDEX IF NOT EXISTS idx_households_barangay
+ON households(barangay_id);
 ```
 
 #### **Step 2: Implement Query Result Caching**

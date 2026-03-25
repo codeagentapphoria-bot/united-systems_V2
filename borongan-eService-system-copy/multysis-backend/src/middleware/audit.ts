@@ -133,8 +133,8 @@ export const auditMiddleware = (req: AuthRequest, res: Response, next: NextFunct
     '/api/users',
     '/api/roles',
     '/api/permissions',
-    '/api/subscribers',
-    '/api/citizens',
+    '/api/residents',
+    '/api/admin/residents',
   ];
 
   if (sensitivePaths.some((path) => req.path.startsWith(path))) {

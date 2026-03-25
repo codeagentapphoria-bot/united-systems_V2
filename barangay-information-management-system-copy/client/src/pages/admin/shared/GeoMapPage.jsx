@@ -31,7 +31,7 @@ import { handleError, handleErrorSilently } from "@/utils/errorHandler";
 import logger from "@/utils/logger";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
-// Default center for Borongan City
+// Default fallback coordinates — override via environment or barangay setup
 const DEFAULT_CENTER = [11.6081, 125.4311];
 const DEFAULT_ZOOM = 12;
 
@@ -220,7 +220,7 @@ const GeoMapPage = () => {
     if (isBarangayUser)
       return "Interactive map showing your barangay boundary and household locations";
     if (isMunicipalityUser)
-      return "Interactive map of Borongan City with barangay boundaries and household locations";
+      return "Interactive map of the municipality with barangay boundaries and household locations";
     return "Interactive geographical mapping system";
   };
 
@@ -387,7 +387,7 @@ const GeoMapPage = () => {
                 ) : (
                   <Map className="h-4 w-4 sm:h-5 sm:w-5" />
                 )}
-                {isBarangayUser ? "Your Barangay Area" : "Borongan City Map"}
+                {isBarangayUser ? "Your Barangay Area" : "Municipality Map"}
               </CardTitle>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <div className="flex items-center gap-2">

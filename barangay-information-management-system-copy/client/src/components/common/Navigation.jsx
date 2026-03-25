@@ -54,8 +54,8 @@ export function Navigation() {
               className="flex items-center space-x-2 transition-smooth hover:scale-105"
             >
               <img
-                src="/lgu-borongan.png"
-                alt="LGU Borongan"
+                src="/lgu-logo.png"
+                alt="LGU Logo"
                 className="w-6 h-6 sm:w-8 sm:h-8 object-contain"
               />
               <span className="text-lg sm:text-xl font-semibold text-foreground">

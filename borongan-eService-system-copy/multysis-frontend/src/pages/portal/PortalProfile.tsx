@@ -1,744 +1,648 @@
-// React imports
+/**
+ * PortalProfile.tsx — v3
+ *
+ * Resident portal: view + edit personal profile.
+ * Fetches from GET /api/residents/me and updates via PUT /api/residents/me.
+ */
+
 import React, { useEffect, useState } from 'react';
-
-// Third-party libraries
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-
-// UI Components (shadcn/ui)
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-// Custom Components
 import { PortalLayout } from '@/components/layout/PortalLayout';
-import { EditProfileModal } from '@/components/modals/subscribers/EditProfileModal';
 import { LoginPrompt } from '@/components/portal/LoginPrompt';
 import { MyApplications } from '@/components/portal/MyApplications';
-
-// Hooks
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { residentService, type Resident } from '@/services/api/resident.service';
+import {
+  getRegions,
+  getProvincesByRegion as getPHProvinces,
+  getMunicipalitiesByProvince as getPHMunicipalities,
+} from '@/constants/philippine-addresses';
+import { formatDateWithoutTimezone } from '@/lib/utils';
+import {
+  FiCalendar,
+  FiEdit2,
+  FiFileText,
+  FiHome,
+  FiMail,
+  FiPhone,
+  FiUser,
+  FiMapPin,
+  FiBriefcase,
+  FiBook,
+  FiHeart,
+  FiShield,
+  FiSave,
+  FiX,
+} from 'react-icons/fi';
 
-// Services
-import { subscriberService, type Subscriber } from '@/services/api/subscriber.service';
-import type { EditProfileInput } from '@/validations/subscriber.schema';
+// ── Constants ──────────────────────────────────────────────────────────────────
+const CIVIL_STATUS_OPTIONS = ['single','married','widowed','separated','divorced','live_in','annulled'];
+const EMPLOYMENT_STATUS_OPTIONS = ['employed','self_employed','unemployed','student','retired','ofw'];
+const EDUCATION_OPTIONS = [
+  'no_formal_education','elementary','high_school','senior_high_school',
+  'vocational','college','post_graduate',
+];
+// ── Status badge ───────────────────────────────────────────────────────────────
+const STATUS_STYLES: Record<string, string> = {
+  active:    'bg-success-100 text-success-700',
+  pending:   'bg-warning-100 text-warning-700',
+  inactive:  'bg-neutral-200 text-neutral-700',
+  rejected:  'bg-red-100 text-red-700',
+  deceased:  'bg-gray-300 text-gray-700',
+  moved_out: 'bg-blue-100 text-blue-700',
+};
 
-// Utils
-import { getRegionName } from '@/constants/regions';
-import { FiCalendar, FiEdit, FiFileText, FiMail, FiMapPin, FiPhone, FiUser } from 'react-icons/fi';
-import { z } from 'zod';
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
+  <Badge className={STATUS_STYLES[status.toLowerCase()] ?? 'bg-neutral-200 text-neutral-700'}>
+    {status.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+  </Badge>
+);
 
-const profileSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').optional().or(z.literal('')),
-  email: z.string().email('Invalid email address').optional().or(z.literal('')),
-  phoneNumber: z.string().min(1, 'Phone number is required'),
+// ── Info row ───────────────────────────────────────────────────────────────────
+const InfoRow: React.FC<{ icon?: React.ReactNode; label: string; value?: string | null }> = ({
+  icon, label, value,
+}) => (
+  <div className="flex items-start gap-3">
+    {icon && <span className="text-primary-500 mt-0.5 flex-shrink-0">{icon}</span>}
+    <div>
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="font-medium text-heading-700">{value || '—'}</p>
+    </div>
+  </div>
+);
+
+// ── Field helpers ──────────────────────────────────────────────────────────────
+const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="space-y-1">
+    <Label className="text-xs text-gray-500">{label}</Label>
+    {children}
+  </div>
+);
+
+const SelectField: React.FC<{
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+}> = ({ label, value, onChange, options, placeholder = 'Select' }) => (
+  <Field label={label}>
+    <Select value={value || ''} onValueChange={onChange}>
+      <SelectTrigger className="h-9 text-sm">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o} value={o}>
+            {o.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </Field>
+);
+
+// ── Edit form state type ───────────────────────────────────────────────────────
+interface EditForm {
+  // Personal
+  sex: string;
+  civilStatus: string;
+  birthdate: string;
+  citizenship: string;
+  spouseName: string;
+  isVoter: boolean;
+  indigenousPerson: boolean;
+  // Place of birth
+  birthRegion: string;
+  birthProvince: string;
+  birthMunicipality: string;
+  // Employment & education
+  occupation: string;
+  profession: string;
+  employmentStatus: string;
+  isEmployed: boolean;
+  educationAttainment: string;
+  monthlyIncome: string;
+  height: string;
+  weight: string;
+  // Emergency contact
+  emergencyContactPerson: string;
+  emergencyContactNumber: string;
+  // ID
+  idType: string;
+  idDocumentNumber: string;
+  acrNo: string;
+}
+
+const toForm = (r: Resident): EditForm => ({
+  sex:                      r.sex                      ?? '',
+  civilStatus:              r.civilStatus              ?? '',
+  birthdate:                r.birthdate ? r.birthdate.split('T')[0] : '',
+  citizenship:              r.citizenship              ?? '',
+  spouseName:               r.spouseName               ?? '',
+  isVoter:                  r.isVoter                  ?? false,
+  indigenousPerson:         r.indigenousPerson         ?? false,
+  birthRegion:              r.birthRegion              ?? '',
+  birthProvince:            r.birthProvince            ?? '',
+  birthMunicipality:        r.birthMunicipality        ?? '',
+  occupation:               r.occupation               ?? '',
+  profession:               r.profession               ?? '',
+  employmentStatus:         r.employmentStatus         ?? '',
+  isEmployed:               r.isEmployed               ?? false,
+  educationAttainment:      r.educationAttainment      ?? '',
+  monthlyIncome:            r.monthlyIncome != null ? String(r.monthlyIncome) : '',
+  height:                   r.height                   ?? '',
+  weight:                   r.weight                   ?? '',
+  emergencyContactPerson:   r.emergencyContactPerson   ?? '',
+  emergencyContactNumber:   r.emergencyContactNumber   ?? '',
+  idType:                   r.idType                   ?? '',
+  idDocumentNumber:         r.idDocumentNumber         ?? '',
+  acrNo:                    r.acrNo                    ?? '',
 });
 
-type ProfileInput = z.infer<typeof profileSchema>;
-
-// Helper function to format date
-const formatDateWithoutTimezone = (dateString: string, options?: Intl.DateTimeFormatOptions) => {
-  if (!dateString) return 'Not provided';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', options || {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
-
-// Helper function to format residentAddress by formatting the region
-// Helper function to parse residentAddress string into structured components
-// Format: "Street, Barangay, Municipality, Province, Region, PostalCode"
-const parseResidentAddressForDisplay = (addressString: string | undefined): {
-  streetAddress?: string;
-  barangay?: string;
-  municipality?: string;
-  province?: string;
-  region?: string;
-  postalCode?: string;
-} => {
-  if (!addressString || !addressString.trim()) {
-    return {};
-  }
-  
-  const parts = addressString.split(',').map(part => part.trim()).filter(part => part.length > 0);
-  
-  if (parts.length === 0) {
-    return {};
-  }
-  
-  const parsed: { [key: string]: string } = {};
-  
-  // Parse from right to left (most specific to least specific)
-  if (parts.length > 0) parsed.postalCode = parts.pop() || '';
-  if (parts.length > 0) parsed.region = parts.pop() || '';
-  if (parts.length > 0) parsed.province = parts.pop() || '';
-  if (parts.length > 0) parsed.municipality = parts.pop() || '';
-  if (parts.length > 0) parsed.barangay = parts.pop() || '';
-  if (parts.length > 0) parsed.streetAddress = parts.join(', '); // Remaining parts form street address
-  
-  return {
-    streetAddress: parsed.streetAddress,
-    barangay: parsed.barangay,
-    municipality: parsed.municipality,
-    province: parsed.province,
-    region: parsed.region,
-    postalCode: parsed.postalCode,
-  };
-};
-
-// Helper function to get status badge
-const getStatusBadge = (status: string) => {
-  const variants: Record<string, string> = {
-    active: 'bg-success-100 text-success-700',
-    pending: 'bg-warning-100 text-warning-700',
-    expired: 'bg-neutral-200 text-neutral-700',
-    blocked: 'bg-red-100 text-red-700',
-  };
-
-  return (
-    <Badge className={variants[status.toLowerCase()] || variants.pending}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </Badge>
-  );
-};
-
+// ── Main component ─────────────────────────────────────────────────────────────
 export const PortalProfile: React.FC = () => {
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  const [isCitizenLinked, setIsCitizenLinked] = useState(false);
-  const [subscriberData, setSubscriberData] = useState<Subscriber | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [resident, setResident]           = useState<Resident | null>(null);
+  const [isLoading, setIsLoading]         = useState(true);
+  const [editOpen, setEditOpen]           = useState(false);
+  const [isSaving, setIsSaving]           = useState(false);
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  const [form, setForm]                   = useState<EditForm | null>(null);
 
-  const currentUser = user;
 
-  const form = useForm<ProfileInput>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      name: currentUser?.name || '',
-      email: (currentUser as any)?.email || '',
-      phoneNumber: currentUser?.phoneNumber || '',
-    },
-  });
 
   useEffect(() => {
-    if (currentUser?.id) {
-      fetchSubscriberProfile();
-    }
-  }, [currentUser?.id]);
+    if (!isAuthenticated || !user) return;
+    setIsLoading(true);
+    residentService
+      .getMyProfile()
+      .then(setResident)
+      .catch((err) => toast({ variant: 'destructive', title: 'Failed to load profile', description: err.message }))
+      .finally(() => setIsLoading(false));
+  }, [isAuthenticated, user]);
 
-  const fetchSubscriberProfile = async () => {
-    if (!currentUser?.id) return;
-
+  // Always fetch fresh data when opening the edit modal
+  const openEdit = async () => {
+    setIsEditLoading(true);
+    setEditOpen(true);
     try {
-      setIsLoadingProfile(true);
-      const subscriber = await subscriberService.getSubscriber(currentUser.id);
-      setSubscriberData(subscriber);
-      setProfilePicture(subscriber.profilePicture || null);
-      
-      // Check if subscriber is linked to a citizen
-      const isLinkedToCitizen = !!(subscriber.citizenId || subscriber.citizen);
-      setIsCitizenLinked(isLinkedToCitizen);
-      
-      // Update form with fetched data
-      form.reset({
-        name: subscriber.firstName && subscriber.lastName
-          ? `${subscriber.firstName} ${subscriber.middleName || ''} ${subscriber.lastName}`.trim()
-          : currentUser?.name || '',
-        email: subscriber.email || (currentUser as any)?.email || '',
-        phoneNumber: subscriber.phoneNumber || currentUser?.phoneNumber || '',
-      });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message || 'Failed to fetch profile data',
-      });
+      const fresh = await residentService.getMyProfile();
+      setResident(fresh);
+      setForm(toForm(fresh));
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Failed to load profile data', description: err.message });
+      setEditOpen(false);
     } finally {
-      setIsLoadingProfile(false);
+      setIsEditLoading(false);
     }
   };
 
+  const set = (key: keyof EditForm) => (val: string | boolean) =>
+    setForm((prev) => prev ? { ...prev, [key]: val } : prev);
 
-  const handleEditProfile = async (data: EditProfileInput) => {
-    if (!currentUser?.id) return;
-    
+  const handleSave = async () => {
+    if (!form) return;
+    setIsSaving(true);
     try {
-      await subscriberService.updateSubscriber(currentUser.id, data);
-      
-      toast({
-        title: 'Success',
-        description: 'Profile updated successfully',
-      });
-      
-      // Refresh profile data
-      await fetchSubscriberProfile();
-      setIsEditModalOpen(false);
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message || 'Failed to update profile',
-      });
-      throw error; // Re-throw to prevent modal from closing
+      const payload: Record<string, any> = {
+        ...form,
+        monthlyIncome: form.monthlyIncome !== '' ? parseFloat(form.monthlyIncome) : null,
+      };
+      // send empty strings as null
+      for (const k of Object.keys(payload)) {
+        if (payload[k] === '') payload[k] = null;
+      }
+      const updated = await residentService.updateMyProfile(payload);
+      setResident(updated);
+      setEditOpen(false);
+      toast({ title: 'Profile updated', description: 'Your information has been saved.' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Save failed', description: err.message });
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // Show loading state while checking authentication
-  if (isAuthLoading) {
+  // ── Guards ─────────────────────────────────────────────────────────────────
+  if (!isAuthenticated) {
+    return <PortalLayout><LoginPrompt description="Please log in to view your profile." /></PortalLayout>;
+  }
+  if (isLoading) {
     return (
       <PortalLayout>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-          </div>
-        </div>
+        <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Loading your profile…</div>
+      </PortalLayout>
+    );
+  }
+  if (!resident) {
+    return (
+      <PortalLayout>
+        <Card className="max-w-lg mx-auto mt-8">
+          <CardContent className="py-10 text-center text-gray-500">
+            <FiUser size={48} className="mx-auto mb-4 text-primary-300" />
+            <p className="font-medium text-heading-700 mb-1">Profile not yet available</p>
+            <p className="text-sm">Your registration may still be under review.</p>
+          </CardContent>
+        </Card>
       </PortalLayout>
     );
   }
 
-  if (!currentUser) {
-    return (
-      <PortalLayout>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-heading-700 mb-4">Profile</h1>
-            <p className="text-lg text-heading-600">
-              Manage your profile and account settings. Login to access your profile.
-            </p>
-          </div>
-          <LoginPrompt
-            title="Login to Manage Your Profile"
-            description="Log in to access and manage your profile:"
-            features={[
-              'Update personal information',
-              'Change password',
-              'Manage account settings',
-              'View account activity',
-              'Update contact preferences',
-            ]}
-          />
-        </div>
-      </PortalLayout>
-    );
-  }
+  const fullName = [resident.firstName, resident.middleName, resident.lastName, resident.extensionName]
+    .filter(Boolean).join(' ');
+  const address = [resident.streetAddress, resident.barangay?.name, resident.barangay?.municipality?.name]
+    .filter(Boolean).join(', ');
 
   return (
     <PortalLayout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-4xl mx-auto space-y-6">
+
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-heading-700 mb-4">Profile</h1>
-          <p className="text-lg text-heading-600">
-            Manage your profile and account settings.
-          </p>
-        </div>
-
-        {/* Tabs */}
-        <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-gray-100 p-1 text-gray-600 mb-6 w-full">
-            <TabsTrigger 
-              value="profile" 
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-6 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-primary-700 data-[state=active]:shadow-sm gap-2 flex-1"
-            >
-              <FiUser size={18} />
-              <span className="hidden sm:inline">Profile</span>
-              <span className="sm:hidden">Profile</span>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="applications" 
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-6 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-primary-700 data-[state=active]:shadow-sm gap-2 flex-1"
-            >
-              <FiFileText size={18} />
-              <span className="hidden sm:inline">My Applications</span>
-              <span className="sm:hidden">Applications</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="profile" className="mt-6 space-y-6">
-            {isLoadingProfile ? (
-              <div className="flex items-center justify-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <Card>
+          <CardContent className="py-6">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+              <div className="w-24 h-24 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {resident.picturePath
+                  ? <img src={resident.picturePath} alt={fullName} className="w-full h-full object-cover" />
+                  : <FiUser size={40} className="text-primary-500" />}
               </div>
-            ) : subscriberData ? (
-              <>
-                {/* Profile Header */}
-                <Card className="overflow-hidden">
-                  <div className="bg-gradient-to-r from-primary-600 to-primary-700 h-32"></div>
-                  <CardContent className="pt-0">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6 -mt-16 pb-6">
-                      <div className="relative">
-                        <div className="w-32 h-32 rounded-full bg-white border-4 border-white shadow-lg overflow-hidden flex items-center justify-center">
-                          {profilePicture || subscriberData.citizen?.citizenPicture ? (
-                            <img
-                              src={subscriberData.citizen?.citizenPicture || profilePicture || ''}
-                              alt={`${subscriberData.firstName} ${subscriberData.lastName}`}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxjaXJjbGUgY3g9Ijc1IiBjeT0iNjAiIHI9IjI1IiBmaWxsPSIjOUI5QkEwIi8+CjxwYXRoIGQ9Ik0zMCAxMjBDMzAgMTAwLjExOCA0NS4xMTggODUgNjUgODVIOThDMTE4Ljg4MiA4NSAxMzQgMTAwLjExOCAxMzQgMTIwVjE1MEgzMFYxMjBaIiBmaWxsPSIjOUI5QkEwIi8+Cjwvc3ZnPg==';
-                              }}
-                            />
-                          ) : (
-                            <FiUser size={64} className="text-gray-400" />
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex-1 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                        <div>
-                          <h2 className="text-3xl font-bold text-heading-800 mb-2">
-                            {subscriberData.citizen
-                              ? `${subscriberData.citizen.firstName} ${subscriberData.citizen.middleName || ''} ${subscriberData.citizen.lastName} ${subscriberData.citizen.extensionName || ''}`.trim()
-                              : `${subscriberData.firstName} ${subscriberData.middleName || ''} ${subscriberData.lastName} ${subscriberData.extensionName || ''}`.trim()
-                            }
-                          </h2>
-                          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                            {subscriberData.residentId && (
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">Resident ID:</span>
-                                <span className="font-mono font-semibold text-heading-700">{subscriberData.residentId}</span>
-                              </div>
-                            )}
-                            <div>{getStatusBadge(subscriberData.status)}</div>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => setIsEditModalOpen(true)}
-                          className="bg-primary-600 hover:bg-primary-700 text-white"
-                        >
-                          <FiEdit className="mr-2" size={18} />
-                          Edit Profile
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Information Cards Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Personal Information Card */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FiUser className="text-primary-600" size={20} />
-                        Personal Information
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">First Name</p>
-                          <p className="text-sm font-medium text-heading-800">
-                            {subscriberData.citizen?.firstName || subscriberData.firstName || '—'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Last Name</p>
-                          <p className="text-sm font-medium text-heading-800">
-                            {subscriberData.citizen?.lastName || subscriberData.lastName || '—'}
-                          </p>
-                        </div>
-                        {subscriberData.citizen?.middleName || subscriberData.middleName ? (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Middle Name</p>
-                            <p className="text-sm font-medium text-heading-800">
-                              {subscriberData.citizen?.middleName || subscriberData.middleName}
-                            </p>
-                          </div>
-                        ) : null}
-                        {subscriberData.citizen?.extensionName || subscriberData.extensionName ? (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Extension</p>
-                            <p className="text-sm font-medium text-heading-800">
-                              {subscriberData.citizen?.extensionName || subscriberData.extensionName}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
-                      {(subscriberData.citizen?.birthDate || subscriberData.birthDate) && (
-                        <div>
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Date of Birth</p>
-                          <p className="text-sm font-medium text-heading-800 flex items-center gap-2">
-                            <FiCalendar size={16} className="text-gray-400" />
-                            {formatDateWithoutTimezone(subscriberData.citizen?.birthDate || subscriberData.birthDate || '', {
-                              month: 'long',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })}
-                          </p>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-2 gap-4">
-                        {(subscriberData.citizen?.sex || subscriberData.sex) && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Gender</p>
-                            <p className="text-sm font-medium text-heading-800 capitalize">
-                              {subscriberData.citizen?.sex || subscriberData.sex}
-                            </p>
-                          </div>
-                        )}
-                        {(subscriberData.citizen?.civilStatus || subscriberData.civilStatus) && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Civil Status</p>
-                            <p className="text-sm font-medium text-heading-800 capitalize">
-                              {subscriberData.citizen?.civilStatus || subscriberData.civilStatus}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      {!(subscriberData.citizen?.birthDate || subscriberData.birthDate) && 
-                       !(subscriberData.citizen?.sex || subscriberData.sex) && 
-                       !(subscriberData.citizen?.civilStatus || subscriberData.civilStatus) && (
-                        <p className="text-sm text-gray-500 italic">No additional personal information available</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Contact Information Card */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FiMail className="text-primary-600" size={20} />
-                        Contact Information
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {subscriberData.phoneNumber || subscriberData.citizen?.phoneNumber ? (
-                        <div>
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Phone Number</p>
-                          <p className="text-sm font-medium text-heading-800 flex items-center gap-2">
-                            <FiPhone size={16} className="text-gray-400" />
-                            {subscriberData.phoneNumber || subscriberData.citizen?.phoneNumber}
-                          </p>
-                        </div>
-                      ) : null}
-                      {subscriberData.email || subscriberData.citizen?.email ? (
-                        <div>
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Email Address</p>
-                          <p className="text-sm font-medium text-heading-800 flex items-center gap-2">
-                            <FiMail size={16} className="text-gray-400" />
-                            {subscriberData.email || subscriberData.citizen?.email}
-                          </p>
-                        </div>
-                      ) : null}
-                      {subscriberData.residencyStatus && (
-                        <div>
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Residency Status</p>
-                          <div className="mt-1">{getStatusBadge(subscriberData.residencyStatus)}</div>
-                        </div>
-                      )}
-                      {subscriberData.residencyType && (
-                        <div>
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Residency Type</p>
-                          <p className="text-sm font-medium text-heading-800 capitalize">
-                            {subscriberData.residencyType.replace('-', ' ')}
-                          </p>
-                        </div>
-                      )}
-                      {!subscriberData.phoneNumber && 
-                       !subscriberData.citizen?.phoneNumber && 
-                       !subscriberData.email && 
-                       !subscriberData.citizen?.email && 
-                       !subscriberData.residencyStatus && 
-                       !subscriberData.residencyType && (
-                        <p className="text-sm text-gray-500 italic">No contact information available</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Address Card */}
-                  {(subscriberData.citizen?.addressRegion || subscriberData.residentAddress) && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <FiMapPin className="text-primary-600" size={20} />
-                          Address
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {subscriberData.citizen ? (
-                          <>
-                            {subscriberData.citizen.addressRegion && (
-                              <div>
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Region</p>
-                                <p className="text-sm font-medium text-heading-800">
-                                  {getRegionName(subscriberData.citizen.addressRegion)}
-                                </p>
-                              </div>
-                            )}
-                            {subscriberData.citizen.addressProvince && (
-                              <div>
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Province</p>
-                                <p className="text-sm font-medium text-heading-800">
-                                  {subscriberData.citizen.addressProvince}
-                                </p>
-                              </div>
-                            )}
-                            {subscriberData.citizen.addressMunicipality && (
-                              <div>
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Municipality</p>
-                                <p className="text-sm font-medium text-heading-800">
-                                  {subscriberData.citizen.addressMunicipality}
-                                </p>
-                              </div>
-                            )}
-                            {subscriberData.citizen.addressBarangay && (
-                              <div>
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Barangay</p>
-                                <p className="text-sm font-medium text-heading-800">
-                                  {subscriberData.citizen.addressBarangay}
-                                </p>
-                              </div>
-                            )}
-                            {subscriberData.citizen.addressStreetAddress && (
-                              <div>
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Street Address</p>
-                                <p className="text-sm font-medium text-heading-800">
-                                  {subscriberData.citizen.addressStreetAddress}
-                                </p>
-                              </div>
-                            )}
-                            {subscriberData.citizen.addressPostalCode && (
-                              <div>
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Postal Code</p>
-                                <p className="text-sm font-medium text-heading-800">
-                                  {subscriberData.citizen.addressPostalCode}
-                                </p>
-                              </div>
-                            )}
-                            {!subscriberData.citizen.addressRegion && 
-                             !subscriberData.citizen.addressProvince && 
-                             !subscriberData.citizen.addressMunicipality && 
-                             !subscriberData.citizen.addressBarangay && 
-                             !subscriberData.citizen.addressStreetAddress && 
-                             !subscriberData.citizen.addressPostalCode && (
-                              <p className="text-sm text-gray-500 italic">No address information available</p>
-                            )}
-                          </>
-                        ) : subscriberData.residentAddress ? (
-                          (() => {
-                            const parsedAddress = parseResidentAddressForDisplay(subscriberData.residentAddress);
-                            return (
-                              <>
-                                {parsedAddress.region && (
-                                  <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Region</p>
-                                    <p className="text-sm font-medium text-heading-800">
-                                      {getRegionName(parsedAddress.region)}
-                                    </p>
-                                  </div>
-                                )}
-                                {parsedAddress.province && (
-                                  <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Province</p>
-                                    <p className="text-sm font-medium text-heading-800">
-                                      {parsedAddress.province}
-                                    </p>
-                                  </div>
-                                )}
-                                {parsedAddress.municipality && (
-                                  <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Municipality</p>
-                                    <p className="text-sm font-medium text-heading-800">
-                                      {parsedAddress.municipality}
-                                    </p>
-                                  </div>
-                                )}
-                                {parsedAddress.barangay && (
-                                  <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Barangay</p>
-                                    <p className="text-sm font-medium text-heading-800">
-                                      {parsedAddress.barangay}
-                                    </p>
-                                  </div>
-                                )}
-                                {parsedAddress.streetAddress && (
-                                  <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Street Address</p>
-                                    <p className="text-sm font-medium text-heading-800">
-                                      {parsedAddress.streetAddress}
-                                    </p>
-                                  </div>
-                                )}
-                                {parsedAddress.postalCode && (
-                                  <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Postal Code</p>
-                                    <p className="text-sm font-medium text-heading-800">
-                                      {parsedAddress.postalCode}
-                                    </p>
-                                  </div>
-                                )}
-                                {!parsedAddress.region && 
-                                 !parsedAddress.province && 
-                                 !parsedAddress.municipality && 
-                                 !parsedAddress.barangay && 
-                                 !parsedAddress.streetAddress && 
-                                 !parsedAddress.postalCode && (
-                                  <p className="text-sm text-gray-500 italic">No address information available</p>
-                                )}
-                              </>
-                            );
-                          })()
-                        ) : (
-                          <p className="text-sm text-gray-500 italic">No address information available</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Place of Birth Card */}
-                  {subscriberData.placeOfBirth && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <FiMapPin className="text-primary-600" size={20} />
-                          Place of Birth
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {subscriberData.placeOfBirth.region && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Region</p>
-                            <p className="text-sm font-medium text-heading-800">
-                              {getRegionName(subscriberData.placeOfBirth.region)}
-                            </p>
-                          </div>
-                        )}
-                        {subscriberData.placeOfBirth.province && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Province</p>
-                            <p className="text-sm font-medium text-heading-800">
-                              {subscriberData.placeOfBirth.province}
-                            </p>
-                          </div>
-                        )}
-                        {subscriberData.placeOfBirth.municipality && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Municipality</p>
-                            <p className="text-sm font-medium text-heading-800">
-                              {subscriberData.placeOfBirth.municipality}
-                            </p>
-                          </div>
-                        )}
-                        {!subscriberData.placeOfBirth.region && 
-                         !subscriberData.placeOfBirth.province && 
-                         !subscriberData.placeOfBirth.municipality && (
-                          <p className="text-sm text-gray-500 italic">No place of birth information available</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Mother's Information Card */}
-                  {subscriberData.motherInfo && (subscriberData.motherInfo.firstName || subscriberData.motherInfo.lastName) && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <FiUser className="text-primary-600" size={20} />
-                          Mother's Information
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {subscriberData.motherInfo.firstName && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">First Name</p>
-                            <p className="text-sm font-medium text-heading-800">
-                              {subscriberData.motherInfo.firstName}
-                            </p>
-                          </div>
-                        )}
-                        {subscriberData.motherInfo.middleName && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Middle Name</p>
-                            <p className="text-sm font-medium text-heading-800">
-                              {subscriberData.motherInfo.middleName}
-                            </p>
-                          </div>
-                        )}
-                        {subscriberData.motherInfo.lastName && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Last Name</p>
-                            <p className="text-sm font-medium text-heading-800">
-                              {subscriberData.motherInfo.lastName}
-                            </p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Linked Citizen Card */}
-                  {subscriberData.citizenId && subscriberData.citizen && (
-                    <Card className="border-primary-200 bg-primary-50/50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Badge className="bg-primary-600 text-white">Linked</Badge>
-                          <span>Citizen Record</span>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-gray-700 mb-4">
-                          Your profile is linked to a citizen record. Personal information is managed through the citizen record.
-                        </p>
-                        <div className="space-y-2 text-sm">
-                          <div>
-                            <span className="font-semibold text-gray-700">Citizen ID:</span>{' '}
-                            <span className="font-mono text-heading-800">{subscriberData.citizen.residentId || 'N/A'}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+              <div className="text-center sm:text-left flex-1">
+                <h2 className="text-2xl font-bold text-heading-800">{fullName}</h2>
+                {resident.residentId && (
+                  <p className="font-mono text-sm text-primary-600 mt-0.5">{resident.residentId}</p>
+                )}
+                <div className="flex flex-wrap gap-2 mt-2 justify-center sm:justify-start">
+                  <StatusBadge status={resident.status} />
+                  {resident.username && (
+                    <Badge variant="outline" className="text-xs font-mono">@{resident.username}</Badge>
                   )}
                 </div>
+                {address && (
+                  <p className="text-sm text-gray-500 mt-2 flex items-center gap-1.5 justify-center sm:justify-start">
+                    <FiHome size={13} /> {address}
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-                {/* Edit Profile Modal */}
-                <EditProfileModal
-                  open={isEditModalOpen}
-                  onClose={() => setIsEditModalOpen(false)}
-                  onSubmit={handleEditProfile}
-                  isLinkedToCitizen={isCitizenLinked}
-                  initialData={subscriberData ? {
-                    firstName: subscriberData.firstName || '',
-                    middleName: subscriberData.middleName || '',
-                    lastName: subscriberData.lastName || '',
-                    extensionName: subscriberData.extensionName || '',
-                    email: subscriberData.email || '',
-                    phoneNumber: subscriberData.phoneNumber || '',
-                    civilStatus: subscriberData.civilStatus || '',
-                    sex: subscriberData.sex || '',
-                    birthdate: subscriberData.birthDate || '',
-                    // Get address from citizen object (check both direct citizen and person.citizen)
-                    // For non-citizens, these will be empty and we'll parse residentAddress instead
-                    addressRegion: subscriberData.citizen?.addressRegion || subscriberData.person?.citizen?.addressRegion || '',
-                    addressProvince: subscriberData.citizen?.addressProvince || subscriberData.person?.citizen?.addressProvince || '',
-                    addressMunicipality: subscriberData.citizen?.addressMunicipality || subscriberData.person?.citizen?.addressMunicipality || '',
-                    addressBarangay: subscriberData.citizen?.addressBarangay || subscriberData.person?.citizen?.addressBarangay || '',
-                    addressPostalCode: subscriberData.citizen?.addressPostalCode || subscriberData.person?.citizen?.addressPostalCode || '',
-                    addressStreetAddress: subscriberData.citizen?.addressStreetAddress || subscriberData.person?.citizen?.addressStreetAddress || '',
-                    // Pass residentAddress for non-citizens so it can be parsed
-                    residentAddress: subscriberData.residentAddress || '',
-                    region: subscriberData.placeOfBirth?.region || '',
-                    province: subscriberData.placeOfBirth?.province || '',
-                    municipality: subscriberData.placeOfBirth?.municipality || '',
-                    motherFirstName: subscriberData.motherInfo?.firstName || '',
-                    motherMiddleName: subscriberData.motherInfo?.middleName || '',
-                    motherLastName: subscriberData.motherInfo?.lastName || '',
-                  } : undefined}
-                />
-              </>
-            ) : null}
+        {/* Tabs */}
+        <Tabs defaultValue="personal">
+          <TabsList>
+            <TabsTrigger value="personal"><FiUser size={14} className="mr-1.5" /> Personal</TabsTrigger>
+            <TabsTrigger value="contact"><FiPhone size={14} className="mr-1.5" /> Contact</TabsTrigger>
+            <TabsTrigger value="applications"><FiFileText size={14} className="mr-1.5" /> Applications</TabsTrigger>
+          </TabsList>
+
+          {/* ── Personal Tab ── */}
+          <TabsContent value="personal" className="space-y-4">
+
+            {/* Edit button — covers all personal sections */}
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={openEdit} className="gap-1.5">
+                <FiEdit2 size={13} /> Edit Personal Information
+              </Button>
+            </div>
+
+            {/* Personal Information */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FiUser size={15} /> Personal Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <InfoRow icon={<FiCalendar size={14} />} label="Date of Birth"
+                  value={resident.birthdate ? formatDateWithoutTimezone(resident.birthdate, { dateStyle: 'long' }) : undefined} />
+                <InfoRow label="Sex"          value={resident.sex} />
+                <InfoRow label="Civil Status" value={resident.civilStatus} />
+                <InfoRow label="Citizenship"  value={resident.citizenship} />
+                <InfoRow icon={<FiHeart size={14} />} label="Spouse Name" value={resident.spouseName} />
+                <InfoRow label="Registered Voter"
+                  value={resident.isVoter === true ? 'Yes' : resident.isVoter === false ? 'No' : undefined} />
+                <InfoRow label="Indigenous Person"
+                  value={resident.indigenousPerson === true ? 'Yes' : resident.indigenousPerson === false ? 'No' : undefined} />
+              </CardContent>
+            </Card>
+
+            {/* Place of Birth */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><FiMapPin size={15} /> Place of Birth</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                <InfoRow label="Region"              value={resident.birthRegion} />
+                <InfoRow label="Province"            value={resident.birthProvince} />
+                <InfoRow label="City / Municipality" value={resident.birthMunicipality} />
+              </CardContent>
+            </Card>
+
+            {/* Employment & Education */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><FiBriefcase size={15} /> Employment & Education</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <InfoRow label="Occupation"        value={resident.occupation} />
+                <InfoRow label="Profession"        value={resident.profession} />
+                <InfoRow label="Employment Status" value={resident.employmentStatus} />
+                <InfoRow label="Employed"
+                  value={resident.isEmployed === true ? 'Yes' : resident.isEmployed === false ? 'No' : undefined} />
+                <InfoRow icon={<FiBook size={14} />} label="Education Attainment" value={resident.educationAttainment} />
+                <InfoRow label="Monthly Income"
+                  value={resident.monthlyIncome != null ? `₱${Number(resident.monthlyIncome).toLocaleString()}` : undefined} />
+              </CardContent>
+            </Card>
+
+            {/* Physical */}
+            {(resident.height || resident.weight) && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Physical Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <InfoRow label="Height" value={resident.height} />
+                  <InfoRow label="Weight" value={resident.weight} />
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
-          <TabsContent value="applications" className="mt-6">
+          {/* ── Contact Tab ── */}
+          <TabsContent value="contact" className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><FiPhone size={15} /> Contact Information</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <InfoRow icon={<FiPhone size={14} />} label="Contact Number"  value={resident.contactNumber} />
+                <InfoRow icon={<FiMail  size={14} />} label="Email Address"   value={resident.email} />
+                <InfoRow icon={<FiMapPin size={14} />} label="Street Address" value={resident.streetAddress} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><FiHeart size={15} /> Emergency Contact</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <InfoRow label="Name"           value={resident.emergencyContactPerson} />
+                <InfoRow label="Contact Number" value={resident.emergencyContactNumber} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><FiShield size={15} /> Identification</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <InfoRow label="ID Type"   value={resident.idType} />
+                <InfoRow label="ID Number" value={resident.idDocumentNumber} />
+                {resident.acrNo && <InfoRow label="ACR No." value={resident.acrNo} />}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Applications Tab ── */}
+          <TabsContent value="applications">
             <MyApplications />
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* ── Edit Dialog ── */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Personal Information</DialogTitle>
+          </DialogHeader>
+
+          {isEditLoading || !form ? (
+            <div className="flex items-center justify-center py-16 text-gray-400 text-sm gap-2">
+              <svg className="animate-spin h-5 w-5 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+              Loading your information…
+            </div>
+          ) : (
+            <>
+              <div className="space-y-6 py-2">
+
+                {/* Personal Information */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Personal Information</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Date of Birth">
+                      <Input value={form.birthdate} onChange={(e) => set('birthdate')(e.target.value)}
+                        type="date" max={new Date().toISOString().split('T')[0]} className="h-9 text-sm" />
+                    </Field>
+                    <SelectField label="Sex" value={form.sex}
+                      onChange={(v) => set('sex')(v)} options={['male', 'female']} />
+                    <SelectField label="Civil Status" value={form.civilStatus}
+                      onChange={(v) => set('civilStatus')(v)}
+                      options={['single','married','widowed','separated','divorced','live_in','annulled']} />
+                    <Field label="Citizenship">
+                      <Input value={form.citizenship} onChange={(e) => set('citizenship')(e.target.value)}
+                        placeholder="e.g. Filipino" className="h-9 text-sm" />
+                    </Field>
+                    <Field label="Spouse Name">
+                      <Input value={form.spouseName} onChange={(e) => set('spouseName')(e.target.value)}
+                        placeholder="Full name" className="h-9 text-sm" />
+                    </Field>
+                    <Field label="Registered Voter">
+                      <Select value={form.isVoter ? 'true' : 'false'} onValueChange={(v) => set('isVoter')(v === 'true')}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Indigenous Person">
+                      <Select value={form.indigenousPerson ? 'true' : 'false'} onValueChange={(v) => set('indigenousPerson')(v === 'true')}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                </div>
+
+                {/* Place of Birth */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Place of Birth</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Region */}
+                    <Field label="Region">
+                      <Select
+                        value={form.birthRegion || ''}
+                        onValueChange={(v) => {
+                          set('birthRegion')(v);
+                          set('birthProvince')('');
+                          set('birthMunicipality')('');
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Select region" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getRegions().map((r) => (
+                            <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+
+                    {/* Province — depends on region */}
+                    <Field label="Province">
+                      <Select
+                        value={form.birthProvince || ''}
+                        onValueChange={(v) => {
+                          set('birthProvince')(v);
+                          set('birthMunicipality')('');
+                        }}
+                        disabled={!form.birthRegion}
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder={form.birthRegion ? 'Select province' : 'Select region first'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getPHProvinces(form.birthRegion).map((p) => (
+                            <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+
+                    {/* City / Municipality — depends on region + province */}
+                    <Field label="City / Municipality">
+                      <Select
+                        value={form.birthMunicipality || ''}
+                        onValueChange={(v) => set('birthMunicipality')(v)}
+                        disabled={!form.birthRegion || !form.birthProvince}
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder={!form.birthProvince ? 'Select province first' : 'Select city/municipality'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getPHMunicipalities(form.birthRegion, form.birthProvince).map((m) => (
+                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                </div>
+
+                {/* Employment & Education */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Employment & Education</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Occupation">
+                      <Input value={form.occupation} onChange={(e) => set('occupation')(e.target.value)}
+                        placeholder="e.g. Teacher" className="h-9 text-sm" />
+                    </Field>
+                    <Field label="Profession">
+                      <Input value={form.profession} onChange={(e) => set('profession')(e.target.value)}
+                        placeholder="e.g. Registered Nurse" className="h-9 text-sm" />
+                    </Field>
+                    <SelectField label="Employment Status" value={form.employmentStatus}
+                      onChange={(v) => set('employmentStatus')(v)} options={EMPLOYMENT_STATUS_OPTIONS} />
+                    <Field label="Employed">
+                      <Select value={form.isEmployed ? 'true' : 'false'} onValueChange={(v) => set('isEmployed')(v === 'true')}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <SelectField label="Education Attainment" value={form.educationAttainment}
+                      onChange={(v) => set('educationAttainment')(v)} options={EDUCATION_OPTIONS} />
+                    <Field label="Monthly Income (₱)">
+                      <Input value={form.monthlyIncome} onChange={(e) => set('monthlyIncome')(e.target.value)}
+                        type="number" min="0" placeholder="0.00" className="h-9 text-sm" />
+                    </Field>
+                    <Field label="Height">
+                      <Input value={form.height} onChange={(e) => set('height')(e.target.value)}
+                        placeholder="e.g. 165cm" className="h-9 text-sm" />
+                    </Field>
+                    <Field label="Weight">
+                      <Input value={form.weight} onChange={(e) => set('weight')(e.target.value)}
+                        placeholder="e.g. 60kg" className="h-9 text-sm" />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* Emergency Contact */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Emergency Contact</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Name">
+                      <Input value={form.emergencyContactPerson} onChange={(e) => set('emergencyContactPerson')(e.target.value)}
+                        placeholder="Full name" className="h-9 text-sm" />
+                    </Field>
+                    <Field label="Contact Number">
+                      <Input value={form.emergencyContactNumber} onChange={(e) => set('emergencyContactNumber')(e.target.value)}
+                        placeholder="09XXXXXXXXX" className="h-9 text-sm" />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* Identification */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Identification</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="ID Type">
+                      <Input value={form.idType} onChange={(e) => set('idType')(e.target.value)}
+                        placeholder="e.g. PhilSys National ID" className="h-9 text-sm" />
+                    </Field>
+                    <Field label="ID Number">
+                      <Input value={form.idDocumentNumber} onChange={(e) => set('idDocumentNumber')(e.target.value)}
+                        placeholder="ID number" className="h-9 text-sm" />
+                    </Field>
+                    <Field label="ACR No.">
+                      <Input value={form.acrNo} onChange={(e) => set('acrNo')(e.target.value)}
+                        placeholder="ACR number (if applicable)" className="h-9 text-sm" />
+                    </Field>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-2 border-t">
+                <Button variant="outline" onClick={() => setEditOpen(false)} className="gap-1.5">
+                  <FiX size={14} /> Cancel
+                </Button>
+                <Button onClick={handleSave} disabled={isSaving} className="gap-1.5">
+                  <FiSave size={14} /> {isSaving ? 'Saving…' : 'Save Changes'}
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </PortalLayout>
   );
 };

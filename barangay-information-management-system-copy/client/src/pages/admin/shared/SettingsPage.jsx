@@ -67,7 +67,7 @@ import {
 import ClassificationTypeManager from "@/components/ui/ClassificationTypeManager";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://13.211.71.85";
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
 
 const SettingsPage = () => {
   const { user } = useAuth();
@@ -109,11 +109,32 @@ const SettingsPage = () => {
   const [municipalityCode, setMunicipalityCode] = useState("");
   const [selectedMunicipality, setSelectedMunicipality] = useState(null);
   const [existingMunicipalityId, setExistingMunicipalityId] = useState(null);
+  const [municipalityIdForClassification, setMunicipalityIdForClassification] = useState(null);
   const [imageFiles, setImageFiles] = useState({});
   const [imagePreviews, setImagePreviews] = useState({});
 
   const isMunicipality = user?.target_type === "municipality";
   const isBarangay = user?.target_type === "barangay";
+
+  // Set municipality ID for classification types
+  useEffect(() => {
+    if (isMunicipality) {
+      setMunicipalityIdForClassification(user.target_id);
+    } else if (isBarangay && user?.target_id) {
+      const fetchMunicipalityId = async () => {
+        try {
+          const res = await api.get(`/${user.target_id}/barangay`);
+          const barangay = res.data?.data || res.data;
+          if (barangay?.municipality_id || barangay?.municipalityId) {
+            setMunicipalityIdForClassification(barangay.municipality_id || barangay.municipalityId);
+          }
+        } catch (err) {
+          logger.error('Error fetching barangay:', err);
+        }
+      };
+      fetchMunicipalityId();
+    }
+  }, [user, isMunicipality, isBarangay]);
 
 
 
@@ -1405,7 +1426,7 @@ const SettingsPage = () => {
                 {/* Classification Tab (Barangay Only) */}
         {isBarangay && (
           <TabsContent value="classification" className="space-y-6">
-            <ClassificationTypeManager />
+            <ClassificationTypeManager municipalityId={municipalityIdForClassification} />
           </TabsContent>
         )}
 

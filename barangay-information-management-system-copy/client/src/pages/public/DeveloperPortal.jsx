@@ -32,7 +32,7 @@ const residentsSchema = {
       email: "string|null",
       contact_number: "string|null",
       occupation: "string|null",
-      resident_status: "active|inactive",
+      status: "active",
       barangay_id: 0
     }
   ],
@@ -46,7 +46,6 @@ const householdsSchema = {
       id: 0,
       house_number: "string|null",
       street: "string|null",
-      purok_id: 0,
       barangay_id: 0,
       house_head: "resident_id",
       housing_type: "Owned|Rented|Informal",

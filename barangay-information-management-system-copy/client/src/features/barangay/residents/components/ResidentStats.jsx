@@ -28,9 +28,6 @@ const ResidentStats = ({
 
         if (user?.target_type === "barangay") {
           params.barangayId = user.target_id;
-          if (filterPurok && filterPurok !== "all") {
-            params.purokId = filterPurok;
-          }
         } else if (filterPurok && filterPurok !== "all") {
           params.barangayId = filterPurok;
         }

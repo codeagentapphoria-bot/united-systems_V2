@@ -13,7 +13,8 @@ export const useDashboardData = (
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [barangays, setBarangays] = useState([]);
-  const [puroks, setPuroks] = useState([]);
+  // puroks removed in v2 — kept as empty array for API compatibility
+  const puroks = [];
 
   // Statistics state
   const [stats, setStats] = useState({
@@ -54,9 +55,7 @@ export const useDashboardData = (
       params.barangayId = selectedBarangay;
     }
 
-    if (selectedPurok) {
-      params.purokId = selectedPurok;
-    }
+    // Puroks removed in v2 - purokId filter no longer applicable
 
     return params;
   };
@@ -65,7 +64,7 @@ export const useDashboardData = (
   const fetchBarangays = async () => {
     if (role !== "municipality") return;
     try {
-      const response = await api.get("/list/barangay");
+      const response = await api.get("/list/barangay?perPage=200");
       // The API returns { data: { data: [...], pagination: {...} } }
       const barangayData = response.data.data.data || [];
       setBarangays(barangayData);
@@ -75,28 +74,7 @@ export const useDashboardData = (
     }
   };
 
-  // Fetch puroks for selected barangay (municipality) or current barangay (barangay role)
-  const fetchPuroks = async (barangayId) => {
-    let id = barangayId;
-    if (role === "barangay") {
-      id = user?.target_id;
-    }
-
-    // If no barangay is selected, clear puroks
-    if (!id) {
-      setPuroks([]);
-      return;
-    }
-
-    try {
-      const response = await api.get(`/list/${id}/purok`);
-      const purokData = response.data.data || [];
-      setPuroks(purokData);
-    } catch (error) {
-      handleErrorSilently(error, "Fetch Puroks");
-      setPuroks([]);
-    }
-  };
+  // fetchPuroks removed — puroks table dropped in v2
 
   // Fetch population statistics
   const fetchPopulationStats = async () => {
@@ -257,125 +235,20 @@ export const useDashboardData = (
   // Fetch distribution data
   const fetchDistributionData = async () => {
     if (role === "barangay") {
-      // Data per purok for barangay role
-      if (!user?.target_id) {
-        setDistributionData({
-          demographics: [],
-          employment: [],
-          education: [],
-          voters: [],
-        });
-        return;
-      }
-      try {
-        const response = await api.get(`/list/${user.target_id}/purok`);
-        const puroksList = response.data.data || [];
-
-        // Filter puroks based on selected purok
-        const filteredPuroks = selectedPurok
-          ? puroksList.filter(
-              (purok) => purok.purok_id.toString() === selectedPurok.toString()
-            )
-          : puroksList;
-
-        const stats = await Promise.all(
-          filteredPuroks.map(async (purok) => {
-            try {
-              const [demoRes, empRes, eduRes, voterRes] = await Promise.all([
-                api.get("/statistics/gender-demographics", {
-                  params: {
-                    purokId: purok.purok_id,
-                    barangayId: purok.barangay_id,
-                  },
-                }),
-                api.get("/statistics/employment-status-demographics", {
-                  params: {
-                    purokId: purok.purok_id,
-                    barangayId: purok.barangay_id,
-                  },
-                }),
-                api.get("/statistics/educational-attainment-demographics", {
-                  params: {
-                    purokId: purok.purok_id,
-                    barangayId: purok.barangay_id,
-                  },
-                }),
-                api.get("/statistics/voter-demographics", {
-                  params: {
-                    purokId: purok.purok_id,
-                    barangayId: purok.barangay_id,
-                  },
-                }),
-              ]);
-
-              // Transform the data to get total counts for each category
-              const demographicsTotal = (demoRes.data.data || []).reduce(
-                (sum, item) => sum + (parseInt(item.count) || 0),
-                0
-              );
-              const employmentTotal = (empRes.data.data || []).reduce(
-                (sum, item) => sum + (parseInt(item.count) || 0),
-                0
-              );
-              const educationTotal = (eduRes.data.data || []).reduce(
-                (sum, item) => sum + (parseInt(item.count) || 0),
-                0
-              );
-              const votersTotal = (voterRes.data.data || []).reduce(
-                (sum, item) => sum + (parseInt(item.count) || 0),
-                0
-              );
-
-              return {
-                name: purok.purok_name,
-                demographics: demographicsTotal,
-                employment: employmentTotal,
-                education: educationTotal,
-                voters: votersTotal,
-              };
-            } catch {
-              return {
-                name: purok.purok_name,
-                demographics: 0,
-                employment: 0,
-                education: 0,
-                voters: 0,
-              };
-            }
-          })
-        );
-
-        setDistributionData({
-          demographics: stats.map((s) => ({
-            name: s.name,
-            value: s.demographics,
-          })),
-          employment: stats.map((s) => ({
-            name: s.name,
-            value: s.employment,
-          })),
-          education: stats.map((s) => ({
-            name: s.name,
-            value: s.education,
-          })),
-          voters: stats.map((s) => ({
-            name: s.name,
-            value: s.voters,
-          })),
-        });
-      } catch {
-        setDistributionData({
-          demographics: [],
-          employment: [],
-          education: [],
-          voters: [],
-        });
-      }
+      // Puroks removed in v2 — barangay role shows empty distribution charts
+      // (no sub-unit breakdown available without puroks)
+      setDistributionData({
+        demographics: [],
+        employment: [],
+        education: [],
+        voters: [],
+      });
+      return;
     } else if (role === "municipality") {
       // Data per barangay for municipality role
       try {
-        const brgyRes = await api.get("/list/barangay");
-        const brgyList = brgyRes.data.data || [];
+        const brgyRes = await api.get("/list/barangay?perPage=200");
+        const brgyList = brgyRes.data.data.data || [];
 
         // Filter barangays based on selected barangay
         const filteredBarangays = selectedBarangay
@@ -390,7 +263,7 @@ export const useDashboardData = (
             try {
               const params = {
                 barangayId: barangay.id,
-                ...(selectedPurok && { purokId: selectedPurok }),
+                // Puroks removed in v2 - purokId no longer applicable
               };
 
               const [demoRes, empRes, eduRes, voterRes] = await Promise.all([
@@ -501,14 +374,7 @@ export const useDashboardData = (
     fetchBarangays();
   }, [role]);
 
-  // Fetch puroks when barangay changes (municipality) or on mount (barangay)
-  useEffect(() => {
-    if (role === "municipality") {
-      fetchPuroks(selectedBarangay);
-    } else if (role === "barangay") {
-      fetchPuroks();
-    }
-  }, [role, selectedBarangay]);
+  // fetchPuroks removed — puroks table dropped in v2
 
   useEffect(() => {
     loadDashboardData();

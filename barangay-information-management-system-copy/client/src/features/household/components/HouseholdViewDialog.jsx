@@ -491,7 +491,7 @@ const HouseholdViewDialog = ({
                         </div>
                         <div className="text-muted-foreground text-sm flex items-center gap-2 mb-3">
                           <MapPin className="h-4 w-4 text-primary" />
-                          {household.purok_name || "No purok"} • {household.barangay_name || "No barangay"}
+                          {household.barangay_name || "No barangay"}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Badge variant={getElectricityColor(household.electricity)}>
@@ -669,13 +669,7 @@ const HouseholdViewDialog = ({
                               {household.street || "-"}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-primary" />
-                            <span className="font-semibold">Purok:</span>
-                            <span className="ml-1">
-                              {household.purok_name || "-"}
-                            </span>
-                          </div>
+                          {/* purok_name removed — puroks table dropped in v2 */}
                           <div className="flex items-center gap-2">
                             <Building className="h-4 w-4 text-primary" />
                             <span className="font-semibold">Barangay:</span>
@@ -994,13 +988,7 @@ const HouseholdViewDialog = ({
                               {household.street || "-"}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-primary" />
-                            <span className="font-semibold">Purok:</span>
-                            <span className="ml-1">
-                              {household.purok_name || "-"}
-                            </span>
-                          </div>
+                          {/* purok_name removed — puroks table dropped in v2 */}
                           <div className="flex items-center gap-2">
                             <Building className="h-4 w-4 text-primary" />
                             <span className="font-semibold">Barangay:</span>
@@ -1057,7 +1045,7 @@ const HouseholdViewDialog = ({
                                             return [lat, lng];
                                           }
                                         }
-                                        return [11.6081, 125.4311]; // Default to Borongan City
+                                        return [11.6081, 125.4311]; // Default fallback coordinates
                                       })()
                                     : household.geom.lat && household.geom.lng
                                     ? [
@@ -1274,9 +1262,9 @@ const HouseholdViewDialog = ({
                   {household.house_head ? `${household.house_head}'s Household` : 'Household Image'}
                 </p>
                 <p className="text-sm text-white/80">
-                  {household.house_number ? `House #${household.house_number}` : ''} 
-                  {household.street ? ` - ${household.street}` : ''}
-                  {household.purok_name ? ` - ${household.purok_name}` : ''}
+                   {household.house_number ? `House #${household.house_number}` : ''} 
+                   {household.street ? ` - ${household.street}` : ''}
+                   {/* purok_name removed — puroks table dropped in v2 */}
                 </p>
               </div>
             )}

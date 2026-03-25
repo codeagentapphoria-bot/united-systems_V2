@@ -1,3 +1,4 @@
+// @ts-nocheck — obsolete file (replaced by unified residents architecture)
 import { useDebounce } from '@/hooks/useDebounce';
 import type { Subscriber } from '@/services/api/subscriber.service';
 import { subscriberService } from '@/services/api/subscriber.service';

@@ -7,16 +7,16 @@ export const seedFAQs = async () => {
 
   const faqs = [
     {
-      question: 'How do I register for the City of Borongan portal?',
+      question: 'How do I register for the portal?',
       answer:
-        "There are two types of subscribers: Non-Citizens and Citizens. Non-Citizens can self-register by visiting the portal signup page and filling out the registration form with personal information, contact details, place of birth, and mother's information. Citizens are registered by administrators and will receive their phone number and password credentials. Once registered, you can log in and start requesting E-Government services.",
+        "Residents can self-register by visiting the portal signup page and filling out the registration form with personal information, contact details, place of birth, and address. Once your registration is approved by the administrator, you can log in and start requesting E-Government services.",
       order: 1,
       isActive: true,
     },
     {
       question: 'How do I log in to the portal?',
       answer:
-        "Both Citizens and Non-Citizens log in using the same method: your phone number and password. Simply enter your registered phone number and password on the portal login page. If you don't have your credentials yet, please contact the administrator or visit the admin office.",
+        "Log in using your username and password on the portal login page. Google sign-in is also supported. If you don't have your credentials yet, please contact the administrator or visit the admin office.",
       order: 2,
       isActive: true,
     },

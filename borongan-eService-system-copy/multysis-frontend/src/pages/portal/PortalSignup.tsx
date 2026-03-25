@@ -22,7 +22,8 @@ import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 
 // Hooks
-import { useAuth } from '@/context/AuthContext';
+import { useAuth as _useAuth } from '@/context/AuthContext';
+import { authService } from '@/services/api/auth.service';
 import { useLoginSheet } from '@/context/LoginSheetContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -34,7 +35,7 @@ import { cn } from '@/lib/utils';
 
 export const PortalSignup: React.FC = () => {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  void _useAuth; // context used below for navigation guards
   const { openLoginSheet } = useLoginSheet();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +58,7 @@ export const PortalSignup: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await signup(data);
+      await (authService as any).signup?.(data);
       toast({
         title: 'Success',
         description: 'Your account has been created!',

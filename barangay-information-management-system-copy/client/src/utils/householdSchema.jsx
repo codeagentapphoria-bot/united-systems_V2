@@ -3,7 +3,6 @@ import { z } from "zod";
 export const householdSchema = z.object({
   houseNumber: z.string().optional(),
   street: z.string().optional(),
-  purokId: z.string().min(1, "Purok is required"),
   houseHead: z.string().min(1, "House head is required"),
   housingType: z.string().optional(),
   structureType: z.string().optional(),

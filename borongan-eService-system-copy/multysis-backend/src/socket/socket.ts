@@ -125,7 +125,7 @@ export const initializeSocket = (httpServer: HttpServer): SocketIOServer => {
         id: string;
         email?: string;
         phoneNumber?: string;
-        type: 'admin' | 'subscriber' | 'dev';
+        type: 'admin' | 'resident' | 'dev';
       };
 
       // Verify user exists and is active
@@ -158,33 +158,27 @@ export const initializeSocket = (httpServer: HttpServer): SocketIOServer => {
           return next(new Error('Authentication error: User not found'));
         }
       } else {
-        const subscriber = await prisma.subscriber.findUnique({
+        const resident = await prisma.resident.findUnique({
           where: { id: decoded.id },
-          include: {
-            nonCitizen: true,
-            citizen: true,
-          },
         });
-        if (!subscriber) {
-          addDevLog('error', 'Socket authentication failed: Subscriber not found', {
-            subscriberId: decoded.id,
+        if (!resident) {
+          addDevLog('error', 'Socket authentication failed: Resident not found', {
+            residentId: decoded.id,
             socketId: socket.id,
             ip: socket.handshake.address,
           });
-          return next(new Error('Authentication error: Subscriber not found'));
+          return next(new Error('Authentication error: Resident not found'));
         }
 
-        // Check if subscriber is active (for non-citizens)
-        if (subscriber.type === 'SUBSCRIBER' && subscriber.nonCitizen) {
-          if (subscriber.nonCitizen.status !== 'ACTIVE') {
-            addDevLog('error', 'Socket authentication failed: Account not active', {
-              subscriberId: decoded.id,
-              status: subscriber.nonCitizen.status,
-              socketId: socket.id,
-              ip: socket.handshake.address,
-            });
-            return next(new Error('Authentication error: Account not active'));
-          }
+        // Check if resident account is active
+        if (resident.status !== 'active') {
+          addDevLog('error', 'Socket authentication failed: Account not active', {
+            residentId: decoded.id,
+            status: resident.status,
+            socketId: socket.id,
+            ip: socket.handshake.address,
+          });
+          return next(new Error('Authentication error: Account not active'));
         }
       }
 
@@ -292,9 +286,6 @@ export const initializeSocket = (httpServer: HttpServer): SocketIOServer => {
         // Verify user has access to this transaction
         const transaction = await prisma.transaction.findUnique({
           where: { id: data.transactionId },
-          include: {
-            subscriber: true,
-          },
         });
 
         if (!transaction) {
@@ -303,7 +294,7 @@ export const initializeSocket = (httpServer: HttpServer): SocketIOServer => {
         }
 
         // Verify ownership/access
-        if (userType === 'subscriber' && transaction.subscriberId !== userId) {
+        if (userType === 'resident' && transaction.residentId !== userId) {
           socket.emit('error', { message: 'Access denied' });
           return;
         }
@@ -313,17 +304,10 @@ export const initializeSocket = (httpServer: HttpServer): SocketIOServer => {
           data: {
             transactionId: data.transactionId,
             message: data.message,
-            senderType: userType === 'admin' ? 'ADMIN' : 'SUBSCRIBER',
+            senderType: userType === 'admin' ? 'ADMIN' : 'RESIDENT',
             senderId: userId,
             isInternal: data.isInternal || false,
             isRead: false,
-          },
-          include: {
-            transaction: {
-              include: {
-                subscriber: true,
-              },
-            },
           },
         });
 
@@ -341,7 +325,7 @@ export const initializeSocket = (httpServer: HttpServer): SocketIOServer => {
 
         // Also notify the other party if not internal
         if (!data.isInternal) {
-          const targetUserId = userType === 'admin' ? transaction.subscriberId : null; // For subscribers, admins will see it in the transaction room
+          const targetUserId = userType === 'admin' ? transaction.residentId : null;
 
           if (targetUserId) {
             io.to(`user:${targetUserId}`).emit('notification:new', {

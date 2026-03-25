@@ -38,7 +38,7 @@ export const getSubscriberNotificationCountsController = async (
   res: Response
 ): Promise<void> => {
   try {
-    if (!req.user || req.user.type !== 'subscriber') {
+    if (!req.user || req.user.type !== 'resident') {
       res.status(403).json({
         status: 'error',
         message: 'Access denied. Subscriber access required.',
@@ -46,8 +46,8 @@ export const getSubscriberNotificationCountsController = async (
       return;
     }
 
-    const subscriberId = req.user.id;
-    const counts = await getSubscriberNotificationCounts(subscriberId);
+    const residentId = req.user.id;
+    const counts = await getSubscriberNotificationCounts(residentId);
 
     res.status(200).json({
       status: 'success',

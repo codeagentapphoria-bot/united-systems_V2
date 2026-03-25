@@ -28,7 +28,6 @@ class Household {
   static async insertHousehold({
     houseNumber,
     street,
-    purokId,
     barangayId,
     houseHead,
     housingType,
@@ -62,7 +61,6 @@ class Household {
       console.log("INSERT_HOUSEHOLD:", [
         houseNumber,
         street,
-        purokId,
         barangayId,
         houseHead,
         housingType,
@@ -80,7 +78,6 @@ class Household {
         INSERT INTO households(
           house_number,
           street,
-          purok_id,
           barangay_id,
           house_head,
           housing_type,
@@ -99,7 +96,6 @@ class Household {
       const { rows: householdRows } = await client.query(insertQuery, [
         houseNumber,
         street,
-        purokId,
         barangayId,
         houseHead,
         housingType,
@@ -175,7 +171,6 @@ class Household {
     householdId,
     houseNumber,
     street,
-    purokId,
     barangayId,
     houseHead,
     housingType,
@@ -247,11 +242,6 @@ class Household {
       if (street !== undefined) {
         updateFields.push(`street = $${paramIndex}`);
         updateValues.push(street);
-        paramIndex++;
-      }
-      if (purokId !== undefined) {
-        updateFields.push(`purok_id = $${paramIndex}`);
-        updateValues.push(purokId);
         paramIndex++;
       }
       if (barangayId !== undefined) {
@@ -482,7 +472,6 @@ class Household {
 
   static async householdList({
     barangayId,
-    purokId,
     search,
     page = 1,
     perPage = 10,
@@ -491,6 +480,14 @@ class Household {
     sortBy = "household_id",
     sortOrder = "desc",
   }) {
+    // Whitelist allowed sort columns to prevent SQL injection
+    const allowedSortColumns = [
+      'household_id', 'house_number', 'street', 'barangay_name',
+      'house_head', 'family_count', 'resident_count', 'total_monthly_income', 'created_at'
+    ];
+    const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'household_id';
+    const safeSortOrder = ['asc', 'desc'].includes(sortOrder.toLowerCase()) ? sortOrder.toLowerCase() : 'desc';
+
     const client = await pool.connect();
     try {
       const offset = (page - 1) * perPage;
@@ -501,7 +498,6 @@ class Household {
 
       // Add standard joins
       joins.push("LEFT JOIN residents r ON h.house_head = r.id");
-      joins.push("LEFT JOIN puroks p ON h.purok_id = p.id");
 
       // For municipality users, join with barangays to filter by municipality
       if (userTargetType === "municipality") {
@@ -516,11 +512,6 @@ class Household {
       if (barangayId) {
         values.push(barangayId);
         whereClause.push(`h.barangay_id = $${values.length}`);
-      }
-
-      if (purokId) {
-        values.push(purokId);
-        whereClause.push(`h.purok_id = $${values.length}`);
       }
 
       if (search) {
@@ -559,7 +550,6 @@ class Household {
           h.id AS household_id,
           h.house_number,
           h.street,
-          p.purok_name,
           b.barangay_name,
           CONCAT(r.first_name, ' ', r.last_name) AS house_head,
           COALESCE(family_stats.family_count, 0) AS family_count,
@@ -613,7 +603,7 @@ class Household {
           ) income_stats_sub
         ) income_stats ON h.id = income_stats.household_id
         ${whereSQL}
-        ORDER BY ${sortBy} ${sortOrder.toUpperCase()}
+        ORDER BY ${safeSortBy} ${safeSortOrder.toUpperCase()}
         LIMIT $${values.length + 1} OFFSET $${values.length + 2}
         `,
         [...values, perPage, offset]
@@ -722,7 +712,6 @@ class Household {
 
       // Add standard joins
       joins.push("LEFT JOIN residents r ON h.house_head = r.id");
-      joins.push("LEFT JOIN puroks p ON h.purok_id = p.id");
 
       // For municipality users, join with barangays to filter by municipality
       if (userTargetType === "municipality") {
@@ -754,9 +743,8 @@ class Household {
           h.id AS household_id,
           h.house_number,
           h.street,
-          p.purok_name,
           b.barangay_name,
-          CONCAT_WS(' ', r.first_name, r.middle_name, r.last_name, r.suffix) AS house_head,
+          CONCAT_WS(' ', r.first_name, r.middle_name, r.last_name, r.extension_name) AS house_head,
           h.housing_type,
           h.structure_type,
           h.electricity,
@@ -809,7 +797,6 @@ class Household {
       const {
         houseNumber,
         street,
-        purokId,
         barangayId,
         houseHead,
         housingType,
@@ -856,7 +843,6 @@ class Household {
           INSERT INTO households(
             house_number,
             street,
-            purok_id,
             barangay_id,
             house_head,
             housing_type,
@@ -875,7 +861,6 @@ class Household {
         householdResult = await client.query(insertQuery, [
           houseNumber,
           street,
-          purokId,
           barangayId,
           houseHead,
           housingType,

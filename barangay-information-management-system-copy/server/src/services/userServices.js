@@ -42,7 +42,11 @@ class User {
     try {
       await client.query("BEGIN");
 
-      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      // If no password provided (setup email flow), generate a random placeholder.
+      // The user sets their own password after clicking the setup link in their email.
+      const { randomBytes } = await import("crypto");
+      const rawPassword = (password && password.trim() !== "") ? password : randomBytes(32).toString("hex");
+      const hashedPassword = await bcrypt.hash(rawPassword, SALT_ROUNDS);
       const result = await client.query(INSERT_USER, [
         targetType,
         targetId,
@@ -79,17 +83,28 @@ class User {
     try {
       await client.query("BEGIN");
 
+      // Load existing record to use as fallback for fields not supplied in the update
       const oldResult = await client.query(
-        "SELECT picture_path FROM bims_users WHERE id = $1",
+        "SELECT picture_path, target_type, target_id, role FROM bims_users WHERE id = $1",
         [userId]
       );
-      const oldPicturePath = oldResult.rows[0]?.picture_path;
+      const oldRow = oldResult.rows[0];
+      const oldPicturePath = oldRow?.picture_path;
+
+      // Preserve existing values when caller omits them (e.g. setup-account password flow)
+      if (!targetType) targetType = oldRow?.target_type;
+      if (!targetId)   targetId   = oldRow?.target_id;
+      if (!role)       role       = oldRow?.role;
       console.log("updateUser - Old picture path:", oldPicturePath);
 
       let result;
       if (password && password.trim() !== "") {
         // Update with new password
-        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      // If no password provided (admin added via setup email flow), generate a random placeholder.
+      // The user sets their own password after clicking the setup link in their email.
+      const { randomBytes } = await import("crypto");
+      const rawPassword = password && password.trim() !== "" ? password : randomBytes(32).toString("hex");
+      const hashedPassword = await bcrypt.hash(rawPassword, SALT_ROUNDS);
         console.log("updateUser - Updating with password, picturePath:", picturePath);
         result = await client.query(UPDATE_USER, [
           userId,

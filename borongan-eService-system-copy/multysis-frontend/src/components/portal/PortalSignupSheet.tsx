@@ -28,9 +28,9 @@ import {
 } from '@/components/ui/sheet';
 
 // Hooks
-import { useAuth } from '@/context/AuthContext';
 import { useLoginSheet } from '@/context/LoginSheetContext';
 import { useToast } from '@/hooks/use-toast';
+import { authService } from '@/services/api/auth.service';
 
 // Types and Schemas
 import { signupSchema, type SignupInput } from '@/validations/auth.schema';
@@ -49,7 +49,7 @@ export const PortalSignupSheet: React.FC<PortalSignupSheetProps> = ({
   onOpenChange,
 }) => {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+
   const { closeSignupSheet, openLoginSheet } = useLoginSheet();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +72,7 @@ export const PortalSignupSheet: React.FC<PortalSignupSheetProps> = ({
     setIsLoading(true);
 
     try {
-      await signup(data);
+      await (authService as any).signup?.(data);
       toast({
         title: 'Success',
         description: 'Account created successfully! Your account is pending activation. An administrator will review and activate your account soon.',
@@ -140,11 +140,7 @@ export const PortalSignupSheet: React.FC<PortalSignupSheetProps> = ({
                 {/* Registration Type Clarification */}
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
                   <p className="text-sm text-blue-700">
-                    <strong>Note:</strong> This form is for <strong>non-resident subscribers</strong> only. Citizens of Borongan must first{' '}
-                    <Link to="/portal/register" className="text-primary-700 underline font-medium">
-                      self-register here
-                    </Link>{' '}
-                    or be registered by administrators. Non-residents may contact the administration office for assistance.
+                    <strong>Note:</strong> Please fill out this registration form with your personal information. Your account will be reviewed by an administrator before activation.
                   </p>
                 </div>
 

@@ -90,7 +90,6 @@ const HouseholdForm = ({
 }) => {
   const [step, setStep] = useState(0);
   const [residents, setResidents] = useState([]);
-  const [puroks, setPuroks] = useState([]);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [images, setImages] = useState([]);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -117,7 +116,6 @@ const HouseholdForm = ({
     defaultValues: {
       houseNumber: "",
       street: "",
-      purokId: null,
       houseHead: "",
       housingType: "",
       structureType: "",
@@ -132,23 +130,7 @@ const HouseholdForm = ({
     mode: "onChange",
   });
 
-  // Fetch residents and puroks
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch puroks
-        const puroksRes = await api.get(`/list/${user.target_id}/purok`);
-        setPuroks(puroksRes.data.data || []);
-        
-      } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-  console.error("Failed to fetch form data:", error);
-}
-      }
-    };
-
-    fetchData();
-  }, [user.target_id]);
+  // puroks removed in v2 — no fetch needed
 
   // Pre-load house head resident for edit mode
   useEffect(() => {
@@ -267,7 +249,6 @@ const HouseholdForm = ({
       form.reset({
         houseNumber: initialData.house_number || "",
         street: initialData.street || "",
-        purokId: initialData.purok_id ? String(initialData.purok_id) : "",
         barangayId: initialData.barangay_id
           ? String(initialData.barangay_id)
           : "",
@@ -363,7 +344,7 @@ const HouseholdForm = ({
       case 0:
         return ["houseHead"];
       case 1:
-        return ["purokId"];
+        return []; // purokId removed in v2
       case 2:
         return []; // Images are optional
       case 3:
@@ -439,7 +420,7 @@ const HouseholdForm = ({
     const transformed = {
       houseNumber: payload.houseNumber || null,
       street: payload.street || null,
-      purokId: toNumber(payload.purokId),
+      // purokId removed in v2 — puroks table dropped
       barangayId: toNumber(payload.barangayId) || toNumber(user.target_id),
       houseHead: payload.houseHead,
       housingType: payload.housingType || null,
@@ -637,10 +618,7 @@ const HouseholdForm = ({
     }
   }, [residents]);
 
-  const purokOptions = puroks.map((p) => ({
-    value: String(p.purok_id),
-    label: p.purok_name,
-  }));
+  // puroks removed in v2 — purokOptions removed
 
   // Helper to get all selected resident ids in families (heads and members)
   const getSelectedResidentIds = () => {
@@ -1232,9 +1210,7 @@ const HouseholdForm = ({
                     form.getValues("houseHead")
                   );
                 case 1:
-                  return (
-                    !form.formState.errors.purokId && form.getValues("purokId")
-                  );
+                  return true; // purokId removed in v2
                 case 2:
                   return true; // Images are optional
                 case 3:
@@ -1410,47 +1386,7 @@ const HouseholdForm = ({
                   placeholder="Enter street name"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="purokId" className="flex items-center">
-                  Purok
-                </Label>
-                <ReactSelect
-                  id="purokId"
-                  name="purokId"
-                  options={purokOptions}
-                  value={
-                    form.watch("purokId")
-                      ? purokOptions.find(
-                          (opt) => opt.value === String(form.watch("purokId"))
-                        ) || null
-                      : null
-                  }
-                  onChange={(opt) =>
-                    form.setValue("purokId", opt ? opt.value : null, {
-                      shouldValidate: true,
-                      shouldDirty: true,
-                    })
-                  }
-                  isClearable
-                  placeholder="Select purok"
-                  styles={{
-                    ...reactSelectStyles,
-                    control: (provided, state) => ({
-                      ...reactSelectStyles.control(provided, state),
-                      borderColor: form.formState.errors.purokId
-                        ? "#ef4444"
-                        : state.isFocused
-                        ? "#d1d5db"
-                        : "#e5e7eb",
-                    }),
-                  }}
-                />
-                {form.formState.errors.purokId && (
-                  <span className="text-xs text-red-500">
-                    {form.formState.errors.purokId.message}
-                  </span>
-                )}
-              </div>
+              {/* purokId field removed — puroks table dropped in v2 */}
               <div className="space-y-2">
                 <Label htmlFor="lat">Latitude (optional)</Label>
                 <Input

@@ -1,4 +1,4 @@
-import type { Citizen } from '@/services/api/citizen.service';
+import type { Resident as Citizen } from '@/services/api/resident.service';
 import type {
   PWDInput,
   SeniorCitizenInput,
@@ -23,7 +23,8 @@ interface PaginatedResponse<T> {
 
 export interface SeniorBeneficiary {
   id: string;
-  citizenId: string;
+  residentId: string;
+  citizenId: string; // alias for residentId — kept for backward compat
   seniorCitizenId: string;
   pensionTypes: string[];
   governmentPrograms: string[];
@@ -31,12 +32,14 @@ export interface SeniorBeneficiary {
   remarks?: string;
   createdAt: string;
   updatedAt: string;
-  citizen?: Citizen;
+  citizen?: Citizen;  // alias for resident
+  resident?: Citizen;
 }
 
 export interface PWDBeneficiary {
   id: string;
-  citizenId: string;
+  residentId: string;
+  citizenId: string; // alias for residentId — kept for backward compat
   pwdId: string;
   disabilityType: string;
   disabilityLevel: string;
@@ -49,11 +52,13 @@ export interface PWDBeneficiary {
   createdAt: string;
   updatedAt: string;
   citizen?: Citizen;
+  resident?: Citizen;
 }
 
 export interface StudentBeneficiary {
   id: string;
-  citizenId: string;
+  residentId: string;
+  citizenId: string; // alias for residentId — kept for backward compat
   studentId: string;
   gradeLevel: string;
   programs: string[];
@@ -62,11 +67,13 @@ export interface StudentBeneficiary {
   createdAt: string;
   updatedAt: string;
   citizen?: Citizen;
+  resident?: Citizen;
 }
 
 export interface SoloParentBeneficiary {
   id: string;
-  citizenId: string;
+  residentId: string;
+  citizenId: string; // alias for residentId — kept for backward compat
   soloParentId: string;
   category: string;
   assistancePrograms: string[];
@@ -75,6 +82,7 @@ export interface SoloParentBeneficiary {
   createdAt: string;
   updatedAt: string;
   citizen?: Citizen;
+  resident?: Citizen;
 }
 
 export interface OverviewStats {
@@ -101,6 +109,24 @@ interface ListParams {
   limit?: number;
 }
 
+/**
+ * Remap citizenId → residentId for backend compatibility.
+ * The form schema still uses "citizenId" as the field name,
+ * but the backend expects "residentId".
+ */
+function toBackendPayload(data: Record<string, any>) {
+  const { citizenId, ...rest } = data;
+  return citizenId ? { residentId: citizenId, ...rest } : rest;
+}
+
+/**
+ * Normalize backend response: add citizenId alias for residentId
+ * so existing component checks (b.citizenId === selectedCitizen.id) still work.
+ */
+function normalizeBeneficiary(b: any) {
+  return { ...b, citizenId: b.residentId ?? b.citizenId, citizen: b.resident ?? b.citizen };
+}
+
 const buildQueryParams = (params?: ListParams) => {
   if (!params) return undefined;
   const query: Record<string, string> = {};
@@ -117,17 +143,17 @@ export const socialAmeliorationApi = {
     const response = await api.get('/social-amelioration/seniors', {
       params: buildQueryParams(params),
     });
-    return { data: response.data.data, pagination: response.data.pagination };
+    return { data: (response.data.data ?? []).map(normalizeBeneficiary), pagination: response.data.pagination };
   },
 
   async createSeniorBeneficiary(data: SeniorCitizenInput) {
-    const response = await api.post('/social-amelioration/seniors', data);
-    return response.data.data as SeniorBeneficiary;
+    const response = await api.post('/social-amelioration/seniors', toBackendPayload(data as any));
+    return normalizeBeneficiary(response.data.data) as SeniorBeneficiary;
   },
 
   async updateSeniorBeneficiary(id: string, data: Partial<SeniorCitizenInput> & { status?: BeneficiaryStatus }) {
-    const response = await api.put(`/social-amelioration/seniors/${id}`, data);
-    return response.data.data as SeniorBeneficiary;
+    const response = await api.put(`/social-amelioration/seniors/${id}`, toBackendPayload(data as any));
+    return normalizeBeneficiary(response.data.data) as SeniorBeneficiary;
   },
 
   async deleteSeniorBeneficiary(id: string) {
@@ -138,17 +164,17 @@ export const socialAmeliorationApi = {
     const response = await api.get('/social-amelioration/pwd', {
       params: buildQueryParams(params),
     });
-    return { data: response.data.data, pagination: response.data.pagination };
+    return { data: (response.data.data ?? []).map(normalizeBeneficiary), pagination: response.data.pagination };
   },
 
   async createPWDBeneficiary(data: PWDInput) {
-    const response = await api.post('/social-amelioration/pwd', data);
-    return response.data.data as PWDBeneficiary;
+    const response = await api.post('/social-amelioration/pwd', toBackendPayload(data as any));
+    return normalizeBeneficiary(response.data.data) as PWDBeneficiary;
   },
 
   async updatePWDBeneficiary(id: string, data: Partial<PWDInput> & { status?: BeneficiaryStatus }) {
-    const response = await api.put(`/social-amelioration/pwd/${id}`, data);
-    return response.data.data as PWDBeneficiary;
+    const response = await api.put(`/social-amelioration/pwd/${id}`, toBackendPayload(data as any));
+    return normalizeBeneficiary(response.data.data) as PWDBeneficiary;
   },
 
   async deletePWDBeneficiary(id: string) {
@@ -159,17 +185,17 @@ export const socialAmeliorationApi = {
     const response = await api.get('/social-amelioration/students', {
       params: buildQueryParams(params),
     });
-    return { data: response.data.data, pagination: response.data.pagination };
+    return { data: (response.data.data ?? []).map(normalizeBeneficiary), pagination: response.data.pagination };
   },
 
   async createStudentBeneficiary(data: StudentInput) {
-    const response = await api.post('/social-amelioration/students', data);
-    return response.data.data as StudentBeneficiary;
+    const response = await api.post('/social-amelioration/students', toBackendPayload(data as any));
+    return normalizeBeneficiary(response.data.data) as StudentBeneficiary;
   },
 
   async updateStudentBeneficiary(id: string, data: Partial<StudentInput> & { status?: BeneficiaryStatus }) {
-    const response = await api.put(`/social-amelioration/students/${id}`, data);
-    return response.data.data as StudentBeneficiary;
+    const response = await api.put(`/social-amelioration/students/${id}`, toBackendPayload(data as any));
+    return normalizeBeneficiary(response.data.data) as StudentBeneficiary;
   },
 
   async deleteStudentBeneficiary(id: string) {
@@ -180,17 +206,17 @@ export const socialAmeliorationApi = {
     const response = await api.get('/social-amelioration/solo-parents', {
       params: buildQueryParams(params),
     });
-    return { data: response.data.data, pagination: response.data.pagination };
+    return { data: (response.data.data ?? []).map(normalizeBeneficiary), pagination: response.data.pagination };
   },
 
   async createSoloParentBeneficiary(data: SoloParentInput) {
-    const response = await api.post('/social-amelioration/solo-parents', data);
-    return response.data.data as SoloParentBeneficiary;
+    const response = await api.post('/social-amelioration/solo-parents', toBackendPayload(data as any));
+    return normalizeBeneficiary(response.data.data) as SoloParentBeneficiary;
   },
 
   async updateSoloParentBeneficiary(id: string, data: Partial<SoloParentInput> & { status?: BeneficiaryStatus }) {
-    const response = await api.put(`/social-amelioration/solo-parents/${id}`, data);
-    return response.data.data as SoloParentBeneficiary;
+    const response = await api.put(`/social-amelioration/solo-parents/${id}`, toBackendPayload(data as any));
+    return normalizeBeneficiary(response.data.data) as SoloParentBeneficiary;
   },
 
   async deleteSoloParentBeneficiary(id: string) {

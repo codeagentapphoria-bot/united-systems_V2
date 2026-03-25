@@ -20,9 +20,9 @@ const JWT_REFRESH_EXPIRES_IN = parseTimeStringToSeconds(REFRESH_TOKEN_EXPIRES);
 export interface TokenPayload {
   id: string;
   email?: string;
-  phoneNumber?: string;
+  username?: string;        // portal residents log in by username
   role: string;
-  type: 'admin' | 'subscriber' | 'dev';
+  type: 'admin' | 'resident' | 'dev';
 }
 
 export const generateToken = (payload: TokenPayload): string => {

@@ -14,7 +14,6 @@ const ResidentsFilters = ({
   setSearchInput,
   filterPurok,
   setFilterPurok,
-  puroks,
   filterClassification,
   setFilterClassification,
   classificationOptions,
@@ -38,26 +37,14 @@ const ResidentsFilters = ({
     setSearchInput(debouncedSearchInput);
   }, [debouncedSearchInput, setSearchInput]);
 
-  // Prepare purok/barangay options for React Select
-  const locationOptions = [
-    { value: "all", label: `All ${role === "barangay" ? "Purok" : "Barangay"}` }
-  ];
-
-  if (role === "barangay") {
-    puroks.forEach((purok) => {
-      locationOptions.push({
-        value: String(purok.purok_id || purok.id),
-        label: purok.purok_name || purok.purokName
-      });
+  // Prepare barangay filter options (puroks removed in v2)
+  const locationOptions = [{ value: "all", label: "All Barangays" }];
+  barangays.forEach((barangay) => {
+    locationOptions.push({
+      value: String(barangay.id),
+      label: barangay.barangay_name || barangay.barangayName,
     });
-  } else {
-    barangays.forEach((barangay) => {
-      locationOptions.push({
-        value: String(barangay.id),
-        label: barangay.barangay_name || barangay.barangayName
-      });
-    });
-  }
+  });
 
   // Prepare classification options for React Select
   const classificationSelectOptions = [
@@ -111,7 +98,7 @@ const ResidentsFilters = ({
                 setPage(1);
               }}
               options={locationOptions}
-              placeholder={`Filter by ${role === "barangay" ? "purok" : "barangay"}`}
+              placeholder="Filter by barangay"
               customStyles={{
                 control: (provided, state) => ({
                   ...provided,

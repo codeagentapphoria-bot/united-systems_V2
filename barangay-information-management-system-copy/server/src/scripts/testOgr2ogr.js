@@ -22,7 +22,7 @@ async function testOgr2ogr() {
     
     // Test if we can connect to PostgreSQL
     logger.info('Testing PostgreSQL connection...');
-    const testCommand = `ogr2ogr -f PostgreSQL "PG:host=localhost port=5432 dbname=bims password=1234 user=postgres" -nln test_connection -sql "SELECT 1" /dev/null`;
+    const testCommand = `ogr2ogr -f PostgreSQL "PG:host=${process.env.DB_HOST || 'localhost'} port=${process.env.DB_PORT || '5432'} dbname=${process.env.DB_NAME || 'bims'} password=${process.env.DB_PASSWORD || ''} user=${process.env.DB_USER || 'postgres'}" -nln test_connection -sql "SELECT 1" /dev/null`;
     
     try {
       await execAsync(testCommand);

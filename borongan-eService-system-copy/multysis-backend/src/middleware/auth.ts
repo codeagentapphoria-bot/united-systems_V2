@@ -7,9 +7,9 @@ export interface AuthRequest extends Request {
   user?: {
     id: string;
     email?: string;
-    phoneNumber?: string;
+    username?: string;
     role: string;
-    type: 'admin' | 'subscriber' | 'dev';
+    type: 'admin' | 'resident' | 'dev';
   };
 }
 
@@ -20,9 +20,12 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
   );
 }
 
-// Verify JWT token
-// Reads from cookie first (primary), falls back to Authorization header (for migration)
-// If access token is missing/expired but refresh token exists, attempts automatic refresh
+// =============================================================================
+// verifyToken
+// Reads access token from cookie (primary) or Authorization header (fallback).
+// If the access token is missing or expired but a valid refresh token exists,
+// attempts automatic token rotation before returning 401.
+// =============================================================================
 export const verifyToken = async (
   req: AuthRequest,
   res: Response,
@@ -31,11 +34,9 @@ export const verifyToken = async (
   try {
     let token: string | undefined;
 
-    // Try to get token from cookie first (primary method)
     const accessTokenCookieName = getAccessTokenCookieName();
     token = req.cookies[accessTokenCookieName];
 
-    // Fallback to Authorization header (for migration/compatibility)
     if (!token) {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -43,26 +44,23 @@ export const verifyToken = async (
       }
     }
 
-    // If no access token, try to refresh using refresh token
+    // No access token — try to refresh using the refresh token cookie
     if (!token) {
       const refreshTokenCookieName = getRefreshTokenCookieName();
       const refreshToken = req.cookies[refreshTokenCookieName];
 
       if (refreshToken) {
-        // Attempt to refresh the token
         try {
-          // FIRST: Quickly check if it's a dev token (fast JWT check, no DB lookup)
-          // This optimization only affects dev routes and doesn't slow down admin/subscriber auth
+          // Fast-path: dev tokens are not stored in DB
           let isDevToken = false;
           try {
             const decoded = jwt.verify(refreshToken, JWT_SECRET) as {
               id: string;
               email?: string;
               role: string;
-              type: 'admin' | 'subscriber' | 'dev';
+              type: 'admin' | 'resident' | 'dev';
             };
 
-            // If it's a dev token, handle it immediately (no DB lookup needed)
             if (decoded.type === 'dev') {
               isDevToken = true;
               const { generateToken, generateRefreshToken } = await import('../utils/jwt');
@@ -82,20 +80,14 @@ export const verifyToken = async (
                 type: 'dev',
               });
 
-              // Set new cookies (dev tokens aren't stored in DB, so no rotation needed)
               setAccessTokenCookie(res, newAccessToken);
               setRefreshTokenCookie(res, newRefreshToken);
-
-              // Use the new access token
               token = newAccessToken;
             }
-          } catch (jwtError) {
-            // Not a valid JWT or not a dev token, continue to normal DB lookup
-            // This is expected for admin/subscriber tokens
+          } catch {
+            // Not a dev token, proceed to DB-backed refresh
           }
 
-          // If not a dev token, do the normal DB lookup for admin/subscriber tokens
-          // This path is unchanged and won't affect existing admin/subscriber authentication
           if (!isDevToken) {
             const { findRefreshToken } = await import('../services/refreshToken.service');
             const { getCurrentUser } = await import('../services/auth.service');
@@ -108,31 +100,32 @@ export const verifyToken = async (
 
             const dbToken = await findRefreshToken(refreshToken);
             if (dbToken) {
-              const userId = dbToken.userId || dbToken.subscriberId;
+              const userId = dbToken.userId || dbToken.residentId;
               if (userId) {
-                const user = await getCurrentUser(userId, dbToken.userId ? 'admin' : 'subscriber');
+                const userType = dbToken.userId ? 'admin' : 'resident';
+                const user = await getCurrentUser(userId, userType);
 
-                const tokenPayload = dbToken.userId
-                  ? {
-                      id: userId,
-                      email: (user as any).email,
-                      role: (user as any).role,
-                      type: 'admin' as const,
-                    }
-                  : {
-                      id: userId,
-                      phoneNumber: (user as any).phoneNumber,
-                      role: 'subscriber',
-                      type: 'subscriber' as const,
-                    };
+                const tokenPayload =
+                  userType === 'admin'
+                    ? {
+                        id: userId,
+                        email: (user as any).email,
+                        role: (user as any).role,
+                        type: 'admin' as const,
+                      }
+                    : {
+                        id: userId,
+                        username: (user as any).username,
+                        role: 'resident',
+                        type: 'resident' as const,
+                      };
 
                 const newAccessToken = generateToken(tokenPayload);
                 const newRefreshToken = generateRefreshToken(tokenPayload);
 
-                // Rotate refresh token
                 await revokeRefreshToken(dbToken.id, 'Token rotated');
 
-                const deviceInfo = {
+                const deviceMeta = {
                   deviceInfo: JSON.stringify({
                     userAgent: req.headers['user-agent'],
                     ipAddress: req.ip || req.socket.remoteAddress,
@@ -143,200 +136,150 @@ export const verifyToken = async (
 
                 const newDbToken = await createRefreshToken({
                   userId: dbToken.userId || undefined,
-                  subscriberId: dbToken.subscriberId || undefined,
+                  residentId: dbToken.residentId || undefined,
                   token: newRefreshToken,
-                  ...deviceInfo,
+                  ...deviceMeta,
                 });
 
-                // Set new cookies
                 setAccessTokenCookie(res, newAccessToken);
                 setRefreshTokenCookie(res, newRefreshToken);
 
-                // Update session
                 await createOrUpdateSession(
                   userId,
-                  dbToken.userId ? 'admin' : 'subscriber',
+                  userType,
                   newDbToken.id,
                   req
                 );
 
-                // Use the new access token
                 token = newAccessToken;
               }
             }
           }
         } catch (refreshError) {
-          // Refresh failed, continue to return 401
           console.error('Token refresh failed:', refreshError);
         }
       }
     }
 
     if (!token) {
-      res.status(401).json({
-        status: 'error',
-        message: 'No token provided',
-      });
+      res.status(401).json({ status: 'error', message: 'No token provided' });
       return;
     }
 
     const decoded = jwt.verify(token, JWT_SECRET) as {
       id: string;
       email?: string;
-      phoneNumber?: string;
+      username?: string;
       role: string;
-      type: 'admin' | 'subscriber' | 'dev';
+      type: 'admin' | 'resident' | 'dev';
     };
 
     req.user = decoded;
     next();
-  } catch (error) {
-    res.status(401).json({
-      status: 'error',
-      message: 'Invalid or expired token',
-    });
+  } catch {
+    res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
   }
 };
 
-// Verify admin authentication
+// =============================================================================
+// verifyAdmin — requires admin portal token
+// =============================================================================
 export const verifyAdmin = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // First verify token - if it fails, verifyToken will send the response
   await verifyToken(req, res, () => {
-    // Token is valid, now check if user is admin
     if (!req.user) {
-      res.status(401).json({
-        status: 'error',
-        message: 'Authentication required',
-      });
+      res.status(401).json({ status: 'error', message: 'Authentication required' });
       return;
     }
-
     if (req.user.type !== 'admin') {
-      res.status(403).json({
-        status: 'error',
-        message: 'Admin access required',
-      });
+      res.status(403).json({ status: 'error', message: 'Admin access required' });
       return;
     }
-
     next();
   });
 };
 
-// Verify dev authentication
+// =============================================================================
+// verifyDev — requires developer token
+// =============================================================================
 export const verifyDev = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // First verify token - if it fails, verifyToken will send the response
   await verifyToken(req, res, () => {
-    // Token is valid, now check if user is dev
     if (!req.user) {
-      res.status(401).json({
-        status: 'error',
-        message: 'Authentication required',
-      });
+      res.status(401).json({ status: 'error', message: 'Authentication required' });
       return;
     }
-
     if (req.user.type !== 'dev') {
-      res.status(403).json({
-        status: 'error',
-        message: 'Developer access required',
-      });
+      res.status(403).json({ status: 'error', message: 'Developer access required' });
       return;
     }
-
     next();
   });
 };
 
-// Verify subscriber authentication
-export const verifySubscriber = async (
+// =============================================================================
+// verifyResident — requires portal resident token (replaces verifySubscriber)
+// Also validates that the resident account still exists and is not blocked.
+// =============================================================================
+export const verifyResident = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     await verifyToken(req, res, async () => {
-      if (req.user?.type !== 'subscriber') {
-        res.status(403).json({
-          status: 'error',
-          message: 'Subscriber access required',
-        });
+      if (req.user?.type !== 'resident') {
+        res.status(403).json({ status: 'error', message: 'Resident access required' });
         return;
       }
 
-      // Verify subscriber account is still active
       if (req.user?.id) {
-        const subscriberGateway = await (prisma as any).subscriber.findUnique({
+        const resident = await prisma.resident.findUnique({
           where: { id: req.user.id },
-          include: {
-            citizen: true,
-            nonCitizen: true,
-          },
+          select: { id: true, status: true },
         });
 
-        if (!subscriberGateway) {
-          res.status(401).json({
+        if (!resident) {
+          res.status(401).json({ status: 'error', message: 'Resident account not found' });
+          return;
+        }
+
+        if (resident.status === 'inactive') {
+          res.status(403).json({
             status: 'error',
-            message: 'Subscriber not found',
+            message: 'Account is inactive. Please contact an administrator.',
           });
           return;
         }
 
-        // Check status based on subscriber type
-        if (subscriberGateway.type === 'SUBSCRIBER' && subscriberGateway.nonCitizen) {
-          const status = subscriberGateway.nonCitizen.status;
-
-          // Only allow ACTIVE subscribers to make requests
-          if (status !== 'ACTIVE') {
-            if (status === 'BLOCKED') {
-              res.status(403).json({
-                status: 'error',
-                message: 'Account is blocked',
-              });
-              return;
-            } else if (status === 'PENDING') {
-              res.status(403).json({
-                status: 'error',
-                message: 'Account is pending activation. Please contact an administrator.',
-              });
-              return;
-            } else if (status === 'EXPIRED') {
-              res.status(403).json({
-                status: 'error',
-                message: 'Account subscription has expired',
-              });
-              return;
-            } else {
-              res.status(403).json({
-                status: 'error',
-                message: 'Account is not active. Please contact an administrator.',
-              });
-              return;
-            }
-          }
+        if (resident.status === 'deceased' || resident.status === 'moved_out') {
+          res.status(403).json({
+            status: 'error',
+            message: 'Account is no longer active.',
+          });
+          return;
         }
-        // CITIZEN type subscribers are always allowed (they don't have the same status restrictions)
       }
 
       next();
     });
-  } catch (error) {
-    res.status(401).json({
-      status: 'error',
-      message: 'Authentication required',
-    });
+  } catch {
+    res.status(401).json({ status: 'error', message: 'Authentication required' });
   }
 };
 
-// Optional authentication (doesn't fail if no token)
+// Keep the old name as an alias for backward compatibility during migration
+export const verifySubscriber = verifyResident;
+
+// =============================================================================
+// optionalAuth — does not fail if no token is present
+// =============================================================================
 export const optionalAuth = async (
   req: AuthRequest,
   _res: Response,
@@ -345,11 +288,9 @@ export const optionalAuth = async (
   try {
     let token: string | undefined;
 
-    // Try to get token from cookie first
     const accessTokenCookieName = getAccessTokenCookieName();
     token = req.cookies[accessTokenCookieName];
 
-    // Fallback to Authorization header
     if (!token) {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -361,50 +302,42 @@ export const optionalAuth = async (
       const decoded = jwt.verify(token, JWT_SECRET) as {
         id: string;
         email?: string;
-        phoneNumber?: string;
+        username?: string;
         role: string;
-        type: 'admin' | 'subscriber' | 'dev';
+        type: 'admin' | 'resident' | 'dev';
       };
       req.user = decoded;
     }
     next();
-  } catch (error) {
-    // Continue without authentication
+  } catch {
     next();
   }
 };
 
-// Role-based access control
+// =============================================================================
+// requireRole — simple role string check
+// =============================================================================
 export const requireRole = (...roles: string[]) => {
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
-      res.status(401).json({
-        status: 'error',
-        message: 'Authentication required',
-      });
+      res.status(401).json({ status: 'error', message: 'Authentication required' });
       return;
     }
-
     if (!roles.includes(req.user.role)) {
-      res.status(403).json({
-        status: 'error',
-        message: 'Insufficient permissions',
-      });
+      res.status(403).json({ status: 'error', message: 'Insufficient permissions' });
       return;
     }
-
     next();
   };
 };
 
-// Permission-based access control
+// =============================================================================
+// requirePermission — RBAC permission check (admin only)
+// =============================================================================
 export const requirePermission = (resource: string, action: 'read' | 'all') => {
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user || req.user.type !== 'admin') {
-      res.status(403).json({
-        status: 'error',
-        message: 'Admin access required',
-      });
+      res.status(403).json({ status: 'error', message: 'Admin access required' });
       return;
     }
 
@@ -416,11 +349,7 @@ export const requirePermission = (resource: string, action: 'read' | 'all') => {
             include: {
               role: {
                 include: {
-                  rolePermissions: {
-                    include: {
-                      permission: true,
-                    },
-                  },
+                  rolePermissions: { include: { permission: true } },
                 },
               },
             },
@@ -429,40 +358,27 @@ export const requirePermission = (resource: string, action: 'read' | 'all') => {
       });
 
       if (!user) {
-        res.status(401).json({
-          status: 'error',
-          message: 'User not found',
-        });
+        res.status(401).json({ status: 'error', message: 'User not found' });
         return;
       }
 
-      // Check if user has permission
-      const hasPermission = user.userRoles.some(
-        (userRole: {
-          role: { rolePermissions: Array<{ permission: { resource: string; action: string } }> };
-        }) =>
-          userRole.role.rolePermissions.some(
-            (rp: { permission: { resource: string; action: string } }) =>
-              rp.permission.resource === resource &&
-              (rp.permission.action === 'ALL' ||
-                (action === 'read' && rp.permission.action === 'READ'))
-          )
+      const hasPermission = user.userRoles.some((userRole: any) =>
+        userRole.role.rolePermissions.some(
+          (rp: any) =>
+            rp.permission.resource === resource &&
+            (rp.permission.action === 'ALL' ||
+              (action === 'read' && rp.permission.action === 'READ'))
+        )
       );
 
       if (!hasPermission) {
-        res.status(403).json({
-          status: 'error',
-          message: 'Insufficient permissions',
-        });
+        res.status(403).json({ status: 'error', message: 'Insufficient permissions' });
         return;
       }
 
       next();
-    } catch (error) {
-      res.status(500).json({
-        status: 'error',
-        message: 'Error checking permissions',
-      });
+    } catch {
+      res.status(500).json({ status: 'error', message: 'Error checking permissions' });
     }
   };
 };

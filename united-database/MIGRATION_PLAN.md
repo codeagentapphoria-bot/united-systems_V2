@@ -1,30 +1,26 @@
 # Database Merge Plan: BIMS + E-Services → Supabase Unified DB
 
 **Created:** Mar 23, 2026
-**Status:** Schema deployed — ready for go-live
+**Status:** Schema v2 deployed — go-live ready (2026-03-25)
 **Approach:** Direct Schema Merge
-**Target:** Supabase (Borongan Unified System project)
 **Schema home:** `united-database/`
 
 ---
 
 ## Overview
 
-Both the Barangay Information Management System (BIMS) and the Borongan E-Services system (Multysis) will have their PostgreSQL databases merged into a single Supabase PostgreSQL instance. Both backends will then be updated to connect to this unified DB. The `united-database/` directory is the canonical home for the unified schema, migration scripts, and documentation.
+Both the Barangay Information Management System (BIMS) and the E-Services system (Multysis) have their PostgreSQL databases merged into a single Supabase PostgreSQL instance. Both backends connect to this unified DB. The `united-database/` directory is the canonical home for the unified schema, migration scripts, and documentation.
 
-**Key decisions:**
+**Schema v2 Changes (2026-03-25):**
 
-| Decision | Choice |
+| Change | Details |
 |---|---|
-| Migration approach | Direct Schema Merge |
-| Database host | Supabase (existing Borongan Unified System project) |
-| Schema home | `united-database/` |
-| User tables | Separate: `bims_users` + `eservice_users` |
-| Requests vs Transactions | Keep as separate tables |
-| Identity linking | Fuzzy name matching + birthdate, staff confirmation |
-| BIMS ORM | Raw SQL — rename queries manually |
-| E-Services ORM | Prisma — one-line `@@map` change |
-| BIMS-specific features | GIS (PostGIS), audit triggers — preserved as-is |
+| Puroks table | **Dropped** — previously `puroks` (neighborhood zones) removed from schema |
+| Citizens/Non-citizens | **Dropped** — replaced by unified `residents` table |
+| citizen_resident_mapping | **Dropped** — replaced by `resident_classifications` with `classification_type` values |
+| Subscribers | **Dropped** — residents have direct portal access via `eservice_users` |
+| Addresses lookup | **Dropped** — address fields embedded in residents/households |
+| Multi-municipality | **Enabled** — system now generic, configurable per deployment |
 
 ---
 
@@ -32,47 +28,37 @@ Both the Barangay Information Management System (BIMS) and the Borongan E-Servic
 
 | Aspect | BIMS | E-Services (Multysis) |
 |---|---|---|
-| Purpose | Barangay-level resident/household management for municipal staff | Citizen-facing online government service portal |
+| Purpose | Barangay-level resident/household management for municipal staff | Resident-facing online government service portal |
 | Language | JavaScript (ES Modules) | TypeScript |
 | Backend | Express.js v5 | Express.js v4 |
 | Database | PostgreSQL via raw `pg` pool | PostgreSQL via Prisma ORM v5 |
-| Schema source | `main-db.sql` | `prisma/schema.prisma` |
-| DB name | `bims_production` | `multysis` |
-| Core entity | `residents` (string ID: `RES-2025-001`) | `citizens` / `non_citizens` (UUID) |
-| Tables | ~20 tables | 28 models |
+| Core entity | `residents` (UUID: `gen_random_uuid()`) | `residents` (UUID — unified) |
 | GIS | PostGIS + Leaflet | None |
 
 ---
 
-## Conflicts & Resolutions
+## Conflicts & Resolutions (v2)
 
-The two schemas share the following table name collisions that must be resolved before merging:
+The following table name collisions were resolved in schema v2:
 
-| Conflict | BIMS Table | E-Services Table | Resolution |
+| Conflict | BIMS Table | E-Services Table | Resolution (v2) |
 |---|---|---|---|
-| Users | `users` (integer PK, municipality/barangay scoped, JWT auth) | `users` (UUID PK, portal admin, RBAC) | Rename to `bims_users` and `eservice_users` |
-| Addresses | No direct equivalent (address fields embedded in `residents`/`households`) | `addresses` (reference lookup table) | Keep E-Services `addresses` as-is; no conflict |
-| Primary key types | Integer / custom `varchar` (`RES-YYYY-NNN`) | UUID (`gen_random_uuid()`) | No collision — different tables. Both formats are preserved. |
+| Users | `users` (integer PK, municipality/barangay scoped, JWT auth) | `users` (UUID PK, portal admin, RBAC) | Renamed to `bims_users` and `eservice_users` |
+| Address lookup | No direct equivalent | `addresses` (reference lookup table) | **Dropped** — address fields embedded in residents/households |
+| Primary key types | Custom string (`RES-YYYY-NNN`) | UUID (`gen_random_uuid()`) | Unified to UUID (`gen_random_uuid()`) in v2 |
+| Resident identity | `residents` (string PK) | `citizens` + `non_citizens` + `subscribers` | **Unified** — single `residents` table |
+| Cross-system link | N/A | `citizen_resident_mapping` | **Replaced** — by `resident_classifications` with `classification_type` |
 
-### Bridge Table: `citizen_resident_mapping`
+### v2 Resident Classification System
 
-A new table must be added to the unified schema to link E-Services `citizens` to BIMS `residents`. This is the core cross-system link.
+The `citizen_resident_mapping` table was replaced by `resident_classifications` with these status values:
 
-```sql
-CREATE TABLE citizen_resident_mapping (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  citizen_id    UUID         NOT NULL REFERENCES citizens(id),
-  resident_id   VARCHAR(20)  NOT NULL REFERENCES residents(id),
-  match_score   NUMERIC(5,2),             -- fuzzy match confidence 0.00–100.00
-  match_method  VARCHAR(20),              -- 'AUTO_FUZZY' | 'MANUAL'
-  status        VARCHAR(20)  DEFAULT 'PENDING', -- PENDING | CONFIRMED | REJECTED | NEEDS_REVIEW
-  matched_by    VARCHAR(100),             -- staff who confirmed or rejected
-  created_at    TIMESTAMPTZ  DEFAULT NOW(),
-  confirmed_at  TIMESTAMPTZ,
-  UNIQUE (citizen_id),
-  UNIQUE (resident_id)
-);
-```
+- `CONFIRMED` — resident linked to E-Services account (formerly matched pair)
+- `PENDING` — automated fuzzy match awaiting confirmation
+- `NEEDS_REVIEW` — ambiguous match requiring staff review
+- `NO_MATCH` — no suitable match found
+
+This replaces the fuzzy-match bridge table with a direct classification tag system.
 
 ---
 
@@ -107,24 +93,23 @@ CREATE TABLE citizen_resident_mapping (
 
 **Goal:** Produce the final unified `schema.sql` in `united-database/`.
 
-### Full Table Inventory
+### Full Table Inventory (v2)
 
-**From BIMS** (20 tables):
+**From BIMS** (17 tables — puroks dropped in v2):
 
 | Table | Notes |
 |---|---|
 | `municipalities` | Top-level admin unit |
 | `barangays` | Sub-unit of municipality |
-| `puroks` | Neighborhood zones within a barangay |
-| `residents` | Core resident records; custom string PK (`RES-YYYY-NNN`) |
-| `resident_classifications` | Flexible tags per resident (PWD, senior, etc.) |
+| `residents` | Core resident records; UUID PK (`gen_random_uuid()`) |
+| `resident_classifications` | Flexible tags per resident (PWD, senior, etc.) — replaces citizen_resident_mapping |
 | `resident_counters` | Auto-increment counter for generating resident IDs |
 | `classification_types` | Municipality-configurable classification definitions |
 | `households` | Physical dwellings with PostGIS geometry |
 | `families` | Family group within a household |
 | `family_members` | Links residents to families |
 | `officials` | Barangay officials linked to residents |
-| `bims_users` | **Renamed from `users`** — municipal/barangay staff accounts |
+| `bims_users` | Municipal/barangay staff accounts |
 | `requests` | Walk-in barangay certificate/appointment requests |
 | `inventories` | Barangay asset/inventory management |
 | `archives` | Document archive per barangay |
@@ -135,22 +120,17 @@ CREATE TABLE citizen_resident_mapping (
 | `gis_barangay` | PostGIS spatial data for barangays |
 | `api_keys` | API key management (dynamic table) |
 
-**From E-Services** (28 tables):
+**From E-Services** (18 tables — citizens/non_citizens/subscribers dropped in v2):
 
 | Table | Notes |
 |---|---|
-| `eservice_users` | **Renamed from `users`** — portal admin accounts |
-| `subscribers` | Portal login gateway; links to citizen or non-citizen |
-| `citizens` | Full citizen profile (verified portal users) |
-| `non_citizens` | Portal users not yet verified as citizens |
-| `citizen_registration_requests` | Registration review workflow |
-| `place_of_birth` | Birth location for citizen or non-citizen |
-| `mother_info` | Mother's name for non-citizen records |
+| `eservice_users` | Portal admin accounts |
+| `citizen_registration_requests` | Registration review workflow (deprecated — use residents directly) |
 | `roles` | Role definitions (RBAC) |
 | `permissions` | Permission definitions (RBAC) |
 | `role_permissions` | Pivot: roles ↔ permissions |
 | `user_roles` | Pivot: users ↔ roles |
-| `refresh_tokens` | Refresh token store for users and subscribers |
+| `refresh_tokens` | Refresh token store for users and residents |
 | `sessions` | Active session tracking |
 | `services` | Transactional service catalog |
 | `eservices` | Informational e-service listings |

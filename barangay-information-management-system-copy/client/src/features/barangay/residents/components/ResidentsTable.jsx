@@ -62,9 +62,7 @@ const ResidentsTable = ({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>
-                {role === "barangay" ? "Purok" : "Barangay"}
-              </TableHead>
+              <TableHead>Barangay</TableHead>
               <TableHead>Full Name</TableHead>
               <TableHead>Sex</TableHead>
               <TableHead>Civil Status</TableHead>
@@ -86,11 +84,7 @@ const ResidentsTable = ({
                   onClick={() => handleView(resident)}
                   className="cursor-pointer hover:bg-muted/50"
                 >
-                  <TableCell>
-                    {role === "barangay"
-                      ? resident.purok_name || resident.purok || ""
-                      : resident.barangay_name || ""}
-                  </TableCell>
+                  <TableCell>{resident.barangay_name || ""}</TableCell>
                   <TableCell>
                     {`${resident.first_name || ""} ${
                       resident.middle_name ? resident.middle_name : ""

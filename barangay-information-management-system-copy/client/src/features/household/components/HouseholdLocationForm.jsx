@@ -8,7 +8,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "@/hooks/use-toast";
 import { MapPin, Navigation, Locate, Crosshair } from "lucide-react";
-import ReactSelect from "react-select";
 import BarangayBoundaryMap from "@/components/common/BarangayBoundaryMap";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/utils/api";
@@ -58,7 +57,7 @@ const reactSelectStyles = {
 const locationSchema = z.object({
   houseNumber: z.string().optional(),
   street: z.string().optional(),
-  purokId: z.string().min(1, "Purok is required"),
+  purokId: z.string().optional(),
   area: z.string().optional(),
   geom: z
     .object({
@@ -75,10 +74,9 @@ const HouseholdLocationForm = ({
   loading = false,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [puroks, setPuroks] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
-  const [mapCenter, setMapCenter] = useState([11.6081, 125.4311]); // Default to Borongan City
+  const [mapCenter, setMapCenter] = useState([11.6081, 125.4311]); // Default fallback coordinates
   const { user } = useAuth();
 
   const form = useForm({
@@ -92,20 +90,6 @@ const HouseholdLocationForm = ({
     },
     mode: "onTouched",
   });
-
-  // Fetch puroks
-  useEffect(() => {
-    const fetchPuroks = async () => {
-      try {
-        const response = await api.get(`/list/${user.target_id}/purok`);
-        setPuroks(response.data.data || []);
-      } catch (error) {
-        handleErrorSilently("Failed to fetch puroks:", error);
-      }
-    };
-
-    fetchPuroks();
-  }, [user.target_id]);
 
   // Populate form with household data
   useEffect(() => {
@@ -158,22 +142,6 @@ const HouseholdLocationForm = ({
       });
     }
   }, [household, form]);
-
-  // Populate purok after puroks are loaded
-  useEffect(() => {
-    if (household && household.purok_id && puroks.length > 0) {
-      logger.debug("Setting purokId:", household.purok_id);
-      logger.debug("Available puroks:", puroks);
-      form.setValue("purokId", String(household.purok_id));
-    }
-  }, [household, puroks, form]);
-
-  const getPurokOptions = () => {
-    return puroks.map((purok) => ({
-      value: String(purok.purok_id),
-      label: purok.purok_name,
-    }));
-  };
 
   const handleMapClick = (latlng) => {
     // Handle both array format [lat, lng] and object format {lat, lng}
@@ -301,7 +269,6 @@ const HouseholdLocationForm = ({
       const transformedData = {
         house_number: data.houseNumber,
         street: data.street,
-        purok_id: data.purokId,
         area: data.area,
         geom:
           data.geom.lat && data.geom.lng
@@ -345,47 +312,6 @@ const HouseholdLocationForm = ({
             placeholder="Enter street name"
             {...form.register("street")}
           />
-        </div>
-
-        {/* Purok */}
-        <div className="space-y-2">
-          <Label htmlFor="purokId">Purok</Label>
-          <ReactSelect
-            id="purokId"
-            name="purokId"
-            options={getPurokOptions()}
-            value={
-              form.watch("purokId")
-                ? getPurokOptions().find(
-                    (opt) => opt.value === String(form.watch("purokId"))
-                  ) || null
-                : null
-            }
-            onChange={(opt) =>
-              form.setValue("purokId", opt ? opt.value : null, {
-                shouldValidate: true,
-                shouldDirty: true,
-              })
-            }
-            isClearable
-            placeholder="Select purok"
-            styles={{
-              ...reactSelectStyles,
-              control: (provided, state) => ({
-                ...reactSelectStyles.control(provided, state),
-                borderColor: form.formState.errors.purokId
-                  ? "#ef4444"
-                  : state.isFocused
-                  ? "#d1d5db"
-                  : "#e5e7eb",
-              }),
-            }}
-          />
-          {form.formState.errors.purokId && (
-            <span className="text-xs text-red-500">
-              {form.formState.errors.purokId.message}
-            </span>
-          )}
         </div>
 
         {/* Area */}
@@ -486,13 +412,6 @@ const HouseholdLocationForm = ({
                 popupData={{
                   houseHead: household?.house_head || "",
                   houseNumber: form.watch("houseNumber"),
-                  purok: (() => {
-                    const purokId = form.watch("purokId");
-                    const purok = puroks.find(
-                      (p) => String(p.purok_id) === String(purokId)
-                    );
-                    return purok ? purok.purok_name : "";
-                  })(),
                 }}
                 barangayId={household?.barangay_id || user.target_id}
                 readOnly={false}

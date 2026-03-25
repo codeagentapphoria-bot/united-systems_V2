@@ -83,11 +83,11 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ chil
   };
 
   const handleCitizensClick = () => {
-    navigate('/admin/citizens');
+    navigate('/admin/residents');
   };
 
   const handleSubscribersClick = () => {
-    navigate('/admin/subscribers');
+    navigate('/admin/residents');
   };
 
   return (

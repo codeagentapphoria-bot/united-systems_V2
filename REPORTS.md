@@ -1879,3 +1879,1074 @@ Neither file contains any reference to `purok_id`, `puroks`, or `purok_name`. Pe
 ---
 
 *Section 12 added: 2026-03-25 21:04 | Vex 🔬*
+
+---
+
+## Section 13 — System Flow Audit: How Both Systems Work Together (2026-03-25 21:14)
+
+**Purpose:** Map the complete end-to-end user flows across BIMS and E-Services, identify integration points, and surface flow gaps. Intended to support creation of a user guide for simultaneous use of both systems.
+
+---
+
+### 13.1 — System Architecture Overview
+
+Two independent applications sharing one PostgreSQL database:
+
+| | BIMS | E-Services (Multysis) |
+|---|---|---|
+| **Who uses it** | Barangay/municipality staff | Residents (portal) + E-Services admins |
+| **Frontend URL** | `http://localhost:5173` (dev) | `http://localhost:5174` (dev) |
+| **Backend URL** | `http://localhost:5000/api` | `http://localhost:3000/api` |
+| **Backend type** | Node.js + Express + raw SQL | TypeScript + Express + Prisma |
+| **Database access** | `pg` pool (raw SQL) | Prisma ORM |
+| **Shared secret** | `JWT_SECRET` (must be identical in both `.env` files) | Same |
+
+**Critical constraint:** Both backends connect to the **same PostgreSQL database**. BIMS uses raw SQL via `pg` pool. E-Services uses Prisma. They write to the same `residents`, `registration_requests`, `households`, `families`, `transactions`, and related tables.
+
+**Cross-system calls:** The E-Services portal frontend makes direct HTTP calls to the **BIMS backend** for household data (`VITE_BIMS_API_BASE_URL`). The BIMS backend validates portal JWT tokens using the shared `JWT_SECRET`.
+
+---
+
+### 13.2 — Flow 1: Resident Self-Registration
+
+**Who:** New resident → E-Services portal → BIMS staff review
+
+```
+[PORTAL] Resident visits /portal/register
+  → 4-step wizard (ResidentRegister.tsx):
+      Step 1: Personal info (name, birthdate, sex, civil status)
+      Step 2: Address (barangay dropdown from /api/addresses/barangays + street)
+      Step 3: ID documents + selfie upload
+      Step 4: Create username + password
+  → POST /api/portal-registration/register (E-Services backend)
+      Creates: residents (status='pending') + resident_credentials + registration_requests
+  → Resident sees RegistrationStatus page at /portal/register/status
+
+[BIMS] Staff logs in → /admin/barangay/registrations (or /admin/municipality/registrations)
+  → RegistrationApprovalsPage.jsx
+  → GET /api/portal-registration/requests (BIMS backend, port 5000)
+  → Staff clicks "Under Review" → PATCH /api/portal-registration/requests/:id/under-review
+  → Staff clicks "Approve" or "Reject" → POST /api/portal-registration/requests/:id/review
+
+[ON APPROVE — E-Services backend path via RegistrationApprovalsPage:]
+  → UPDATE residents SET status='active', resident_id=generated
+  → UPDATE registration_requests SET status='approved'
+  → Email sent to resident with temp password + login link (via E-Services email service)
+  → Resident can now log in at /portal/login
+
+[PORTAL] Resident logs in → /portal/login
+  → Sees resident ID at /portal/my-id
+  → Can register household at /portal/my-household
+  → Can apply for services at /portal/e-government
+```
+
+**Note:** The BIMS `RegistrationApprovalsPage` calls the **BIMS backend** (`/api/portal-registration/...` at port 5000). The BIMS backend handles approval but does NOT send email (no email service imported in `registrationRoutes.js`). Email only fires from the **E-Services backend** approval path. This means: if the approval was done via the BIMS admin panel, **no email is sent to the resident.**
+
+---
+
+### 13.3 — Flow 2: Household Registration
+
+**Who:** Approved resident → E-Services portal → BIMS reads
+
+```
+[PORTAL] Resident visits /portal/my-household (PortalMyHousehold.tsx)
+  → GET request sent directly to BIMS backend:
+      VITE_BIMS_API_BASE_URL + /portal/household/my
+      Auth: portal JWT token (validated by BIMS using shared JWT_SECRET)
+  → If no household: resident fills form → POST to BIMS /api/portal/household
+      (INSERT INTO households — no purok_id, just barangay_id + street)
+  → To add family member: POST to BIMS /api/portal/household/:id/members
+      Member lookup: by resident_id only (no free-text names)
+      Validation: member must be active + not already in another household
+
+[BIMS] Staff can view household in /admin/barangay/households (HouseholdsPage)
+  → Read-only household view
+  → Staff cannot create households directly (R2 architecture requirement)
+```
+
+---
+
+### 13.4 — Flow 3: Certificate Request (Two Entry Points)
+
+**Who:** Resident or walk-in visitor → BIMS staff processes
+
+```
+ENTRY POINT A — Portal resident:
+  [PORTAL] /portal/e-government → selects certificate service
+  → RequestServiceModal.tsx → POST /api/transactions (E-Services backend)
+      Writes to: transactions table (service.category = 'Barangay Certificate')
+      resident_id: set (if logged in) | null (if guest via /portal/apply-as-guest)
+
+ENTRY POINT B — Walk-in counter:
+  [BIMS] Staff at counter manually enters request
+  → POST /api/public/requests/certificate (BIMS backend)
+      Writes to: requests table
+  (Note: The old public Certificates page at /public/request still exists but
+   shows a notice that the walk-in form has been retired — staff use BIMS counter)
+
+PROCESSING (unified queue):
+  [BIMS] Staff opens /admin/barangay/certificates (CertificatesPage.jsx)
+  → GET /api/certificates/queue (BIMS backend)
+      Returns: UNION ALL of requests (walk-in) + transactions (portal)
+      Filtered by: barangay_id, status, source (walkin/portal)
+  → Staff clicks "Generate PDF"
+      → POST /api/certificates/generate/request/:id  (walk-in)
+      → POST /api/certificates/generate/transaction/:id  (portal)
+      → certificateService.js resolves {{ placeholders }} → Puppeteer PDF
+  → Staff updates status:
+      Walk-in: PUT /api/certificates/queue/walkin/:id/status
+      Portal:  PUT /api/certificates/queue/portal/:id/status
+```
+
+---
+
+### 13.5 — Flow 4: Guest Application
+
+**Who:** Non-resident (no portal account) → E-Services portal → BIMS staff
+
+```
+[PORTAL] Visitor visits /portal/apply-as-guest (PortalGuestApply.tsx)
+  → Fills: name, contact, email, address (free text — no barangay FK)
+  → Selects service → POST /api/transactions (E-Services backend)
+      transactions.resident_id = NULL
+      transactions.applicant_name/contact/email/address populated
+      Reference number generated (TXN-YYYY-XXXXXX)
+
+[PORTAL] Visitor visits /portal/track?ref=TXN-... (PortalTrack.tsx)
+  → Public lookup by reference number — no login required
+  → Shows status, notes
+
+[BIMS] Guest transactions appear in certificate queue with source='portal'
+  → Staff processes same as resident portal submissions
+  → Note: guest transactions have NO barangay_id (applicant_address is free text)
+    → They appear in the queue but CANNOT be filtered by barangay
+    → Staff must manually determine which barangay handles the request
+```
+
+---
+
+### 13.6 — Flow 5: Resident ID
+
+**Who:** Approved resident → portal view; BIMS admin → bulk download
+
+```
+[PORTAL] /portal/my-id (PortalMyID.tsx)
+  → Calls E-Services backend for resident profile
+  → Displays ID card with:
+      - resident_id (e.g. RES-2025-0000001)
+      - QR code pointing to: VITE_PORTAL_URL + /portal/register/status?username=...
+      - Profile photo (from BIMS backend uploads folder via BACKEND_URL)
+
+[BIMS] Municipality admin: /admin/municipality/bulk-id (BulkIDPage.jsx)
+  → Filter by barangay, date range
+  → Bulk PDF download — one ID card per resident
+  → ID background images from: municipalities.id_background_front_path / id_background_back_path
+```
+
+---
+
+### 13.7 — Flow 6: GeoMap Setup (First-Time BIMS Setup)
+
+**Who:** Municipality admin → one-time setup before anything else works
+
+```
+[BIMS] Admin logs in → /admin/municipality/geo-setup (GeoSetupPage.jsx)
+  → Leaflet map loads — fetches GeoJSON from:
+      GET /api/gis/municipality and GET /api/gis/barangays/:muniCode
+  → Admin clicks their municipality on the map
+  → POST /api/setup/municipality (BIMS backend)
+      Reads PSGC code from GeoJSON feature → creates municipalities row
+      Auto-creates all barangays from GeoJSON barangay features
+  → Portal address dropdowns are now populated:
+      GET /api/addresses/municipalities (E-Services backend)
+      GET /api/addresses/barangays?municipalityId=1 (E-Services backend)
+```
+
+**Required before GeoMap setup works:**
+- `seed_gis.sql` must be loaded into the database (see DEPLOYMENT.md)
+- Without GIS data: map renders empty, barangays cannot be auto-created, portal registration address dropdown is empty, registration is non-functional
+
+---
+
+### 13.8 — Flow Gaps Found
+
+#### 🔴 GAP-1: BIMS Approval Does NOT Send Email to Resident
+
+**Where it breaks:** `registrationRoutes.js` (BIMS backend, port 5000) — the approval handler has no email service. `RegistrationApprovalsPage.jsx` calls the BIMS backend.
+
+The **E-Services backend** (`portal-registration.service.ts`) sends approval email with temp password. But the BIMS admin panel calls the BIMS backend, not the E-Services backend.
+
+**Result:** Residents approved by BIMS staff receive **no notification**. They have no way to know their registration was approved unless they manually check their portal status page. The temp password reset mechanism in the E-Services approval path is never triggered from the BIMS side.
+
+**This is a broken workflow for the primary user journey.**
+
+---
+
+#### 🔴 GAP-2: Two Parallel Approval Endpoints — No Single Source of Truth
+
+Both backends have a `POST /api/portal-registration/requests/:id/review` endpoint:
+- **BIMS backend** (port 5000) — `registrationRoutes.js`: raw SQL UPDATE, no email
+- **E-Services backend** (port 3000) — `portal-registration.routes.ts` → `portal-registration.service.ts`: Prisma UPDATE + email
+
+`RegistrationApprovalsPage.jsx` calls the **BIMS backend** (confirmed — `apiClient` base URL is `VITE_API_BASE_URL` = BIMS backend). The E-Services approval path (with email) is never triggered from the BIMS admin interface.
+
+Since both write to the same `residents` and `registration_requests` tables, a race condition is possible if both endpoints were ever called concurrently (e.g. a future E-Services admin UI also calls approve). No distributed lock exists between the two backends beyond PostgreSQL-level row locking.
+
+---
+
+#### 🔴 GAP-3: Guest Transactions Have No Barangay Routing
+
+**Where it breaks:** `transactions` table — guest rows have `resident_id = NULL` and `applicant_address` as free text. No `barangay_id` FK.
+
+The certificate queue in BIMS filters by `barangay_id`. Guest transactions belong to no barangay. They appear in every barangay's queue (or none, depending on the WHERE filter), creating ambiguity about which barangay staff is responsible for processing the request.
+
+**No routing mechanism exists** — staff have no way to assign or route a guest transaction to the correct barangay based on the free-text `applicant_address`.
+
+---
+
+#### 🟠 GAP-4: BIMS GuidePage Does Not Mention Portal or Cross-System Flows
+
+**File:** `client/src/pages/admin/shared/GuidePage.jsx`
+
+The BIMS in-app guide (`/admin/.../guide`) describes BIMS features only. It contains no mention of:
+- The E-Services portal (where residents register)
+- The registration approval workflow and what happens after approval
+- That certificate requests can come from the portal
+- That household data is entered by residents in the portal (not by staff in BIMS)
+
+BIMS step 2 of "Quick Start" says: *"Add your first residents and households"* — but this is architecturally wrong. Staff cannot add residents or households directly (R2). The guide contradicts the system design.
+
+---
+
+#### 🟠 GAP-5: `CitizenRegister.tsx` — Stale Registration Page Exists Alongside `ResidentRegister.tsx`
+
+**Files:**
+- `multysis-frontend/src/pages/portal/ResidentRegister.tsx` — current v2 registration page, routed at `/portal/register`
+- `multysis-frontend/src/pages/portal/CitizenRegister.tsx` — old v1 registration page (calls `citizenRegistrationService` → `/api/portal-registration` after a rename, but uses v1 schema/field names)
+
+Both pages exist. Only `ResidentRegister.tsx` is routed in `routes/index.tsx`. But `CitizenRegister.tsx` exists with full live code and is importable. A developer could accidentally wire it back in.
+
+---
+
+#### 🟠 GAP-6: Approval Flow Shows No Resident ID Document / Selfie to BIMS Reviewer
+
+**File:** `RegistrationApprovalsPage.jsx`
+
+The approval table shows: full name, username, barangay, submitted date, status. No selfie photo, no uploaded ID document preview.
+
+`registration_requests.selfie_url` is stored but never rendered in the approval UI. `residents.proof_of_identification` (the uploaded ID document) is also never shown.
+
+A BIMS staff member approving a registration has no visual verification tool — they cannot see the resident's photo or ID document to confirm identity before approving. This is a significant real-world workflow gap for a government system.
+
+---
+
+#### 🟠 GAP-7: No Resident Notification Path from BIMS for Rejection
+
+BIMS `registrationRoutes.js` rejection handler: `UPDATE residents SET status='rejected'` + `UPDATE registration_requests SET status='rejected'`. No email sent.
+
+Residents who are rejected get no notification. They can only discover rejection by manually checking `/portal/register/status`.
+
+---
+
+#### 🟡 GAP-8: BIMS GuidePage References `/admin/barangay/requests` — Route Redirects Away
+
+**File:** `GuidePage.jsx` barangay features section
+
+References path `/admin/barangay/requests` with description *"Process resident certificate and document requests."*
+
+In `App.jsx` line 278: `<Route path="requests" element={<Navigate to="/admin/barangay/certificates" replace />} />`
+
+The guide sends staff to a path that silently redirects. The guide description and route label are stale.
+
+---
+
+#### 🟡 GAP-9: No Cross-System Notification When Resident Registers
+
+When a resident submits a registration in the portal, BIMS staff have no real-time notification. Staff must manually poll the `/admin/.../registrations` page to check for new submissions. No badge count, no Socket.io event, no email to the barangay/municipality admin indicating a new registration request is pending.
+
+---
+
+#### 🟡 GAP-10: BIMS `VITE_EXTERNAL_API_URL` in `apiConfig.js` Points to Hardcoded IP
+
+**File:** `client/src/config/apiConfig.js` (line 4)
+
+```js
+BASE_URL: import.meta.env.VITE_EXTERNAL_API_URL || "http://3.104.0.203",
+```
+
+This config is used for external GIS/city API integrations. The hardcoded fallback `http://3.104.0.203` is a live IP address — likely a staging or old production server. A developer who doesn't set `VITE_EXTERNAL_API_URL` will silently hit this external server.
+
+---
+
+### 13.9 — System Flow Summary for User Guide Reference
+
+| Flow | Who starts it | System | Outcome |
+|---|---|---|---|
+| **GeoMap Setup** | Municipality admin (one-time) | BIMS | Barangays created, portal addresses populated |
+| **Staff account setup** | Municipality admin | BIMS | Barangay staff accounts created |
+| **Certificate template upload** | Municipality admin | BIMS | Templates ready for PDF generation |
+| **Resident registration** | Resident | Portal | Pending registration request created |
+| **Registration review** | Barangay/municipality staff | BIMS | Resident activated or rejected |
+| **Household registration** | Approved resident | Portal → BIMS backend | Household record created |
+| **Service application** | Logged-in resident | Portal | Transaction created |
+| **Guest application** | Non-resident | Portal | Guest transaction + reference number |
+| **Certificate queue** | Barangay staff | BIMS | Walk-in + portal requests in unified list |
+| **Certificate PDF** | Barangay staff | BIMS | PDF generated from HTML template |
+| **View resident ID** | Approved resident | Portal | Displays ID card + QR code |
+| **Bulk ID download** | Municipality admin | BIMS | PDF batch of all resident ID cards |
+| **Track request** | Anyone with reference no. | Portal | Public status lookup |
+
+---
+
+*Section 13 added: 2026-03-25 21:14 | Vex 🔬*
+
+---
+
+## Section 14 — First-Time Setup Flow: Full Municipality Onboarding Sequence (2026-03-25 21:44)
+
+**Purpose:** Document the complete ordered sequence required to bring both systems live from a fresh database. Intended as a reference for the developer creating the user guide.
+
+---
+
+### 14.1 — Prerequisites (Before Any Admin Logs In)
+
+These must be completed by a system administrator at the infrastructure level before any browser-based setup can begin.
+
+| Step | Action | How |
+|---|---|---|
+| 1 | Create PostgreSQL database | `createdb united_systems` (or Supabase project) |
+| 2 | Apply schema | `psql "$DB_URL" -f united-database/schema.sql` |
+| 3 | Load base seed data | `psql "$DB_URL" -f united-database/seed.sql` — creates roles, permissions, services, FAQs |
+| 4 | Load GIS geometry data | `psql "$DB_URL" -f united-database/seed_gis.sql` — **required for GeoMap; without this the entire setup UI is non-functional** |
+| 5 | Configure BIMS backend `.env` | Set `PG_*` database credentials, `JWT_SECRET` (min 32 chars), `PORT=5000`, `GMAIL_USER`/`GMAIL_PASS` (for emails), `CORS_ORIGIN` (include portal URL) |
+| 6 | Configure E-Services backend `.env` | Set `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET` (**must be identical to BIMS**), `PORT=3000`, `PORTAL_URL`, `CORS_ORIGIN`, SMTP settings, Google OAuth (optional) |
+| 7 | Configure E-Services frontend `.env` | Set `VITE_API_BASE_URL` (E-Services backend), `VITE_BIMS_API_BASE_URL` (BIMS backend), `VITE_PORTAL_URL`, Supabase keys (for Google OAuth) |
+| 8 | Generate Prisma client | `cd multysis-backend && npx prisma generate` |
+| 9 | Create the first BIMS municipality admin account | Insert directly into `bims_users` table with role `municipality`, or use the seed script's `DEFAULT_ADMIN_EMAIL`/`DEFAULT_ADMIN_PASSWORD` variables |
+| 10 | Create the first E-Services admin account | Insert into `eservice_users` table with appropriate role, or use dev endpoint if `NODE_ENV=development` |
+| 11 | Start all 4 services | BIMS backend (5000), BIMS frontend (5173), E-Services backend (3000), E-Services frontend (5174) |
+
+---
+
+### 14.2 — Phase 1: Municipality Setup (BIMS — Municipality Admin)
+
+**Who:** Municipality admin (the first BIMS account created above)  
+**Where:** BIMS frontend — `http://localhost:5173`  
+**Enforced by:** `SetupGuard`/`SetupRouter` — any authenticated municipality admin without `municipalities.setup_status = 'active'` is redirected to `/admin/municipality/setup` automatically
+
+```
+[Step 1] Log in to BIMS at /admin/login
+
+[Step 2] System auto-redirects to /admin/municipality/setup (MunicipalitySetupForm)
+  Form requires:
+  - Click municipality on the interactive GeoMap (Leaflet — reads from gis_municipality table)
+    → Populates: municipality name, GIS code automatically
+  - Enter: Region, Province (free text — not in GIS data)
+  - Upload: Municipality Logo (required — PNG/JPG)
+  - Upload: ID Card Background Front (optional — used for resident ID cards)
+  - Upload: ID Card Background Back (optional)
+
+  On submit → PUT /{targetId}/municipality (multipart/form-data)
+    → Saves logo/background images to uploads/
+    → Updates municipalities record with region, province, logo paths
+    → Sets setup_status = 'active'
+
+[Step 3] GeoMap confirmation (GeoSetupPage — /admin/municipality/geo-setup)
+  → POST /api/setup/municipality { gis_municipality_code }
+  → Creates municipalities row
+  → Auto-creates all barangay rows from gis_barangay table
+  → Portal address dropdowns are now functional
+```
+
+**Note:** The MunicipalitySetupForm (step 2) and the GeoSetupPage (step 3) are two separate UI paths that both write to the `municipalities` table. The setup form (`PUT /{id}/municipality`) writes logo/images and metadata. The GeoSetupPage (`POST /api/setup/municipality`) creates barangays from GIS. Both must be completed for the system to be fully operational. There is no enforced order between them and no single combined setup wizard.
+
+---
+
+### 14.3 — Phase 2: Barangay Account Creation (BIMS — Municipality Admin)
+
+**Who:** Municipality admin  
+**Where:** BIMS → `/admin/municipality/barangays` (BarangaysPage)
+
+```
+[Step 1] Municipality admin navigates to Barangays page
+  → Lists all auto-created barangays (from GeoMap setup)
+
+[Step 2] Click "Create Barangay Account" for a barangay
+  → Fill: barangay admin full name, email
+  → POST /api/barangay → creates bims_users account (role: barangay)
+
+[Step 3] System sends setup email to the barangay admin:
+  → POST /api/send-setup-email
+  → POST /api/generate-setup-token → generates one-time JWT setup link
+  → Email contains link: {BASE_URL}/setup-account?token=...
+  → Link expires (token-based)
+
+[If email fails] Municipality admin can resend the setup email later from the Barangays page
+```
+
+---
+
+### 14.4 — Phase 3: Barangay Account Activation (BIMS — Barangay Admin)
+
+**Who:** Newly created barangay admin (received email from Phase 2)  
+**Where:** BIMS → `/setup-account?token=...` (SetupAccount.jsx)
+
+```
+[Step 1] Barangay admin clicks link in setup email
+  → Validates token: POST /api/validate-setup-token
+  → If token invalid/expired → error shown, must request resend from municipality admin
+
+[Step 2] SetupAccount form:
+  - Set password (min 8 chars, uppercase + lowercase + number required)
+  - Confirm password
+
+[Step 3] On submit → account activated, redirected to BIMS login
+
+[Step 4] Barangay admin logs in → auto-redirected to /admin/barangay/setup (BarangaySetupForm)
+  Form requires:
+  - Confirm barangay name and code (pre-filled from GIS)
+  - Enter: email, contact number
+  - Upload: Barangay Logo (required)
+  - Upload: Certificate Background (optional — used on printed certificates)
+  - Upload: Organization Chart image (optional)
+  - Select barangay boundary on map (MunicipalityBarangaysMap)
+
+  On submit → PUT /{targetId}/barangay (multipart/form-data)
+    → Saves images to uploads/
+    → Sets barangay setup_status = 'active'
+    → Redirects to /admin/barangay/dashboard
+```
+
+---
+
+### 14.5 — Phase 4: Certificate Template Setup (BIMS — Municipality Admin)
+
+**Who:** Municipality admin  
+**Where:** BIMS → `/admin/municipality/certificate-templates` (CertificateTemplatesPage)
+
+```
+[Step 1] Navigate to Certificate Templates
+  → GET /api/certificates/templates?municipalityId={id}
+  → Lists existing templates (empty on fresh install)
+
+[Step 2] Click "New Template" → /admin/municipality/certificate-templates/new (TemplateEditorPage)
+  → Enter: template name, certificate type (e.g. 'barangay_clearance')
+  → Write HTML content with {{ placeholder }} tokens (see OVERHAUL.md §14 for full token list)
+  → Preview rendered output before saving
+  → POST /api/certificates/templates
+
+[Step 3] Activate template → PUT /api/certificates/templates/:id { isActive: true }
+
+[Repeat] for each certificate type the municipality uses:
+  barangay_clearance, indigency, residency, good_moral, etc.
+```
+
+**Note:** Templates are municipality-wide. All barangays under the municipality share the same templates. Individual barangays cannot have different templates per type.
+
+---
+
+### 14.6 — Phase 5: E-Services Admin Setup
+
+**Who:** E-Services admin (created during infrastructure setup)  
+**Where:** E-Services admin panel — `http://localhost:5174/admin`
+
+```
+[Step 1] Log in at /admin/login
+
+[Step 2] Configure services:
+  → /admin/general-settings/smart-city-services
+  → Activate/configure services that residents can apply for
+  → Services are pre-seeded from seed.sql (certificate services + more)
+
+[Step 3] Configure tax profiles (if applicable):
+  → /admin/general-settings/tax-profiles
+  → Set computation rules per service
+
+[Step 4] Configure FAQs:
+  → /admin/general-settings/faq
+  → Edit or add portal FAQ entries
+
+[Step 5] Configure government programs:
+  → /admin/general-settings/government-program
+  → Enable programs for social amelioration module
+
+[Step 6] Manage user roles and permissions:
+  → /admin/access-control/role-management
+  → /admin/access-control/permissions
+  → /admin/access-control/user-management
+```
+
+---
+
+### 14.7 — Phase 6: System Is Live — Normal Operations Begin
+
+At this point, both systems are operational:
+
+| Capability | Ready |
+|---|---|
+| Portal residents can register | ✅ (address dropdowns populated from GIS) |
+| BIMS staff can review registrations | ✅ |
+| Residents can log in and view ID card | ✅ (after approval) |
+| Residents can register household | ✅ |
+| Residents can apply for services | ✅ |
+| Walk-in certificate requests | ✅ |
+| Certificate PDF generation | ✅ (requires templates from Phase 4) |
+| Bulk resident ID download | ✅ (requires ID background from Phase 1) |
+
+---
+
+### 14.8 — Setup Flow Gaps Found
+
+#### 🔴 GAP-11: No Enforced Setup Order Between MunicipalitySetupForm and GeoSetupPage
+
+`MunicipalitySetupForm` (uploads logo, writes metadata to `municipalities`) and `GeoSetupPage` (creates barangays from GIS) are **two independent pages** that both need to be completed. There is no wizard that combines them, no check that both are done, and no UI indication that one must follow the other.
+
+A municipality admin who completes the logo upload form but skips `GeoSetupPage` will reach the dashboard with a configured municipality but **zero barangays**. The portal address dropdowns will be empty. Resident registration will fail at address step.
+
+Conversely, a municipality admin who does GeoSetupPage first (auto-creates barangays) but skips the logo form will have no ID card backgrounds configured. All generated ID cards will be blank.
+
+**There is no completion checklist or validation that both setup steps are done.**
+
+---
+
+#### 🔴 GAP-12: Barangay Setup Token Has No Documented Expiry or Resend Flow
+
+`buildSetupLink.js` calls `POST /api/generate-setup-token`. `SetupAccount.jsx` validates with `POST /api/validate-setup-token`. The token is JWT-based, so it expires.
+
+However:
+- Token expiry duration is not documented anywhere in the frontend or `.env.example`
+- There is no "Resend setup email" button visible on the `SetupAccount` page when a token is expired
+- The fallback in `buildSetupLink.js` (if token generation fails) falls back to plain URL parameters with no security — barangay name, code, and email exposed in the URL
+
+A barangay admin who delays clicking the setup link gets an expired-token error with no self-service recovery path. They must contact the municipality admin to resend from `BarangaysPage`.
+
+---
+
+#### 🟠 GAP-13: Certificate Templates Must Be Set Up Before Certificate Queue Is Useful — No Prompt Exists
+
+When a barangay staff member first opens `/admin/barangay/certificates`, the queue may have requests waiting. Clicking "Generate PDF" on any item will fail if no certificate template has been uploaded for that certificate type (`certificateService.js` returns an error if no template found).
+
+The BIMS UI shows no warning that templates are required. Staff see the queue, click Generate, get an error, and have no indication why. There is no link from the certificate queue to the template management page, and template management is only accessible to municipality admin (not barangay admin).
+
+---
+
+#### 🟠 GAP-14: E-Services Has No Guided Setup — Services Are Pre-Seeded But Inactive by Default
+
+`seed.sql` inserts 9 certificate-type services with `is_active = false` (or no explicit active flag). There is no first-run wizard for the E-Services admin. On fresh install, the portal's services list is empty until an admin manually activates services via the admin panel.
+
+A portal visitor on a fresh install sees "No services available" with no explanation.
+
+---
+
+#### 🟠 GAP-15: No Single "System Readiness" Check Across Both Systems
+
+There is no endpoint or UI page that shows whether both systems are fully configured end-to-end:
+- GIS loaded?
+- Municipality configured?
+- Barangays created?
+- At least one barangay account active?
+- Certificate templates uploaded?
+- E-Services services activated?
+
+Each subsystem has its own `GET /api/setup/status` check, but no unified dashboard or health check spans both backends. A deployer has no single place to confirm the system is ready for residents.
+
+---
+
+*Section 14 added: 2026-03-25 21:44 | Vex 🔬*
+
+---
+
+## Section 15 — Full Purok Remnant Audit (2026-03-25 22:08)
+
+**Method:** Full codebase grep for all `purok*` references (case-insensitive), excluding `archive/`, `node_modules/`, `dist/`, `.git/`, and lines that are only inline removal comments. Every remaining live reference verified.
+
+---
+
+### 15.1 — Database Layer
+
+#### 🔴 CRITICAL-1: `household.queries.js` — `purok_id` in Active INSERT and UPDATE SQL
+
+**File:** `server/src/queries/household.queries.js`
+
+| Lines | Query | Content |
+|---|---|---|
+| 5 | INSERT (query 1) | `purok_id` in column list |
+| 68 | UPDATE (query 1) | `purok_id = $4` |
+| 232 | INSERT (query 2) | `purok_id` in column list |
+| 251 | UPDATE (query 2) | `purok_id = $4` |
+
+These are the raw SQL query strings used by `householdControllers.js` and `householdServices.js`. The `households` table in v2 has no `purok_id` column. Any household INSERT or UPDATE that flows through these queries will throw `column "purok_id" of relation "households" does not exist`.
+
+---
+
+#### 🔴 CRITICAL-2: `barangay.queries.js` — `INSERT_PUROK` / `UPDATE_PUROK` Exported and Imported
+
+**File:** `server/src/queries/barangay.queries.js` (lines 31–45)
+
+```sql
+export const INSERT_PUROK = `
+  INSERT INTO puroks (barangay_id, purok_name, purok_leader, description)...`
+
+export const UPDATE_PUROK = `
+  UPDATE puroks SET purok_name = $3, purok_leader = $4...`
+```
+
+Both are exported. Both are **imported** into `server/src/services/barangayServices.js` (lines 8–9). The `puroks` table does not exist in v2 schema. If any code path reaches these queries, PostgreSQL throws `relation "puroks" does not exist`.
+
+---
+
+#### 🔴 CRITICAL-3: `openApiControllers.js` — `h.purok_id` in Live Household SELECT
+
+**File:** `server/src/controllers/openApiControllers.js` (line 84)
+
+```sql
+SELECT h.id, h.house_number, h.street, h.purok_id, h.barangay_id, ...
+FROM households h
+```
+
+Active API endpoint. `h.purok_id` column does not exist in v2 `households` table. Any call to the Open API households endpoint returns a PostgreSQL error.
+
+---
+
+#### 🟠 MAJOR-1: `main-db.sql` Contains Full v1 Schema with `puroks` Table DDL
+
+**File:** `barangay-information-management-system-copy/main-db.sql`
+
+This is a `pg_dump` of a live database (contains a real password hash in the dump header). It includes the full v1 schema including `CREATE TABLE puroks`, `puroks_id_seq`, `puroks_pkey`, and `households.purok_id`. This file appears to be a production database export committed to the repository.
+
+**This file should not be in version control.** It contains a password hash. It is also a v1 schema export — any developer using it as a reference will be working from wrong schema.
+
+---
+
+#### 🟡 MEDIUM-1: `united-database/schema.sql` — Stale Comment References `puroks`
+
+**File:** `united-database/schema.sql` (line 14)
+
+```sql
+-- Removed: ... puroks
+```
+
+This is a comment — correctly noting puroks were removed. Not a defect; included for completeness. No live DDL for `puroks` exists in `schema.sql`. ✅
+
+---
+
+#### 🟡 MEDIUM-2: `united-database/migrations/01_migrate_bims.sql` — Migrates `puroks` Table
+
+**File:** `united-database/migrations/01_migrate_bims.sql` (lines 107–122)
+
+Migration script INSERTs into `public.puroks` and references `households.purok_id`. This migration is designed to run against the v1 → v2 transition, so referencing the old `puroks` table is expected in the migration context. However, if run on a fresh v2 database (no v1 source), it will fail — `puroks` table is not created by `schema.sql`.
+
+**Assessment:** This is a migration file, not production code. The defect is that it assumes a v1 source database exists. Running it on v2-only (no source DB) breaks.
+
+---
+
+#### 🟡 MEDIUM-3: `united-database/migrations/04_verify_integrity.sql` and `rollback.sql`
+
+Both reference `puroks` in integrity checks and rollback truncation. Same assessment as MEDIUM-2 — migration-context files designed for v1→v2 transition. Not runtime code.
+
+---
+
+#### 🟡 MEDIUM-4: `seed_gis.sql` — Barangay Names Contain "Purok"
+
+**File:** `united-database/seed_gis.sql` (lines 128–132)
+
+GIS barangay records named `'Purok A'`, `'Purok B'`, `'Purok C'`, `'Purok D1'`, `'Purok D2'` — these are actual PSGC-registered barangay names for a specific municipality in Eastern Samar. Not a code defect. The word "Purok" here is a proper geographic name in the GIS dataset, not a reference to the removed `puroks` architecture tier.
+
+---
+
+### 15.2 — BIMS Backend Controllers / Services
+
+#### 🔴 CRITICAL-4: `statisticsControllers.js` — `purokId` Extracted from `req.query` and Passed to All Stat Methods (21 occurrences)
+
+**File:** `server/src/controllers/statisticsControllers.js`
+
+Every statistics controller method extracts `purokId` from `req.query` and passes it to the service layer:
+
+```js
+const { barangayId, purokId } = req.query;
+const data = await Statistics.getAgeDemographics({ barangayId, purokId });
+```
+
+Affected methods: `getAgeDemographics`, `getGenderDemographics`, `getCivilStatusDemographics`, `getEducationAttainmentDemographics`, `getEmploymentStatusDemographics`, `getHouseholdSizeDemographics`, `getVoterDemographics`, `getSeniorCitizenDemographics`, `getIncomeDemographics`, `getMonthlyPopulationStats`, `getPopulationByClassification`, and more.
+
+These feed directly into the `statisticsServices.js` `if (purokId)` branches that reference `h.purok_id` — the column that does not exist in v2. As long as `purokId` is `undefined` (no param sent), the branches are skipped. But the plumbing remains fully armed.
+
+---
+
+#### 🔴 CRITICAL-5: `householdControllers.js` — `purokId` Extracted and Passed in 3 Controller Methods
+
+**File:** `server/src/controllers/householdControllers.js` (lines 48, 272, 290)
+
+`purokId` extracted from `req.query`/`req.body` and passed to service methods that use `household.queries.js` (see CRITICAL-1).
+
+---
+
+#### 🟠 MAJOR-2: `barangayControllers.js` — `purokId` Passed to Export Service (lines 743, 805)
+
+**File:** `server/src/controllers/barangayControllers.js`
+
+Two export controller functions pass `req.query.purokId` to `barangayServices.js` export methods — which use `h.purok_id` in their SQL (Section 11 CRITICAL-4).
+
+---
+
+#### 🟠 MAJOR-3: `municipalityControllers.js` — `purokId` Passed to Export Service (lines 170, 209)
+
+Same pattern as MAJOR-2 — municipality-level export endpoints pass `purokId` to `municipalityServices.js` which has `h.purok_id` in export SQL.
+
+---
+
+#### 🟠 MAJOR-4: `petsControllers.js` — `purokId` Extracted from `req.query` (line 118, 135)
+
+**File:** `server/src/controllers/petsControllers.js`
+
+`purokId` is extracted and passed to `petsServices.petList()`. In `petsServices.js`, `purokId` is accepted as a parameter (line 180) but **never used** in the SQL query body — the `if (purokId)` branch was removed but the parameter slot remains. Not a crash, but dead parameter plumbing.
+
+---
+
+### 15.3 — BIMS Frontend
+
+#### 🔴 CRITICAL-6: `household.queries.js` INSERT/UPDATE Submit `purok_id` → Crashes Backend
+
+Already documented (CRITICAL-1 above). The frontend path that triggers this:
+
+`HouseholdLocationForm.jsx` → submits `purok_id: data.purokId` → `householdUpdateService.js` (lines 23–24, 112–114, 192, 314–315) → `householdServices.js` → `household.queries.js` INSERT/UPDATE → **crash**.
+
+#### 🔴 CRITICAL-7: `useHouseholds.js` (features) and `hooks/useHouseholds.js` — Pass `purokId` as API Filter Param
+
+**File:** `client/src/features/household/hooks/useHouseholds.js` (lines 64–65, 70)
+**File:** `client/src/hooks/useHouseholds.js` (lines 61–62, 67)
+
+Both hooks send `purokId: filterPurok` as a query parameter on every household list fetch. The backend `householdControllers.js` extracts it and passes it to `householdServices.js` which has `WHERE h.purok_id = $N` SQL. If `filterPurok` is non-empty, it triggers a crash. Currently the filter UI is empty so the value is `undefined` — but the wiring is live.
+
+---
+
+#### 🔴 CRITICAL-8: `hooks/useDashboardData.js` — Sends `purokId` to Statistics API
+
+**File:** `client/src/hooks/useDashboardData.js` (lines 59, 268)
+
+```js
+if (selectedPurok) {
+  params.purokId = selectedPurok;
+}
+...
+...(selectedPurok && { purokId: selectedPurok }),
+```
+
+`DashboardPage.jsx` maintains `selectedPurok` state (line 59). If a `selectedPurok` value is ever set (e.g. from a filter that still renders), it sends `purokId` to the statistics endpoints — triggering the `if (purokId)` branch in `statisticsServices.js` which queries `h.purok_id`. Crash.
+
+---
+
+#### 🟠 MAJOR-5: `ResidentStats.jsx` — `filterPurok` Prop Accepted and Used as API Filter
+
+**File:** `client/src/features/barangay/residents/components/ResidentStats.jsx` (lines 9, 31–32)
+
+```js
+filterPurok = "",
+...
+if (filterPurok && filterPurok !== "all") {
+  params.barangayId = filterPurok;  // ← misassigned to barangayId, not purokId
+}
+```
+
+`filterPurok` is accepted as a prop and repurposed as `barangayId` — likely a patch that forgot to rename the prop. Still named `filterPurok` in the interface, which is misleading.
+
+---
+
+#### 🟠 MAJOR-6: `HouseholdStats.jsx` — `filterPurok` Sends `purokId` to API
+
+**File:** `client/src/features/household/components/HouseholdStats.jsx` (lines 9, 31–35)
+
+```js
+if (filterPurok && filterPurok !== "all") {
+  params.purokId = filterPurok;   // ← still sends purokId to backend
+}
+```
+
+Live API param. If `filterPurok` is set, `purokId` is sent to the household stats endpoint → backend `householdControllers.js` → `h.purok_id` SQL → crash.
+
+---
+
+#### 🟠 MAJOR-7: `HouseholdForm.jsx` — Dead `purokId` State Logic with Hardcoded Purok Names
+
+**File:** `client/src/features/household/components/HouseholdForm.jsx` (lines 478, 1466–1470)
+
+```js
+// Resident and purok options for ReactSelect
+...
+purok: (() => {
+  const purokId = form.watch("purokId");
+  if (purokId === "1") return "Purok 1";
+  if (purokId === "2") return "Purok 2";
+  if (purokId === "3") return "Purok 3";
+```
+
+Live code that watches `purokId` form state and maps it to hardcoded purok name strings. Since there are no puroks, `purokId` is always empty and this always returns `undefined`. Dead path but still live code.
+
+---
+
+#### 🟠 MAJOR-8: `householdUpdateService.js` — Normalizes and Passes `purok_id`/`purokId` Through Update Payloads
+
+**File:** `client/src/features/household/services/householdUpdateService.js` (lines 23–24, 112–114, 192, 314–315)
+
+Actively normalizes `purok_id` → `purokId` for camelCase and includes `purokId` in numeric field list. This is part of the household update transformation pipeline — any household update passes through here and potentially sends `purokId` to the backend.
+
+---
+
+#### 🟠 MAJOR-9: `DashboardPage.jsx` — Maintains `selectedPurok` State, Passes to All Dashboard Components
+
+**File:** `client/src/pages/admin/shared/DashboardPage.jsx` (lines 59, 68, 97, 99, 113, 115, 129, 131, 148)
+
+`selectedPurok` is initialized and passed as a prop to every dashboard stats component. If any component sets it to a non-null value, it propagates to `useDashboardData.js` which sends `purokId` to the statistics API.
+
+---
+
+#### 🟠 MAJOR-10: `PetTable.jsx` — Renders `purok_name` Column in Table
+
+**File:** `client/src/features/pets/components/PetTable.jsx` (lines 88–89, 126)
+
+```js
+"purok_name",
+user?.target_type === "barangay" ? "Purok" : "Barangay"
+...
+pet.purok_name || "No Purok"
+```
+
+Active table column. Shows "Purok" header for barangay role and renders `pet.purok_name` per row. Data will always be missing/empty since pets are joined to residents → barangays, not puroks. Every pet row shows "No Purok".
+
+---
+
+#### 🟠 MAJOR-11: `usePets.js` — Fetches `GET /list/{id}/purok` on Mount, Passes `purokId` Filter
+
+**File:** `client/src/features/pets/hooks/usePets.js` (lines 14–15, 37–49, 82–85)
+
+Maintains `filterPurok` state, fetches puroks from API on mount, passes `purokId` query param when filter is set. Same crash-risk pattern as households.
+
+---
+
+#### 🟠 MAJOR-12: `ResidentsPage.jsx` — Live `GET /list/{id}/purok` on Mount, `purokId` in Every List Fetch
+
+**File:** `client/src/pages/admin/shared/ResidentsPage.jsx` (lines 134–135, 308–316, 342–347, 378)
+
+Maintains `filterPurok` + `puroks` state. Fetches puroks endpoint on mount. Sends `purokId` param on every resident list request when filter is set.
+
+---
+
+#### 🟠 MAJOR-13: `ResidentsFilters.jsx` — `filterPurok`/`setFilterPurok` Props Still in Component Interface
+
+**File:** `client/src/features/barangay/residents/components/ResidentsFilters.jsx` (lines 15–16, 95, 97)
+
+Props accepted and wired to a location options dropdown. If the dropdown renders a purok option and a user selects it, `filterPurok` is set and the crash chain begins.
+
+---
+
+#### 🟠 MAJOR-14: `HouseholdsFilters.jsx` — Same Pattern as `ResidentsFilters.jsx`
+
+**File:** `client/src/features/household/components/HouseholdsFilters.jsx` (lines 10–11, 76, 78)
+
+Same structure — `filterPurok`/`setFilterPurok` props in interface, wired to filter dropdown.
+
+---
+
+#### 🟡 MEDIUM-1: `AddResidentDialog.jsx` — `purok_id → purokId` Field Mapping Still Present
+
+**File:** `client/src/features/barangay/residents/AddResidentDialog.jsx` (line 141)
+
+```js
+purok_id: "purokId",
+```
+
+A field name mapping from snake_case to camelCase for a field that no longer exists. Dead mapping.
+
+---
+
+#### 🟡 MEDIUM-2: `ResidentViewDialog.jsx` — `puroks` Prop in Component Signature
+
+**File:** `client/src/features/barangay/residents/components/ResidentViewDialog.jsx` (line 99)
+
+`puroks` accepted as prop. Unused beyond this line (already confirmed in previous audit). Stale interface.
+
+---
+
+#### 🟡 MEDIUM-3: `dashboardUtils.js` — `selectedPurok` and `puroks` in `getFilterDescription()`
+
+**File:** `client/src/utils/dashboardUtils.js` (lines 146, 148, 159–162)
+
+```js
+if (selectedPurok) {
+  const purok = puroks.find((p) => p.purok_id.toString() === selectedPurok);
+  description += ` - ${purok.purok_name}`;
+}
+```
+
+Live utility function. If `selectedPurok` is non-null and `puroks` array is empty, `purok` is `undefined` → `purok.purok_name` throws `Cannot read properties of undefined`. Runtime error if this code path is ever triggered.
+
+---
+
+#### 🟡 MEDIUM-4: `householdSchema.jsx` — `purokId: z.string().optional()` in Global Zod Schema
+
+**File:** `client/src/utils/householdSchema.jsx` (line 6)
+
+Field still declared in the global household Zod validation schema. Harmless since it's `.optional()`, but any form using this schema still technically accepts and validates `purokId`.
+
+---
+
+#### 🟡 MEDIUM-5: `Sidebar.jsx` — "Manage purok divisions" Tooltip Still Present
+
+**File:** `client/src/components/layouts/Sidebar.jsx` (line 332)
+
+```js
+{item.title === "Puroks" && "Manage purok divisions"}
+```
+
+Tooltip text rendered when a sidebar item titled "Puroks" is shown. The Puroks route is removed from the active router, but this text lives in the sidebar component. If the Puroks nav item is ever re-added (e.g. during a regression), this description is wrong and misleading.
+
+---
+
+#### 🟡 MEDIUM-6: `SettingsPage.jsx` — References Puroks in Data Export Description
+
+**File:** `client/src/pages/admin/shared/SettingsPage.jsx` (line 1667)
+
+```
+• Puroks: Purok subdivisions and leaders
+```
+
+Shown in a data export/backup description section. Tells admins their export includes purok data — it does not.
+
+---
+
+#### 🟡 MEDIUM-7: `GuidePage.jsx` — Dashboard Tips Reference Purok Filtering
+
+**File:** `client/src/pages/admin/shared/GuidePage.jsx` (lines 68, 199)
+
+```
+"Filter data by barangay and purok"
+"Filter data by purok areas"
+```
+
+In-app guide still advertises purok filtering as a feature. The filter doesn't exist. Users who follow this guidance will find no such option.
+
+---
+
+#### 🟡 MEDIUM-8: `RequestsPage.jsx` — `purok_name` in Address Formatting (3 occurrences)
+
+**File:** `client/src/pages/admin/barangay/RequestsPage.jsx` (lines 379, 1286, 2693, 2857)
+
+`request.resident_info.purok_name` used in address string construction. Will always be empty/undefined. Not a crash (uses `|| ""` fallback), but produces malformed address strings.
+
+---
+
+#### 🟡 MEDIUM-9: `DeveloperPortal.jsx` — `purok_id: 0` in Sample API Payload
+
+**File:** `client/src/pages/public/DeveloperPortal.jsx` (line 49)
+
+Example household API payload shown to developers includes `"purok_id": 0`. Developers referencing this will build integrations that send `purok_id` — which will crash against v2.
+
+---
+
+### 15.4 — Puroks Feature Directory — Fully Intact
+
+**Directory:** `client/src/features/barangay/puroks/components/`
+
+All 4 files contain live, functional code:
+
+| File | Content |
+|---|---|
+| `AddPurokDialog.jsx` | Full form modal — POST to purok API |
+| `EditPurokDialog.jsx` | Full edit form — uses `purok.purok_name` |
+| `DeleteConfirmationDialog.jsx` | Delete confirmation — renders `purok?.purok_name` |
+| `index.js` | Barrel export of all 3 dialogs |
+
+`PuroksPage.jsx` also still exists at `client/src/pages/admin/barangay/PuroksPage.jsx` — imports and uses all 3 dialogs from the feature directory. The page is not registered in the active router (commented out in `App.jsx`) but the code is completely functional and re-activatable with a single line.
+
+---
+
+### 15.5 — Consolidated Purok Remnant Matrix
+
+| # | File | Type | Lines | Severity |
+|---|---|---|---|---|
+| 1 | `server/src/queries/household.queries.js` | INSERT/UPDATE SQL with `purok_id` column | 5, 68, 232, 251 | 🔴 CRITICAL |
+| 2 | `server/src/queries/barangay.queries.js` | `INSERT_PUROK`/`UPDATE_PUROK` exported, imported by barangayServices | 31–45 | 🔴 CRITICAL |
+| 3 | `server/src/controllers/openApiControllers.js` | `SELECT h.purok_id` in live households query | 84 | 🔴 CRITICAL |
+| 4 | `server/src/controllers/statisticsControllers.js` | `purokId` extracted from `req.query` in 21 stat methods | 7–221 | 🔴 CRITICAL |
+| 5 | `server/src/controllers/householdControllers.js` | `purokId` extracted and passed to SQL service | 48, 272, 290 | 🔴 CRITICAL |
+| 6 | `client/src/features/household/hooks/useHouseholds.js` | Sends `purokId` in every list fetch | 64–70 | 🔴 CRITICAL |
+| 7 | `client/src/hooks/useHouseholds.js` | Same as above | 61–67 | 🔴 CRITICAL |
+| 8 | `client/src/hooks/useDashboardData.js` | Sends `purokId` to stats API when selectedPurok set | 58–59, 268 | 🔴 CRITICAL |
+| 9 | `server/src/controllers/barangayControllers.js` | `purokId` passed to export service with `h.purok_id` SQL | 743, 805 | 🟠 MAJOR |
+| 10 | `server/src/controllers/municipalityControllers.js` | Same | 170, 209 | 🟠 MAJOR |
+| 11 | `server/src/controllers/petsControllers.js` | `purokId` accepted, never used in SQL (dead) | 118, 135 | 🟠 MAJOR |
+| 12 | `client/src/features/household/components/HouseholdStats.jsx` | Sends `purokId` to API | 31–35 | 🟠 MAJOR |
+| 13 | `client/src/features/household/components/HouseholdForm.jsx` | Hardcoded purok name mapping | 1466–1470 | 🟠 MAJOR |
+| 14 | `client/src/features/household/services/householdUpdateService.js` | Normalizes/passes `purok_id`/`purokId` in update payloads | 23–24, 112–114, 192, 314–315 | 🟠 MAJOR |
+| 15 | `client/src/pages/admin/shared/DashboardPage.jsx` | `selectedPurok` state propagated to all dashboard components | 59–148 | 🟠 MAJOR |
+| 16 | `client/src/features/pets/components/PetTable.jsx` | Renders `purok_name` column | 88–89, 126 | 🟠 MAJOR |
+| 17 | `client/src/features/pets/hooks/usePets.js` | Fetches puroks on mount, sends `purokId` filter | 37–49, 82–85 | 🟠 MAJOR |
+| 18 | `client/src/pages/admin/shared/ResidentsPage.jsx` | Fetches puroks on mount, sends `purokId` in every list request | 134–135, 308–316, 342–347 | 🟠 MAJOR |
+| 19 | `client/src/features/barangay/residents/components/ResidentsFilters.jsx` | `filterPurok` in component interface | 15–16, 95, 97 | 🟠 MAJOR |
+| 20 | `client/src/features/household/components/HouseholdsFilters.jsx` | Same | 10–11, 76, 78 | 🟠 MAJOR |
+| 21 | `client/src/features/barangay/residents/components/ResidentStats.jsx` | `filterPurok` prop, misassigned as `barangayId` | 9, 31–32 | 🟠 MAJOR |
+| 22 | `main-db.sql` | v1 production DB dump committed to repo — contains puroks DDL + password hash | — | 🟠 MAJOR |
+| 23 | `client/src/features/barangay/puroks/` (full directory) | All 4 files live and functional, re-activatable with 1 line | — | 🟠 MAJOR |
+| 24 | `client/src/pages/admin/barangay/PuroksPage.jsx` | Full page, unrouted but live | — | 🟠 MAJOR |
+| 25 | `client/src/features/barangay/residents/AddResidentDialog.jsx` | Stale field mapping `purok_id → purokId` | 141 | 🟡 MEDIUM |
+| 26 | `client/src/features/barangay/residents/components/ResidentViewDialog.jsx` | `puroks` prop in signature | 99 | 🟡 MEDIUM |
+| 27 | `client/src/utils/dashboardUtils.js` | `selectedPurok` check — `purok.purok_name` crash if triggered | 146–162 | 🟡 MEDIUM |
+| 28 | `client/src/utils/householdSchema.jsx` | `purokId: z.string().optional()` | 6 | 🟡 MEDIUM |
+| 29 | `client/src/components/layouts/Sidebar.jsx` | "Manage purok divisions" tooltip | 332 | 🟡 MEDIUM |
+| 30 | `client/src/pages/admin/shared/SettingsPage.jsx` | Export description mentions puroks | 1667 | 🟡 MEDIUM |
+| 31 | `client/src/pages/admin/shared/GuidePage.jsx` | Dashboard tips reference purok filtering | 68, 199 | 🟡 MEDIUM |
+| 32 | `client/src/pages/admin/barangay/RequestsPage.jsx` | `purok_name` in address strings | 379, 1286, 2693, 2857 | 🟡 MEDIUM |
+| 33 | `client/src/pages/public/DeveloperPortal.jsx` | Sample API payload shows `purok_id: 0` | 49 | 🟡 MEDIUM |
+| 34 | `united-database/migrations/01_migrate_bims.sql` | Migrates puroks data (migration context only) | 107–122 | 🟡 MEDIUM |
+| 35 | `united-database/migrations/04_verify_integrity.sql` | Checks puroks FK integrity | 38–52 | 🟡 MEDIUM |
+| 36 | `united-database/migrations/rollback.sql` | Truncates puroks in rollback | 111 | 🟡 MEDIUM |
+
+**Totals: 8 CRITICAL · 16 MAJOR · 12 MEDIUM · 36 findings across 33 files**
+
+---
+
+*Section 15 added: 2026-03-25 22:08 | Vex 🔬*
+
+---
+
+## Section 16 — Fixes Applied (2026-03-25)
+
+*This section documents all fixes applied on 2026-03-25*
+
+### Fixed Issues
+
+| # | Finding | System | Fix Applied |
+|---|---|---|---|
+| 1 | `resident_status` → `status` column mismatch | BIMS Frontend | Changed all `resident_status` references to `status` in ResidentInfoForm.jsx, ResidentViewDialog.jsx, ResidentsPage.jsx, AddResidentDialog.jsx, DeveloperPortal.jsx |
+| 2 | `birthplace` → `birth_region`/`birth_province`/`birth_municipality` | BIMS Frontend | Updated schema, form fields, and data mappings in ResidentInfoForm.jsx, ResidentViewDialog.jsx, ResidentsPage.jsx, residentSchema.jsx, AutoRefreshTest.jsx |
+| 3 | `purok_id` in household INSERT/UPDATE | BIMS Backend | Removed `purok_id` from household.queries.js INSERT and UPDATE queries, updated householdServices.js to remove purokId parameter |
+| 4 | `purok_id` in openApiControllers.js | BIMS Backend | Removed `h.purok_id` from SELECT query in openApiControllers.js |
+| 5 | ResidentsPage fetches puroks on mount | BIMS Frontend | Removed puroks state, useEffect fetch, and puroks prop from ResidentsPage.jsx |
+| 6 | HouseholdLocationForm submits purok_id | BIMS Frontend | Removed `purok_id` from transformedData in HouseholdLocationForm.jsx |
+| 7 | modals/index.ts exports from non-existent dirs | E-Services Frontend | Already fixed - file only exports from './roles' |
+| 8 | PortalEServices endpoint | E-Services Frontend | Already fixed - uses `/services/active` not `/e-services` |
+| 9 | barangay.queries.js - INSERT_PUROK/UPDATE_PUROK exports | BIMS Backend | Set to null (tombstone) and removed imports from barangayServices.js |
+| 10 | statisticsControllers.js - purokId in 21 methods | BIMS Backend | Removed purokId extraction and passing from all statistics controller methods |
+| 11 | householdControllers.js - purokId extraction | BIMS Backend | Removed purokId from householdList function |
+| 12 | barangayControllers.js - purokId in exports | BIMS Backend | Removed purokId from exportResidents and exportHouseholds filters |
+| 13 | municipalityControllers.js - purokId in exports | BIMS Backend | Removed purokId from exportResidents and exportHouseholds filters |
+| 14 | PetsPage.jsx - purok fetch and display | BIMS Frontend | Removed puroks state, fetch effect, and purok_name display |
+| 15 | usePets.js - purok fetch and filter | BIMS Frontend | Removed puroks state, fetchPuroks function, and filter logic; kept backward-compatible stubs |
+| 16 | HouseholdStats.jsx - purokId filter | BIMS Frontend | Removed purokId from API params |
+| 17 | useDashboardData.js - purokId param | BIMS Frontend | Removed purokId from API params in two locations |
+| 18 | PetTable.jsx - purok_name column | BIMS Frontend | Changed to always show barangay_name |
+| 19 | E-Services subscriberGrowthTrends | E-Services Frontend | Already fixed - interface correctly uses `active`/`pending` |
+| 20 | E-Services subscriberName vs residentName | E-Services Frontend | Already fixed - RecentActivity.tsx uses `residentName` |
+| 21 | statisticsServices.js - purokId in SQL | BIMS Backend | Disabled all purokId code paths, added note about v2 removal |
+| 22 | dashboardUtils.js - selectedPurok crash | BIMS Frontend | Removed purok lookup, added backward-compat note |
+| 23 | householdSchema.jsx - purokId field | BIMS Frontend | Removed purokId from Zod schema |
+| 24 | Sidebar.jsx - purok tooltip | BIMS Frontend | Removed purok tooltip text |
+| 25 | GuidePage.jsx - purok references | BIMS Frontend | Changed to reference barangay instead |
+| 26 | RequestsPage.jsx - purok_name in address | BIMS Frontend | Removed all purok_name references from address formatting |
+| 27 | household.queries.js - SYNC queries | BIMS Backend | Removed purok_id from SYNC_HOUSEHOLD_INSERT and SYNC_HOUSEHOLD_UPDATE |
+| 28 | certificateService.js - nationality/religion | BIMS Backend | Added note about v2 schema removal - using defaults |
+| 29 | ResidentInfoForm.jsx - default values | BIMS Frontend | Fixed resident_status→status and birthplace→birth_region/province/municipality in useForm defaults |
+
+---
+
+*Section 16 added: 2026-03-25 | Claude Code*

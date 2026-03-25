@@ -12,7 +12,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useEffect, useState } from "react";
 
-// Default center is Borongan City
+// Default fallback coordinates — override via environment or barangay setup
 const DEFAULT_CENTER = [11.6081, 125.4311];
 
 function getSquarePolygon(center, area) {
@@ -206,9 +206,8 @@ export default function LeafletMap({
                 <div className="space-y-1">
                   <div className="font-semibold">{popup.houseHead}</div>
                   <div className="text-xs text-muted-foreground">
-                    {popup.houseNumber}
-                    {popup.purok ? `, ${popup.purok}` : ""}
-                  </div>
+                     {popup.houseNumber}
+                   </div>
                 </div>
               )}
             </Popup>
@@ -228,14 +227,13 @@ export default function LeafletMap({
                   <div className="font-semibold">
                     {popupData.houseHead || "Selected Location"}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {popupData.houseNumber}
-                    {popupData.purok ? `, ${popupData.purok}` : ""}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {selectedLocation[0].toFixed(6)},{" "}
-                    {selectedLocation[1].toFixed(6)}
-                  </div>
+                   <div className="text-xs text-muted-foreground">
+                     {popupData.houseNumber}
+                   </div>
+                   <div className="text-xs text-muted-foreground">
+                     {selectedLocation[0].toFixed(6)},{" "}
+                     {selectedLocation[1].toFixed(6)}
+                   </div>
                 </div>
               ) : (
                 <div className="space-y-1">
@@ -256,11 +254,10 @@ export default function LeafletMap({
           <Popup>
             {popupData ? (
               <div className="space-y-1">
-                <div className="font-semibold">{popupData.houseHead}</div>
-                <div className="text-xs text-muted-foreground">
-                  {popupData.houseNumber}
-                  {popupData.purok ? `, ${popupData.purok}` : ""}
-                </div>
+                 <div className="font-semibold">{popupData.houseHead}</div>
+                 <div className="text-xs text-muted-foreground">
+                   {popupData.houseNumber}
+                 </div>
               </div>
             ) : (
               "Selected Location"

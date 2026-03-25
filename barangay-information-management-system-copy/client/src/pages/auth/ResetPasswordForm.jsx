@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
-import logo from "@/assets/images/lgu-borongan.png";
+import logo from "@/assets/images/lgu-logo.png";
 import { ADMIN_ROUTES } from "@/constants/routes";
 
 const resetPasswordSchema = z
@@ -467,7 +467,7 @@ export const ResetPasswordForm = () => {
             <p>
               &copy; 2025 Barangay Information Management System. All rights reserved.
             </p>
-            <p className="mt-1">Developed for LGU Borongan</p>
+            <p className="mt-1">Developed for Local Government Units</p>
           </div>
         </div>
       </div>

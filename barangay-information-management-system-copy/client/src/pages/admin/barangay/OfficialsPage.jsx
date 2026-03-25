@@ -137,7 +137,7 @@ const OfficialsPage = () => {
       const barangay = response.data.data;
       if (barangay.organizational_chart_path) {
         const SERVER_URL =
-          import.meta.env.VITE_SERVER_URL || "http://13.211.71.85";
+          import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
         setOrgChartPath(`${SERVER_URL}/${barangay.organizational_chart_path}`);
       } else {
         setOrgChartPath(null);

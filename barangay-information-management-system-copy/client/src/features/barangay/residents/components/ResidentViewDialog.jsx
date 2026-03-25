@@ -116,11 +116,11 @@ const ResidentViewDialog = ({
   const [imageModalOpen, setImageModalOpen] = useState(false);
 
   const fetchPets = async () => {
-    if (!viewResident?.resident_id) return;
+    if (!viewResident?.id) return;
 
     setPetsLoading(true);
     try {
-      const response = await api.get(`/owner/${viewResident.resident_id}/pets`);
+      const response = await api.get(`/owner/${viewResident.id}/pets`);
       setPets(response.data.data || []);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -136,7 +136,7 @@ const ResidentViewDialog = ({
     if (activeTab === "pets") {
       fetchPets();
     }
-  }, [activeTab, viewResident?.resident_id]);
+  }, [activeTab, viewResident?.id]);
 
   return (
     <>
@@ -151,35 +151,6 @@ const ResidentViewDialog = ({
             <DialogDescription>
               View detailed information about the resident
             </DialogDescription>
-            {!hideActions && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <MoreHorizontal className="h-4 w-4" /> Actions
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onEditInfo?.(viewResident)}>
-                    <Edit className="h-4 w-4 mr-2" /> Edit Info
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onEditClassifications?.(viewResident)}
-                  >
-                    <BadgeCheck className="h-4 w-4 mr-2" /> Edit Classifications
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onEditImage?.(viewResident)}>
-                    <User className="h-4 w-4 mr-2" /> Edit Image
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => onDelete?.(viewResident)}
-                  >
-                    <Users className="h-4 w-4 mr-2" /> Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </DialogHeader>
           {viewResidentLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -286,9 +257,9 @@ const ResidentViewDialog = ({
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <Badge
-                              variant={getStatusColor(viewResident.resident_status)}
+                              variant={getStatusColor(viewResident.status)}
                             >
-                              {formatLabel(viewResident.resident_status)}
+                              {formatLabel(viewResident.status)}
                             </Badge>
                             <Badge variant="outline">
                               {getAge(viewResident.birthdate)} yrs old
@@ -386,7 +357,11 @@ const ResidentViewDialog = ({
                               <MapPin className="h-4 w-4 text-primary" />
                               <span className="font-semibold">Birthplace:</span>
                               <span className="ml-1 capitalize">
-                                {formatLabel(viewResident.birthplace) || "-"}
+                                {[
+                                  viewResident.birth_region,
+                                  viewResident.birth_province,
+                                  viewResident.birth_municipality
+                                ].filter(Boolean).join(", ") || "-"}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -446,12 +421,11 @@ const ResidentViewDialog = ({
                               <span className="font-semibold">Address:</span>
                               <span className="ml-1">
                                 {[
-                                  viewResident.house_number,
-                                  viewResident.street,
-                                  viewResident.purok_name,
-                                  viewResident.barangay_name,
-                                  viewResident.municipality_name,
-                                ]
+                                   viewResident.house_number,
+                                   viewResident.street,
+                                   viewResident.barangay_name,
+                                   viewResident.municipality_name,
+                                 ]
                                   .filter(Boolean)
                                   .map(formatLabel)
                                   .join(", ") || "-"}
@@ -668,13 +642,7 @@ const ResidentViewDialog = ({
                                     {householdInfo.street || "-"}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="h-4 w-4 text-primary" />
-                                  <span className="font-semibold">Purok:</span>
-                                  <span className="ml-1">
-                                    {householdInfo.purok_name || "-"}
-                                  </span>
-                                </div>
+                                {/* purok_name removed — puroks table dropped in v2 */}
                                 <div className="flex items-center gap-2">
                                   <Home className="h-4 w-4 text-primary" />
                                   <span className="font-semibold">Barangay:</span>
@@ -930,7 +898,7 @@ const ResidentViewDialog = ({
             {viewResident?.picture_path ? (
               <div className="w-full max-h-[90vh] flex items-center justify-center bg-black">
                 <img
-                  src={`${import.meta.env.VITE_SERVER_URL || "http://13.211.71.85"}/${viewResident.picture_path.replace(/\\/g, "/")}`}
+                  src={`${import.meta.env.VITE_SERVER_URL || "http://localhost:5000"}/${viewResident.picture_path.replace(/\\/g, "/")}`}
                   alt={`${formatLabel(viewResident?.first_name || '')} ${formatLabel(viewResident?.last_name || '')}`}
                   className="max-w-full max-h-[90vh] object-contain"
                   onError={(e) => {

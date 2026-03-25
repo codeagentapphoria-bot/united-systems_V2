@@ -32,13 +32,13 @@ const validateEnvironment = (): void => {
     errors.push('DATABASE_URL is required');
   }
 
-  // Validate CORS_ORIGIN format
-  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
-  if (corsOrigin && !corsOrigin.match(/^https?:\/\/.+/)) {
-    errors.push(
-      'CORS_ORIGIN must be a valid URL (e.g., http://localhost:5173 or https://example.com)'
-    );
-  }
+  // Validate CORS_ORIGIN — supports comma-separated list of URLs
+  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5174';
+  corsOrigin.split(',').map((o) => o.trim()).filter(Boolean).forEach((origin) => {
+    if (!origin.match(/^https?:\/\/.+/)) {
+      errors.push(`CORS_ORIGIN entry '${origin}' must be a valid URL`);
+    }
+  });
 
   // Validate timeout environment variables
   // Validate ACCESS_TOKEN_EXPIRES (default: 10m, range: 5-15 min)
@@ -106,14 +106,15 @@ const app: Application = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+// Supports comma-separated list of allowed origins (BIMS frontend + E-Services frontend)
+const _rawOrigins = process.env.CORS_ORIGIN || 'http://localhost:5174';
+const _allowedOrigins = _rawOrigins.split(',').map((o) => o.trim()).filter(Boolean);
+const corsOrigin = _allowedOrigins[0]; // for backward-compat usages below
 const apiBaseUrl = process.env.API_BASE_URL || `http://localhost:${PORT}`;
 
 // Build image sources for CSP - allow same origin, data URIs, and configured origins
 const imgSources = ["'self'", 'data:'];
-if (corsOrigin && corsOrigin !== apiBaseUrl) {
-  imgSources.push(corsOrigin);
-}
+_allowedOrigins.forEach((o) => { if (o !== apiBaseUrl) imgSources.push(o); });
 if (apiBaseUrl) {
   imgSources.push(apiBaseUrl);
 }
@@ -166,7 +167,11 @@ app.use(
 ); // Security headers
 app.use(
   cors({
-    origin: corsOrigin,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // allow server-to-server / curl
+      if (_allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`CORS: origin '${origin}' not allowed`));
+    },
     credentials: true,
   })
 );
@@ -295,8 +300,8 @@ app.get('/api', (_req: Request, res: Response) => {
 import addressRoutes from './routes/address.routes';
 import adminRoutes from './routes/admin.routes';
 import authRoutes from './routes/auth.routes';
-import citizenRoutes from './routes/citizen.routes';
-import citizenRegistrationRoutes from './routes/citizen-registration.routes';
+import portalRegistrationRoutes from './routes/portal-registration.routes';
+import portalHouseholdRoutes from './routes/portal-household.routes';
 import devRoutes from './routes/dev.routes';
 import faqRoutes from './routes/faq.routes';
 import governmentProgramRoutes from './routes/government-program.routes';
@@ -308,12 +313,12 @@ import paymentRoutes from './routes/payment.routes';
 import taxReassessmentRoutes from './routes/tax-reassessment.routes';
 import taxPreviewRoutes from './routes/tax-preview.routes';
 import roleRoutes from './routes/role.routes';
+import residentRoutes from './routes/resident.routes';
 import serviceRoutes from './routes/service.routes';
 import serviceFieldsRoutes from './routes/service-fields.routes';
-import eserviceRoutes from './routes/eservice.routes';
+// eserviceRoutes removed (AC1) — eservices table dropped; portal uses /api/services/active
 import socialAmeliorationSettingRoutes from './routes/social-amelioration-setting.routes';
 import socialAmeliorationRoutes from './routes/social-amelioration.routes';
-import subscriberRoutes from './routes/subscriber.routes';
 import transactionRoutes from './routes/transaction.routes';
 import uploadRoutes from './routes/upload.routes';
 import userRoutes from './routes/user.routes';
@@ -328,25 +333,23 @@ app.use('/api/dev', devRoutes);
 // File upload routes (strict limit - expensive operations)
 app.use('/api/upload', uploadLimiter, uploadRoutes);
 
-// Heavy operation routes (moderate limit)
-// Add specific routes here if you have reports, searches, etc.
-// When adding heavy operation routes, use: heavyOperationLimiter
-// Example: app.use('/api/reports', heavyOperationLimiter, reportRoutes);
-// Example: app.use('/api/search', heavyOperationLimiter, searchRoutes);
-
 // Light data fetch routes (lenient limit - normal navigation)
 app.use('/api/admin', apiLimiter, adminRoutes);
+// Address hierarchy (municipalities + barangays from DB — replaces old addresses reference table)
 app.use('/api/addresses', apiLimiter, addressRoutes);
-app.use('/api/subscribers', apiLimiter, subscriberRoutes);
+// Resident portal registration + BIMS admin review workflow
+app.use('/api/portal-registration', apiLimiter, portalRegistrationRoutes);
+// Resident portal household self-registration + family management
+app.use('/api/portal/household', apiLimiter, portalHouseholdRoutes);
 app.use('/api/transactions', apiLimiter, transactionRoutes);
 app.use('/api/roles', apiLimiter, roleRoutes);
 app.use('/api/permissions', apiLimiter, permissionRoutes);
 app.use('/api/users', apiLimiter, userRoutes);
-app.use('/api/citizens', apiLimiter, citizenRoutes);
-app.use('/api/citizen-registration', apiLimiter, citizenRegistrationRoutes);
+// Residents — unified person registry (admin CRUD + portal /me)
+app.use('/api/residents', apiLimiter, residentRoutes);
 app.use('/api/services', apiLimiter, serviceRoutes);
 app.use('/api/service-fields', apiLimiter, serviceFieldsRoutes);
-app.use('/api/e-services', apiLimiter, eserviceRoutes);
+// /api/e-services removed (AC1) — portal fetches services via /api/services/active
 app.use('/api/government-programs', apiLimiter, governmentProgramRoutes);
 app.use('/api/social-amelioration', apiLimiter, socialAmeliorationRoutes);
 app.use('/api/social-amelioration-settings', apiLimiter, socialAmeliorationSettingRoutes);

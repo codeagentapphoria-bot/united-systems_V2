@@ -1,3 +1,8 @@
+// =============================================================================
+// DEPRECATED — v2 schema removes the puroks table entirely.
+// Running this script against the v2 database WILL FAIL with a
+// relation-not-found error. Do not run against any v2 installation.
+// =============================================================================
 import { pool } from "../config/db.js";
 import logger from "../utils/logger.js";
 import { loadEnvConfig } from "../utils/envLoader.js";

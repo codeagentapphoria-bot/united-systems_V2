@@ -7,7 +7,7 @@ import { sendEmailSafely } from './email.service';
 export interface CreateTransactionNoteData {
   transactionId: string;
   message: string;
-  senderType: 'ADMIN' | 'SUBSCRIBER';
+  senderType: 'ADMIN' | 'RESIDENT';
   senderId: string;
   isInternal?: boolean;
 }
@@ -30,19 +30,19 @@ export const createTransactionNote = async (data: CreateTransactionNoteData) => 
     if (!admin) {
       throw new CustomError('Admin user not found', 404);
     }
-  } else if (data.senderType === 'SUBSCRIBER') {
-    const subscriber = await prisma.subscriber.findUnique({
+  } else if (data.senderType === 'RESIDENT') {
+    const resident = await prisma.resident.findUnique({
       where: { id: data.senderId },
     });
-    if (!subscriber) {
-      throw new CustomError('Subscriber not found', 404);
+    if (!resident) {
+      throw new CustomError('Resident not found', 404);
     }
-    // Subscribers cannot create internal notes
+    // Residents cannot create internal notes
     if (data.isInternal) {
-      throw new CustomError('Subscribers cannot create internal notes', 403);
+      throw new CustomError('Residents cannot create internal notes', 403);
     }
-    // Verify subscriber owns the transaction
-    if (subscriber.id !== transaction.subscriberId) {
+    // Verify resident owns the transaction
+    if (resident.id !== transaction.residentId) {
       throw new CustomError('Access denied', 403);
     }
   }
@@ -55,84 +55,56 @@ export const createTransactionNote = async (data: CreateTransactionNoteData) => 
       senderType: data.senderType,
       senderId: data.senderId,
       isInternal: data.isInternal || false,
-      isRead: false, // New notes are unread by default
+      isRead: false,
     },
   });
 
   // Send email notification (non-blocking, only for non-internal notes)
   if (!data.isInternal) {
     try {
-      // Get transaction with subscriber and service details
       const transactionWithDetails = await prisma.transaction.findUnique({
         where: { id: data.transactionId },
         include: {
-          subscriber: {
-            include: {
-              citizen: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                  phoneNumber: true,
-                },
-              },
-              nonCitizen: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                  phoneNumber: true,
-                },
-              },
+          resident: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              contactNumber: true,
             },
           },
           service: {
-            select: {
-              id: true,
-              name: true,
-            },
+            select: { id: true, name: true },
           },
         },
       });
 
-      if (transactionWithDetails) {
-        const subscriber =
-          transactionWithDetails.subscriber.citizen || transactionWithDetails.subscriber.nonCitizen;
-        const subscriberEmail = subscriber?.email;
+      if (transactionWithDetails?.resident?.email) {
+        const residentName = `${transactionWithDetails.resident.firstName} ${transactionWithDetails.resident.lastName}`;
 
-        if (subscriberEmail) {
-          const subscriberName = subscriber
-            ? `${subscriber.firstName} ${subscriber.lastName}`
-            : 'Subscriber';
+        if (data.senderType === 'ADMIN') {
+          const emailData = {
+            subscriberName: residentName,
+            transactionId: transactionWithDetails.transactionId,
+            referenceNumber: transactionWithDetails.referenceNumber,
+            serviceName: transactionWithDetails.service.name,
+            paymentStatus: transactionWithDetails.paymentStatus,
+            status: transactionWithDetails.status || undefined,
+            remarks: data.message,
+          };
 
-          // If admin sent the note, notify subscriber
-          if (data.senderType === 'ADMIN') {
-            const emailData = {
-              subscriberName,
-              transactionId: transactionWithDetails.transactionId,
-              referenceNumber: transactionWithDetails.referenceNumber,
-              serviceName: transactionWithDetails.service.name,
-              paymentStatus: transactionWithDetails.paymentStatus,
-              status: transactionWithDetails.status || undefined,
-              remarks: data.message,
-            };
+          const { html, text } = getTransactionStatusUpdateEmail({
+            ...emailData,
+            nextSteps: 'Please check your portal for the full message and respond if needed.',
+          });
 
-            const { html, text } = getTransactionStatusUpdateEmail({
-              ...emailData,
-              nextSteps: 'Please check your portal for the full message and respond if needed.',
-            });
-
-            await sendEmailSafely(
-              subscriberEmail,
-              `New Message: ${transactionWithDetails.service.name}`,
-              html,
-              text
-            );
-          }
-          // If subscriber sent the note, notify admins (optional - could be implemented with admin email list)
-          // For now, we'll skip admin notifications for subscriber notes
+          await sendEmailSafely(
+            transactionWithDetails.resident.email,
+            `New Message: ${transactionWithDetails.service.name}`,
+            html,
+            text
+          );
         }
       }
     } catch (error: any) {
@@ -145,10 +117,9 @@ export const createTransactionNote = async (data: CreateTransactionNoteData) => 
 
 export const getTransactionNotes = async (
   transactionId: string,
-  userType: 'admin' | 'subscriber' | 'dev',
+  userType: 'admin' | 'resident' | 'dev',
   userId: string
 ) => {
-  // Verify transaction exists
   const transaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
   });
@@ -157,31 +128,26 @@ export const getTransactionNotes = async (
     throw new CustomError('Transaction not found', 404);
   }
 
-  // Verify access
-  if (userType === 'subscriber') {
-    if (transaction.subscriberId !== userId) {
+  if (userType === 'resident') {
+    if (transaction.residentId !== userId) {
       throw new CustomError('Access denied', 403);
     }
   }
-  // Dev users are treated like admins (can see all notes)
 
-  // Build where clause - subscribers only see public notes, admins and devs see all
   const where: any = { transactionId };
-  if (userType === 'subscriber') {
+  if (userType === 'resident') {
     where.isInternal = false;
   }
 
-  const notes = await prisma.transactionNote.findMany({
+  return prisma.transactionNote.findMany({
     where,
     orderBy: { createdAt: 'asc' },
   });
-
-  return notes;
 };
 
 export const markNoteAsRead = async (
   noteId: string,
-  userType: 'admin' | 'subscriber' | 'dev',
+  userType: 'admin' | 'resident' | 'dev',
   userId: string
 ) => {
   const note = await prisma.transactionNote.findUnique({
@@ -193,25 +159,20 @@ export const markNoteAsRead = async (
     throw new CustomError('Note not found', 404);
   }
 
-  // Verify access
-  if (userType === 'subscriber') {
-    if (note.transaction.subscriberId !== userId) {
+  if (userType === 'resident') {
+    if (note.transaction.residentId !== userId) {
       throw new CustomError('Access denied', 403);
     }
-    // Subscribers cannot mark internal notes as read (they can't see them)
     if (note.isInternal) {
       throw new CustomError('Access denied', 403);
     }
   }
-  // Dev users are treated like admins (can mark any note as read)
 
-  // Mark as read
   const updatedNote = await prisma.transactionNote.update({
     where: { id: noteId },
     data: { isRead: true },
   });
 
-  // Emit WebSocket event for notification count updates
   emitTransactionNoteRead(
     updatedNote.id,
     updatedNote.transactionId,
@@ -224,10 +185,9 @@ export const markNoteAsRead = async (
 
 export const markAllNotesAsRead = async (
   transactionId: string,
-  userType: 'admin' | 'subscriber' | 'dev',
+  userType: 'admin' | 'resident' | 'dev',
   userId: string
 ) => {
-  // Verify transaction exists
   const transaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
   });
@@ -236,41 +196,28 @@ export const markAllNotesAsRead = async (
     throw new CustomError('Transaction not found', 404);
   }
 
-  // Verify access
-  if (userType === 'subscriber') {
-    if (transaction.subscriberId !== userId) {
+  if (userType === 'resident') {
+    if (transaction.residentId !== userId) {
       throw new CustomError('Access denied', 403);
     }
   }
-  // Dev users are treated like admins (can mark all notes as read)
 
-  // Build where clause
-  const where: any = {
-    transactionId,
-    isRead: false,
-  };
+  const where: any = { transactionId, isRead: false };
 
-  if (userType === 'subscriber') {
+  if (userType === 'resident') {
     where.isInternal = false;
   }
 
-  // Get the notes that will be marked as read before updating
   const notesToMark = await prisma.transactionNote.findMany({
     where,
-    select: {
-      id: true,
-      transactionId: true,
-      senderType: true,
-    },
+    select: { id: true, transactionId: true, senderType: true },
   });
 
-  // Mark all unread notes as read
   const result = await prisma.transactionNote.updateMany({
     where,
     data: { isRead: true },
   });
 
-  // Emit WebSocket events for each note marked as read
   notesToMark.forEach((note) => {
     emitTransactionNoteRead(note.id, note.transactionId, note.senderType, true);
   });
@@ -280,10 +227,9 @@ export const markAllNotesAsRead = async (
 
 export const getUnreadCount = async (
   transactionId: string,
-  userType: 'admin' | 'subscriber' | 'dev',
+  userType: 'admin' | 'resident' | 'dev',
   userId: string
 ) => {
-  // Verify transaction exists
   const transaction = await prisma.transaction.findUnique({
     where: { id: transactionId },
   });
@@ -292,28 +238,17 @@ export const getUnreadCount = async (
     throw new CustomError('Transaction not found', 404);
   }
 
-  // Verify access
-  if (userType === 'subscriber') {
-    if (transaction.subscriberId !== userId) {
+  if (userType === 'resident') {
+    if (transaction.residentId !== userId) {
       throw new CustomError('Access denied', 403);
     }
   }
-  // Dev users are treated like admins (can see all unread counts)
 
-  // Build where clause
-  const where: any = {
-    transactionId,
-    isRead: false,
-  };
+  const where: any = { transactionId, isRead: false };
 
-  if (userType === 'subscriber') {
+  if (userType === 'resident') {
     where.isInternal = false;
   }
 
-  // Count unread notes
-  const count = await prisma.transactionNote.count({
-    where,
-  });
-
-  return count;
+  return prisma.transactionNote.count({ where });
 };

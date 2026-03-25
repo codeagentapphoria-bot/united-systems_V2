@@ -1,6 +1,8 @@
-# Borongan United Systems
+# United Systems
 
-A unified digital governance platform for the **City of Borongan, Eastern Samar** combining the Barangay Information Management System (BIMS) and the Borongan E-Services portal (Multysis) into a single integrated solution backed by a shared Supabase database.
+A unified digital governance platform combining the **Barangay Information Management System (BIMS)** and the **E-Services portal (Multysis)** into a single integrated solution backed by a shared PostgreSQL database.
+
+> **Architecture:** v2 (March 2026 overhaul). See [`OVERHAUL.md`](./OVERHAUL.md) for the full plan, implementation status, and detailed technical specifications.
 
 ---
 
@@ -8,25 +10,56 @@ A unified digital governance platform for the **City of Borongan, Eastern Samar*
 
 ### BIMS — Barangay Information Management System
 
-A municipal-level management system used by barangay and city hall staff to manage:
+Used by **barangay and municipal staff** to:
 
-- Resident records, households, and puroks
-- Barangay officials and classifications
-- Pets and vaccination records
-- Inventories and archives
-- Certificate and appointment requests
-- GIS mapping and demographic statistics
-- Open API for third-party integrations
+- Review and approve resident registration requests (submitted via portal)
+- View and search resident records and households
+- Manage barangay officials, records, inventories, archives, pets
+- Set up the municipality via interactive GeoMap (auto-creates barangays from PSGC GeoJSON)
+- Bulk download / print resident ID cards as PDF
+- Process barangay certificate requests (walk-in and portal submissions in a unified queue)
+- Manage certificate templates (HTML-based, uploaded per municipality)
 
-### E-Services — Borongan E-Services Portal (Multysis)
+### E-Services — Multysis Portal
 
-A citizen-facing portal where Borongan residents can:
+A **citizen-facing portal** where residents:
 
-- Register as verified citizens
-- Apply for government services online (birth/death certificates, business permits, health certificates, and 60+ more)
-- Track transaction and request statuses
+- Register themselves with a username/password or Google account
+- Track registration request status
+- Apply for government services online (certificates, permits, and 60+ more)
+- Apply as a **guest** (no account required — tracked by reference number)
+- View their resident ID card
+- Manage their household
 - Access social amelioration and government programs
-- Sign in with Google OAuth
+
+---
+
+## What Changed in v2 (March 2026)
+
+### Removed
+
+| Removed | Replaced By |
+|---|---|
+| `citizens`, `non_citizens`, `subscribers` tables | Unified `residents` table |
+| `citizen_resident_mapping` bridge table | N/A — no longer two person stores |
+| `puroks` address tier | Barangay + street address (2-tier) |
+| `eservices` table | `services` table (handles both systems) |
+| `otp_verifications` table | N/A — OTP login dropped |
+| Phone/OTP portal login | Username + password |
+| Flutter mobile app (`mobile_app/bimsApp/`) | Registration centralized to portal — sync no longer needed |
+
+### Added
+
+| Addition | Details |
+|---|---|
+| Unified `residents` table | Single source of truth for all persons across both systems |
+| Username + password portal login | For residents without a Google account |
+| Guest application flow (AC2) | Non-residents can apply for services; tracked by reference number, no account needed |
+| Unified certificate queue (AC3) | Walk-in (BIMS counter) and portal requests handled in the same queue |
+| Template-based certificate generation (AC4) | Admins upload HTML templates with `{{ placeholder }}` tokens; PDFs generated via Puppeteer |
+| GeoJSON municipality setup | Admin selects municipality on map; barangays auto-created from PSGC GeoJSON |
+
+See [`OVERHAUL.md § 3–4`](./OVERHAUL.md) for full rationale behind each decision.
 
 ---
 
@@ -36,33 +69,24 @@ A citizen-facing portal where Borongan residents can:
 united-systems/
 │
 ├── barangay-information-management-system-copy/
-│   ├── client/                  ← BIMS Frontend (React + Vite + shadcn/ui)
-│   └── server/                  ← BIMS Backend  (Node.js + Express + raw SQL)
+│   ├── client/          ← BIMS Frontend  (React + Vite + shadcn/ui)
+│   └── server/          ← BIMS Backend   (Node.js + Express + raw SQL)
 │
 ├── borongan-eService-system-copy/
-│   ├── multysis-frontend/       ← E-Services Frontend (React + Vite + shadcn/ui)
-│   └── multysis-backend/        ← E-Services Backend  (TypeScript + Express + Prisma)
+│   ├── multysis-frontend/  ← E-Services Frontend (React + Vite + shadcn/ui)
+│   └── multysis-backend/   ← E-Services Backend  (TypeScript + Express + Prisma)
 │
 ├── united-database/
-│   ├── migrations/
-│   │   ├── 01_migrate_bims.sql       ← BIMS schema migration
-│   │   ├── 02_migrate_eservices.sql  ← E-Services schema migration
-│   │   ├── 03_fuzzy_match.sql        ← Citizen ↔ Resident identity linking
-│   │   ├── 04_verify_integrity.sql   ← Post-migration integrity checks
-│   │   └── rollback.sql              ← Full rollback script
-│   ├── schema.sql                    ← Unified schema (source of truth)
-│   ├── seed.sql                      ← Base seed (roles, permissions, GIS)
-│   ├── seed_gis.sql                  ← GIS boundary data
-│   ├── test_mutations_bims.sh        ← BIMS POST/PUT/DELETE route tests
-│   ├── test_mutations_eservice.sh    ← E-Services POST/PUT/DELETE route tests
-│   ├── test_fuzzy_match.sh           ← Fuzzy matching integration tests
-│   ├── MIGRATION_PLAN.md             ← Database merge design document
-│   └── prepare.sh                    ← Pre-migration preparation script
+│   ├── schema.sql       ← Unified schema v2 (source of truth)
+│   ├── seed.sql         ← Base seed (roles, permissions, default data)
+│   └── seed_gis.sql     ← GIS geometry data (Eastern Samar — required for GeoMap + portal)
 │
-├── archive/                     ← Original unmodified codebases (reference only)
+├── archive/             ← Original unmodified codebases (reference only, do not modify)
 │
-├── DEPLOYMENT.md                ← Full deployment guide for DevOps
-└── README.md                    ← This file
+├── OVERHAUL.md          ← Detailed architecture plan, requirements, decisions, API reference
+├── DEPLOYMENT.md        ← DevOps deployment guide
+├── REPORTS.md           ← QA validation report and fix checklist
+└── README.md            ← This file
 ```
 
 ---
@@ -71,16 +95,16 @@ united-systems/
 
 | Layer | BIMS | E-Services |
 |---|---|---|
-| **Frontend** | React 18 + Vite + shadcn/ui | React 18 + Vite + shadcn/ui |
-| **Backend** | Node.js + Express.js | TypeScript + Express.js |
-| **ORM / DB access** | Raw SQL (pg) | Prisma ORM |
-| **Database** | Supabase PostgreSQL (unified) | Supabase PostgreSQL (unified) |
+| **Frontend** | React + Vite + shadcn/ui | React + Vite + shadcn/ui |
+| **Backend** | Node.js + Express + raw SQL | TypeScript + Express + Prisma |
+| **Database** | PostgreSQL (unified, shared) | PostgreSQL (unified, shared) |
 | **Auth** | JWT (httpOnly cookies) | JWT (httpOnly cookies) |
-| **File uploads** | Multer | Multer |
+| **Portal auth** | — | Username/password + Google OAuth |
 | **Real-time** | — | Socket.io |
-| **Email** | Nodemailer (Gmail SMTP) | Nodemailer (Gmail SMTP) |
+| **Email** | Nodemailer | Nodemailer |
 | **Maps / GIS** | PostGIS + Leaflet | — |
-| **OAuth** | — | Google OAuth + Supabase Auth |
+| **File uploads** | Multer | Multer |
+| **PDF generation** | Puppeteer | — |
 
 ---
 
@@ -88,16 +112,13 @@ united-systems/
 
 ### Prerequisites
 
-- Node.js 18+
-- PostgreSQL client (`psql`) — for running seed scripts
-- Access to the Supabase project
+- Node.js 20+
+- PostgreSQL 14+ with PostGIS extension
+- `psql` CLI for running schema/seed files
 
-### 1. Clone and install dependencies
+### 1. Install dependencies
 
 ```bash
-git clone <repo-url> united-systems
-cd united-systems
-
 # BIMS Backend
 cd barangay-information-management-system-copy/server && npm install && cd ../..
 
@@ -113,8 +134,6 @@ cd borongan-eService-system-copy/multysis-frontend && npm install && cd ../..
 
 ### 2. Configure environment variables
 
-Each service has its own `.env` file. Copy the examples and fill in the values:
-
 ```bash
 # BIMS Backend
 cp barangay-information-management-system-copy/server/.env.example \
@@ -129,29 +148,46 @@ cp borongan-eService-system-copy/multysis-frontend/.env.example \
    borongan-eService-system-copy/multysis-frontend/.env
 ```
 
-The minimum required values are the Supabase database credentials.
-See `DEPLOYMENT.md` for the full list of environment variables.
+Minimum required variables per service are documented in [`OVERHAUL.md § 11`](./OVERHAUL.md).
 
-### 3. Start all services
+### 3. Set up the database
 
-Open four terminals:
+```bash
+export DB_URL="postgresql://<user>:<password>@<host>:5432/postgres"
+
+# Apply schema
+psql "$DB_URL" -f united-database/schema.sql
+
+# Load seed data
+psql "$DB_URL" -f united-database/seed.sql
+
+# Load GIS geometry data (required for GeoMap setup and portal registration)
+psql "$DB_URL" -f united-database/seed_gis.sql
+```
+
+> `seed_gis.sql` contains Eastern Samar province geometry. For a different province, see [`DEPLOYMENT.md — Deploying to a Different Province`](./DEPLOYMENT.md).
+
+### 4. Generate Prisma client
+
+```bash
+cd borongan-eService-system-copy/multysis-backend
+npx prisma generate
+```
+
+### 5. Start all services
 
 ```bash
 # Terminal 1 — BIMS Backend (port 5000)
-cd barangay-information-management-system-copy/server
-node server.js
+cd barangay-information-management-system-copy/server && node server.js
 
 # Terminal 2 — BIMS Frontend (port 5173)
-cd barangay-information-management-system-copy/client
-npm run dev
+cd barangay-information-management-system-copy/client && npm run dev
 
 # Terminal 3 — E-Services Backend (port 3000)
-cd borongan-eService-system-copy/multysis-backend
-npm run build && node dist/index.js
+cd borongan-eService-system-copy/multysis-backend && npm run dev
 
 # Terminal 4 — E-Services Frontend (port 5174)
-cd borongan-eService-system-copy/multysis-frontend
-npm run dev
+cd borongan-eService-system-copy/multysis-frontend && npm run dev
 ```
 
 | Service | URL |
@@ -161,162 +197,83 @@ npm run dev
 | E-Services Frontend | http://localhost:5174 |
 | E-Services Backend API | http://localhost:3000/api |
 
-### 4. Default admin accounts
+### 6. First-time BIMS setup
 
-| System | Email | Password | Role |
-|---|---|---|---|
-| BIMS | `bims_admin@borongan.gov.ph` | `Admin1234!` | admin (municipality) |
-| E-Services | `admin@eservice.com` | `Test1234!` | super_admin |
+After starting the system, a BIMS admin must complete the **Municipality Setup**:
 
-> ⚠️ Change these passwords before going to production.
+1. Log in to BIMS → **Setup → Municipality Setup**
+2. Click your municipality on the GeoMap
+3. Confirm — barangays are auto-created from PSGC GeoJSON data
 
----
-
-## Database
-
-Both systems share a single **Supabase PostgreSQL** instance.
-
-- **Supabase Project:** Borongan Unified System
-- **Project ID:** `exahyuahguriwrkkeuvm`
-- **Region:** ap-south-1 (AWS Singapore)
-
-### Schema highlights
-
-| Table group | Tables |
-|---|---|
-| BIMS core | `municipalities`, `barangays`, `puroks`, `residents`, `households`, `officials` |
-| BIMS features | `inventories`, `archives`, `pets`, `vaccines`, `requests`, `classification_types`, `resident_classifications` |
-| BIMS auth | `bims_users`, `api_keys` |
-| GIS | `gis_municipality`, `gis_barangays` |
-| E-Services core | `citizens`, `non_citizens`, `subscribers`, `services`, `transactions`, `appointments` |
-| E-Services features | `eservices`, `faqs`, `government_programs`, `social_amelioration_settings` |
-| E-Services auth | `eservice_users`, `roles`, `permissions`, `user_roles`, `role_permissions` |
-| Integration | `citizen_resident_mapping` — links E-Services citizens to BIMS residents |
-
-### Running migrations (fresh database)
-
-```bash
-export UNIFIED_DB_URL="postgresql://postgres.<project-id>:<password>@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
-
-# Apply unified schema
-psql "$UNIFIED_DB_URL" -f united-database/schema.sql
-
-# Run base seed
-psql "$UNIFIED_DB_URL" -f united-database/seed.sql
-
-# Import GIS data
-psql "$UNIFIED_DB_URL" -f united-database/seed_gis.sql
-
-# Seed E-Services data (services + e-government listings)
-cd borongan-eService-system-copy/multysis-backend
-npx ts-node src/database/seeds/run_missing_seeds.ts
-```
-
-### Fuzzy matching — citizen ↔ resident identity linking
-
-The `citizen_resident_mapping` table links E-Services citizens to their BIMS resident records using `pg_trgm` similarity scoring.
-
-```bash
-# Run after importing resident and citizen data
-psql "$UNIFIED_DB_URL" -f united-database/migrations/03_fuzzy_match.sql
-```
-
-| Score | Status | Meaning |
-|---|---|---|
-| ≥ 95 | `CONFIRMED` | Auto-confirmed match |
-| 85–94 | `PENDING` | Probable match — awaiting staff review |
-| Multiple matches | `NEEDS_REVIEW` | Ambiguous — staff must select the correct resident |
-| < 85 | *(not inserted)* | No reliable match found |
+Until setup is complete, the portal address dropdowns will be empty.
 
 ---
 
-## Testing
+## Key Workflows
 
-All mutation tests run against the live unified database. Both servers must be running first.
+### Resident Registration
+```
+Portal → Register (wizard) → BIMS admin reviews → Approve/Reject → Resident notified
+```
+Registration only happens via the portal. BIMS staff never create resident records manually.
 
-```bash
-cd united-systems/
-
-# Test all BIMS POST/PUT/DELETE routes
-bash united-database/test_mutations_bims.sh
-
-# Test all E-Services POST/PUT/DELETE routes
-bash united-database/test_mutations_eservice.sh
-
-# Test fuzzy matching integration
-bash united-database/test_fuzzy_match.sh
+### Guest Application
+```
+Portal → Apply as Guest → Fill name/contact/email → Submit → Reference number issued
+→ Track status at /portal/track?ref=TXN-XXXX (no login required)
 ```
 
-Expected results on a clean database:
+### Portal Login
+Two supported methods:
+- **Username + password** — for residents without a Google account
+- **Google OAuth** — sign in with Google
 
-| Test suite | Tests | Expected |
-|---|---|---|
-| BIMS mutations | 39 | 39 PASS, 0 FAIL |
-| E-Services mutations | 42 | 42 PASS, 0 FAIL, 4 SKIP |
-| Fuzzy match | 12 | 12 PASS, 0 FAIL |
+### Certificate Requests
+Both flows feed the same barangay certificate queue in BIMS:
+- **Walk-in** — BIMS staff enters at the counter (`requests` table)
+- **Portal** — resident submits online (`transactions` table)
 
----
+### Certificate Generation
+BIMS admins upload HTML templates with `{{ placeholder }}` tokens (e.g. `{{ resident.fullName }}`, `{{ officials.captain }}`). PDFs are generated on demand via Puppeteer. See [`OVERHAUL.md § 14`](./OVERHAUL.md) for the full token reference.
 
-## Key Integration Points
-
-### 1. BIMS warning on E-Services citizen approval
-
-When an admin reviews a citizen registration request in E-Services, the approval UI shows a banner indicating whether a matching BIMS resident record was found:
-
-| Status | Banner |
-|---|---|
-| `CONFIRMED` | Green — residency verified via BIMS |
-| `PENDING` | Blue — probable match, awaiting confirmation |
-| `NEEDS_REVIEW` | Orange — ambiguous, multiple residents matched |
-| `NOT_FOUND` | Amber — no BIMS record found, verify before approving |
-
-### 2. Open API (BIMS)
-
-BIMS exposes a public API for third-party integrations secured with API keys:
-
-```
-GET /api/openapi/residents    — resident data
-GET /api/openapi/households   — household data
-GET /api/openapi/families     — family groupings
-GET /api/openapi/barangays    — barangay list
-GET /api/openapi/statistics   — demographic statistics
-```
-
-Manage API keys at: **BIMS Admin → Open API**
-
----
-
-## Deployment
-
-See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the full DevOps deployment guide covering:
-
-- Vercel project setup for all four services
-- Environment variable reference tables
-- Pre-deployment fixes required (file uploads, `vercel.json`)
-- Google OAuth + Supabase configuration
-- Post-deployment checklist
-- Known limitations on Vercel (Socket.io, Redis)
+### Resident ID
+- Assigned when BIMS admin approves registration
+- Format: `RES-{YEAR}-{7-digit}` (e.g., `RES-2025-0000001`), per municipality
+- Viewable by resident in the portal (My ID page)
+- Bulk downloadable as PDF by BIMS admin
 
 ---
 
 ## Project Status
 
-| Item | Status |
+| Component | Status |
 |---|---|
-| Unified database schema | ✅ Deployed |
-| BIMS backend — unified DB | ✅ Complete |
-| E-Services backend — unified DB | ✅ Complete |
-| BIMS GET routes | ✅ All passing |
-| BIMS mutation routes | ✅ 39/39 passing |
-| E-Services GET routes | ✅ All passing |
-| E-Services mutation routes | ✅ 42/42 passing |
-| Fuzzy matching | ✅ Implemented and tested |
-| BIMS ↔ E-Services warning integration | ✅ Complete |
-| File uploads → Supabase Storage | ⏳ Pre-deployment task |
-| `vercel.json` for backends | ⏳ Pre-deployment task |
-| Production deployment | ⏳ Pending |
+| Database schema v2 | ✅ Written — v2 clean, puroks removed, FKs/triggers/indexes verified |
+| E-Services backend | ✅ TypeScript compiles clean — QA fixes applied (2026-03-25) |
+| E-Services frontend | ✅ QA fixes applied (2026-03-25) — build not yet formally verified |
+| BIMS backend | ✅ QA fixes applied (2026-03-25) — build not yet formally verified |
+| BIMS frontend | ✅ QA fixes applied (2026-03-25) — build not yet formally verified |
+| Database migration (fresh DB) | ⏳ Not yet run against Supabase production |
+| End-to-end registration test | ⏳ Not yet run |
+| Guest transaction test | ⏳ Not yet run |
+| Certificate template test | ⏳ Not yet run |
+| GeoJSON setup test | ⏳ Not yet run |
+| Bulk ID test | ⏳ Not yet run |
+
+> **Pending cleanup:** E-Services backend contains legacy `@ts-nocheck` files (`citizen.service.ts`, `subscriber.service.ts`, etc.) that are obsolete but retained for reference. These should be deleted once end-to-end testing confirms the system is working. See [`OVERHAUL.md § 15`](./OVERHAUL.md).
+
+See [`OVERHAUL.md § 10`](./OVERHAUL.md) for the full implementation checklist.
 
 ---
 
-*Borongan United Systems — City of Borongan, Eastern Samar*
-*Built March 2026*
+## Documentation
+
+| File | Contents |
+|---|---|
+| [`OVERHAUL.md`](./OVERHAUL.md) | Full architecture plan, requirements, decisions, implementation status, API reference |
+| [`DEPLOYMENT.md`](./DEPLOYMENT.md) | DevOps deployment guide (env vars, GIS setup, province configuration) |
+| [`REPORTS.md`](./REPORTS.md) | QA validation report and fix checklist (2026-03-25) |
+
+---
+
+*United Systems — Built March 2026*

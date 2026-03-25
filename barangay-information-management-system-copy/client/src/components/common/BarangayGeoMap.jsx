@@ -36,7 +36,7 @@ import { useBarangay } from "@/contexts/BarangayContext";
 import { handleErrorSilently } from "@/utils/errorHandler";
 import logger from "@/utils/logger";
 
-// Default center for Borongan City
+// Default fallback coordinates — override via environment or barangay setup
 const DEFAULT_CENTER = [11.6081, 125.4311];
 const DEFAULT_ZOOM = 12;
 
@@ -222,7 +222,7 @@ const BarangayGeoMap = () => {
     if (selectedBarangay) {
       return `Interactive map of ${selectedBarangay.name} with boundaries, facilities, and landmarks`;
     }
-    return "Interactive map of Borongan City with barangay boundaries and detailed information";
+    return "Interactive map of the municipality with barangay boundaries and detailed information";
   };
 
   if (loading) {

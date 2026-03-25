@@ -423,7 +423,7 @@ const MunicipalityBarangaysMap = React.memo(({
   // Calculate center from GeoJSON features
   const center =
     geoJsonData.features.length > 0
-      ? [11.6081, 125.4311] // Default to Borongan City
+      ? [11.6081, 125.4311] // Default fallback coordinates
       : [11.6081, 125.4311];
 
   return (

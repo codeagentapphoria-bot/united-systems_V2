@@ -71,26 +71,24 @@ SELECT
   h.id AS household_id,
   h.house_number,
   h.street,
-  pu.purok_name AS purok_name,
   b.barangay_name AS barangay_name,
-  CONCAT(h.house_number, ' ', COALESCE(h.street, '')) AS address
+  CONCAT(COALESCE(h.house_number, ''), ' ', COALESCE(h.street, '')) AS address
 FROM pets p
 LEFT JOIN residents r ON p.owner_id = r.id
 LEFT JOIN (
   -- Get household info for house heads
-  SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+  SELECT r.id as resident_id, h.id, h.house_number, h.street
   FROM residents r
   JOIN households h ON h.house_head = r.id
   UNION
   -- Get household info for family members
-  SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+  SELECT r.id as resident_id, h.id, h.house_number, h.street
   FROM residents r
   JOIN family_members fm ON fm.family_member = r.id
   JOIN families f ON f.id = fm.family_id
   JOIN households h ON h.id = f.household_id
 ) h ON h.resident_id = r.id
-LEFT JOIN puroks pu ON h.purok_id = pu.id
-LEFT JOIN barangays b ON pu.barangay_id = b.id
+LEFT JOIN barangays b ON b.id = r.barangay_id
 WHERE p.id = $1;
 `;
 
@@ -114,26 +112,24 @@ SELECT
   h.id AS household_id,
   h.house_number,
   h.street,
-  pu.purok_name AS purok_name,
   b.barangay_name AS barangay_name,
-  CONCAT(h.house_number, ' ', COALESCE(h.street, '')) AS address
+  CONCAT(COALESCE(h.house_number, ''), ' ', COALESCE(h.street, '')) AS address
 FROM pets p
 LEFT JOIN residents r ON p.owner_id = r.id
 LEFT JOIN (
   -- Get household info for house heads
-  SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+  SELECT r.id as resident_id, h.id, h.house_number, h.street
   FROM residents r
   JOIN households h ON h.house_head = r.id
   UNION
   -- Get household info for family members
-  SELECT r.id as resident_id, h.id, h.house_number, h.street, h.purok_id
+  SELECT r.id as resident_id, h.id, h.house_number, h.street
   FROM residents r
   JOIN family_members fm ON fm.family_member = r.id
   JOIN families f ON f.id = fm.family_id
   JOIN households h ON h.id = f.household_id
 ) h ON h.resident_id = r.id
-LEFT JOIN puroks pu ON h.purok_id = pu.id
-LEFT JOIN barangays b ON pu.barangay_id = b.id
+LEFT JOIN barangays b ON b.id = r.barangay_id
 WHERE p.uuid = $1;
 `;
 

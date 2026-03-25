@@ -11,8 +11,6 @@ export const usePets = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterSpecies, setFilterSpecies] = useState("all");
-  const [filterPurok, setFilterPurok] = useState("all");
-  const [puroks, setPuroks] = useState([]);
   const [barangays, setBarangays] = useState([]);
   const [sortBy, setSortBy] = useState("pet_name");
   const [sortOrder, setSortOrder] = useState("asc");
@@ -33,22 +31,6 @@ export const usePets = () => {
     autoRefresh: true,
     refreshDelay: 100,
   });
-
-  // Fetch puroks for filter
-  const fetchPuroks = useCallback(async () => {
-    if (user?.target_type === "barangay" && user?.target_id) {
-      try {
-        const res = await api.get(`/list/${user.target_id}/purok`);
-        setPuroks(res.data.data || []);
-      } catch (error) {
-        handleErrorSilently(error, "Fetch Puroks");
-        setPuroks([]);
-      }
-    } else {
-      // Initialize as empty array for non-barangay users
-      setPuroks([]);
-    }
-  }, [user?.target_type, user?.target_id]);
 
   // Fetch barangays for filter
   const fetchBarangays = useCallback(async () => {
@@ -79,16 +61,9 @@ export const usePets = () => {
         ...params,
       };
 
-      // Add purok/barangay filtering
+      // Add barangay filtering
       if (user?.target_type === "barangay") {
-        if (filterPurok !== "all") {
-          queryParams.purokId = filterPurok;
-        }
         queryParams.barangayId = user.target_id;
-      } else if (user?.target_type === "municipality") {
-        if (filterPurok !== "all") {
-          queryParams.barangayId = filterPurok;
-        }
       }
 
       const res = await api.get("/list/pets", {
@@ -111,13 +86,12 @@ export const usePets = () => {
     }
   };
 
-  // Fetch puroks and barangays on mount
+  // Fetch barangays on mount
   useEffect(() => {
     if (user?.target_type) {
-      fetchPuroks();
       fetchBarangays();
     }
-  }, [fetchPuroks, fetchBarangays, user?.target_type, user?.target_id]);
+  }, [fetchBarangays, user?.target_type, user?.target_id]);
 
   // Fetch pets when filters change
   useEffect(() => {
@@ -127,7 +101,6 @@ export const usePets = () => {
     perPage,
     searchTerm,
     filterSpecies,
-    filterPurok,
     sortBy,
     sortOrder,
     user?.target_type,
@@ -256,8 +229,8 @@ export const usePets = () => {
     loading,
     searchTerm,
     filterSpecies,
-    filterPurok,
-    puroks,
+    filterPurok: "all", // Puroks removed in v2 - always return "all"
+    puroks: [], // Puroks removed in v2
     barangays,
     sortBy,
     sortOrder,
@@ -266,7 +239,7 @@ export const usePets = () => {
     pagination,
     setSearchTerm,
     setFilterSpecies,
-    setFilterPurok,
+    setFilterPurok: () => {}, // No-op for backward compatibility
     setSortBy,
     setSortOrder,
     handleSort,

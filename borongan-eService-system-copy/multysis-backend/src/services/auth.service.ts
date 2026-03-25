@@ -1,11 +1,11 @@
 import prisma from '../config/database';
 import { generateRefreshToken, generateToken, TokenPayload } from '../utils/jwt';
-import { comparePassword, hashPassword } from '../utils/password';
-import { getWelcomeEmail } from './email-templates/account-notifications';
-import { sendEmailSafely } from './email.service';
-import { createOtp, verifyOtp } from './otp.service';
+import { comparePassword } from '../utils/password';
 import { createRefreshToken } from './refreshToken.service';
-import { isOtpEnabled } from './sms.service';
+
+// =============================================================================
+// TYPES
+// =============================================================================
 
 export interface AdminLoginData {
   email: string;
@@ -16,31 +16,16 @@ export interface AdminLoginData {
 }
 
 export interface PortalLoginData {
-  phoneNumber: string;
+  username: string;   // login by username (replaces phone number)
   password: string;
   deviceInfo?: string;
   ipAddress?: string;
   userAgent?: string;
 }
 
-export interface PortalSignupData {
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  extensionName?: string;
-  phoneNumber: string;
-  email?: string;
-  password: string;
-  region?: string;
-  province?: string;
-  municipality?: string;
-  motherFirstName?: string;
-  motherMiddleName?: string;
-  motherLastName?: string;
-  deviceInfo?: string;
-  ipAddress?: string;
-  userAgent?: string;
-}
+// =============================================================================
+// ADMIN LOGIN  (unchanged logic — email + password for eservice_users)
+// =============================================================================
 
 export const adminLogin = async (data: AdminLoginData) => {
   const user = await prisma.user.findUnique({
@@ -66,7 +51,6 @@ export const adminLogin = async (data: AdminLoginData) => {
   const token = generateToken(tokenPayload);
   const refreshToken = generateRefreshToken(tokenPayload);
 
-  // Store refresh token in database
   await createRefreshToken({
     userId: user.id,
     token: refreshToken,
@@ -87,457 +71,230 @@ export const adminLogin = async (data: AdminLoginData) => {
   };
 };
 
-export const verifyPortalCredentials = async (
-  data: PortalLoginData
-): Promise<{ subscriber: any; otpRequired: boolean }> => {
-  // Find subscriber gateway by phone number (check both citizen and nonCitizen)
-  const subscriberGateway = await (prisma as any).subscriber.findFirst({
-    where: {
-      OR: [
-        { citizen: { phoneNumber: data.phoneNumber } },
-        { nonCitizen: { phoneNumber: data.phoneNumber } },
-      ],
-    },
+// =============================================================================
+// PORTAL LOGIN  (username + password — replaces phone + OTP flow)
+// =============================================================================
+
+export const portalLogin = async (data: PortalLoginData) => {
+  // Find resident by username
+  const resident = await prisma.resident.findUnique({
+    where: { username: data.username },
     include: {
-      citizen: true,
-      nonCitizen: true,
+      credentials: true,
+      barangay: {
+        include: { municipality: true },
+      },
     },
   });
 
-  if (!subscriberGateway) {
+  if (!resident) {
     throw new Error('Invalid credentials');
   }
 
-  // Password is now stored in Subscriber table for both citizen and non-citizen
-  if (!subscriberGateway.password) {
+  if (!resident.credentials || !resident.credentials.password) {
     throw new Error('Invalid credentials');
   }
 
-  // Get status and subscriber data from appropriate source
-  let status: string;
-  let subscriberData: any;
-
-  if (subscriberGateway.type === 'CITIZEN' && subscriberGateway.citizen) {
-    status = subscriberGateway.citizen.residencyStatus || 'PENDING';
-    subscriberData = subscriberGateway.citizen;
-    // Citizens are always allowed to log in (they don't have the same status restrictions)
-  } else if (subscriberGateway.type === 'SUBSCRIBER' && subscriberGateway.nonCitizen) {
-    status = subscriberGateway.nonCitizen.status;
-    subscriberData = subscriberGateway.nonCitizen;
-
-    // Only allow ACTIVE subscribers to log in
-    // PENDING, EXPIRED, and BLOCKED accounts are not allowed
-    if (status !== 'ACTIVE') {
-      if (status === 'BLOCKED') {
-        throw new Error('Account is blocked');
-      } else if (status === 'PENDING') {
-        throw new Error('Account is pending activation. Please contact an administrator.');
-      } else if (status === 'EXPIRED') {
-        throw new Error('Account subscription has expired');
-      } else {
-        throw new Error('Account is not active. Please contact an administrator.');
-      }
-    }
-  } else {
-    throw new Error('Invalid credentials');
-  }
-
-  // Validate credentials - password is hashed for all subscribers
-  const isPasswordValid = await comparePassword(data.password.trim(), subscriberGateway.password);
-
+  const isPasswordValid = await comparePassword(data.password, resident.credentials.password);
   if (!isPasswordValid) {
     throw new Error('Invalid credentials');
   }
 
-  // Check if OTP is enabled via environment variable
-  const otpEnabled = isOtpEnabled();
-
-  if (otpEnabled) {
-    // Generate and send OTP
-    await createOtp(data.phoneNumber);
+  // Pending/rejected accounts cannot log in
+  if (resident.status === 'pending') {
+    throw new Error('Your registration is pending approval. Please wait for the barangay to review your application.');
+  }
+  if (resident.status === 'rejected') {
+    throw new Error('Your registration was not approved. Please visit your barangay hall for assistance.');
+  }
+  // Blocked / deleted accounts cannot log in
+  if (resident.status === 'inactive') {
+    throw new Error('Account is inactive. Please contact an administrator.');
+  }
+  if (resident.status === 'deceased' || resident.status === 'moved_out') {
+    throw new Error('Account is no longer active.');
   }
 
-  // Return subscriber data (without sensitive information)
-  const subscriberResponse: any = {
-    id: subscriberGateway.id,
-    firstName: subscriberData.firstName,
-    middleName: subscriberData.middleName,
-    lastName: subscriberData.lastName,
-    extensionName: subscriberData.extensionName,
-    phoneNumber: subscriberData.phoneNumber,
-    email: subscriberData.email,
+  const tokenPayload: TokenPayload = {
+    id: resident.id,
+    username: resident.username ?? undefined,
+    role: 'resident',
+    type: 'resident',
   };
 
-  // Add status field (different for citizens vs nonCitizens)
-  if (subscriberGateway.type === 'CITIZEN') {
-    subscriberResponse.status = subscriberData.residencyStatus || 'PENDING';
-  } else {
-    subscriberResponse.status = subscriberData.status;
-  }
+  const token = generateToken(tokenPayload);
+  const refreshToken = generateRefreshToken(tokenPayload);
+
+  await createRefreshToken({
+    residentId: resident.id,
+    token: refreshToken,
+    deviceInfo: data.deviceInfo,
+    ipAddress: data.ipAddress,
+    userAgent: data.userAgent,
+  });
 
   return {
-    subscriber: subscriberResponse,
-    otpRequired: otpEnabled,
+    resident: formatResidentResponse(resident),
+    token,
+    refreshToken,
   };
 };
 
-export interface VerifyPortalOtpData {
-  phoneNumber: string;
-  otp: string;
+// =============================================================================
+// GOOGLE OAUTH LOGIN  (resident credential lookup by googleId or email)
+// =============================================================================
+
+export interface GoogleLoginData {
+  googleId: string;
+  googleEmail: string;
   deviceInfo?: string;
   ipAddress?: string;
   userAgent?: string;
 }
 
-export const verifyPortalOtp = async (
-  data: VerifyPortalOtpData
-): Promise<{ subscriber: any; token: string; refreshToken: string }> => {
-  // Check if OTP is enabled via environment variable
-  const otpEnabled = isOtpEnabled();
+export interface GoogleLoginResult {
+  success: boolean;
+  error?: string;
+  errorCode?: 'NOT_REGISTERED' | 'ACCOUNT_PENDING' | 'ACCOUNT_REJECTED' | 'ACCOUNT_INACTIVE' | 'GOOGLE_AUTH_FAILED';
+  resident?: Record<string, unknown>;
+  token?: string;
+  refreshToken?: string;
+}
 
-  if (otpEnabled) {
-    // Verify OTP only if Twilio is configured
-    await verifyOtp(data.phoneNumber, data.otp);
-  } else {
-    // If OTP is disabled, accept a bypass code or skip verification
-    // This allows login to work when Twilio is not configured
-    if (data.otp !== 'BYPASS') {
-      // For security, we still verify the phone number exists
-      const subscriberGateway = await (prisma as any).subscriber.findFirst({
-        where: {
-          OR: [
-            { citizen: { phoneNumber: data.phoneNumber } },
-            { nonCitizen: { phoneNumber: data.phoneNumber } },
-          ],
+export const loginWithGoogle = async (data: GoogleLoginData): Promise<GoogleLoginResult> => {
+  try {
+    // Step 1: Find credentials by Google ID
+    let credentials = await prisma.residentCredential.findUnique({
+      where: { googleId: data.googleId },
+      include: {
+        resident: {
+          include: {
+            barangay: { include: { municipality: true } },
+          },
+        },
+      },
+    });
+
+    // Step 2: If not found by Google ID, try to find resident by email and auto-link
+    if (!credentials) {
+      const residentByEmail = await prisma.resident.findFirst({
+        where: { email: data.googleEmail },
+        include: {
+          credentials: true,
+          barangay: { include: { municipality: true } },
         },
       });
 
-      if (!subscriberGateway) {
-        throw new Error('Invalid phone number');
-      }
-    }
-  }
+      if (residentByEmail && residentByEmail.credentials) {
+        // Auto-link Google account
+        await prisma.residentCredential.update({
+          where: { id: residentByEmail.credentials.id },
+          data: {
+            googleId: data.googleId,
+            googleEmail: data.googleEmail,
+          },
+        });
 
-  // Find subscriber gateway by phone number (check both citizen and nonCitizen)
-  const subscriberGateway = await (prisma as any).subscriber.findFirst({
-    where: {
-      OR: [
-        { citizen: { phoneNumber: data.phoneNumber } },
-        { nonCitizen: { phoneNumber: data.phoneNumber } },
-      ],
-    },
-    include: {
-      citizen: true,
-      nonCitizen: true,
-    },
-  });
-
-  if (!subscriberGateway) {
-    throw new Error('Subscriber not found');
-  }
-
-  // Get status and subscriber data from appropriate source
-  let subscriberData: any;
-
-  if (subscriberGateway.type === 'CITIZEN' && subscriberGateway.citizen) {
-    subscriberData = subscriberGateway.citizen;
-  } else if (subscriberGateway.type === 'SUBSCRIBER' && subscriberGateway.nonCitizen) {
-    subscriberData = subscriberGateway.nonCitizen;
-  } else {
-    throw new Error('Subscriber data not found');
-  }
-
-  const tokenPayload: TokenPayload = {
-    id: subscriberGateway.id, // Use gateway ID
-    phoneNumber: data.phoneNumber,
-    role: 'subscriber',
-    type: 'subscriber',
-  };
-
-  const token = generateToken(tokenPayload);
-  const refreshToken = generateRefreshToken(tokenPayload);
-
-  // Store refresh token in database
-  await createRefreshToken({
-    subscriberId: subscriberGateway.id,
-    token: refreshToken,
-    deviceInfo: data.deviceInfo,
-    ipAddress: data.ipAddress,
-    userAgent: data.userAgent,
-  });
-
-  // Return subscriber data - handle both citizen and nonCitizen structures
-  const subscriberResponse: any = {
-    id: subscriberGateway.id,
-    firstName: subscriberData.firstName,
-    middleName: subscriberData.middleName,
-    lastName: subscriberData.lastName,
-    extensionName: subscriberData.extensionName,
-    phoneNumber: subscriberData.phoneNumber,
-    email: subscriberData.email,
-  };
-
-  // Add status field (different for citizens vs nonCitizens)
-  if (subscriberGateway.type === 'CITIZEN') {
-    subscriberResponse.status = subscriberData.residencyStatus || 'PENDING';
-  } else {
-    subscriberResponse.status = subscriberData.status;
-  }
-
-  return {
-    subscriber: subscriberResponse,
-    token,
-    refreshToken,
-  };
-};
-
-export const portalLogin = async (data: PortalLoginData) => {
-  // Find subscriber gateway by phone number (check both citizen and nonCitizen)
-  const subscriberGateway = await (prisma as any).subscriber.findFirst({
-    where: {
-      OR: [
-        { citizen: { phoneNumber: data.phoneNumber } },
-        { nonCitizen: { phoneNumber: data.phoneNumber } },
-      ],
-    },
-    include: {
-      citizen: true,
-      nonCitizen: true,
-    },
-  });
-
-  if (!subscriberGateway) {
-    throw new Error('Invalid credentials');
-  }
-
-  // Password is now stored in Subscriber table for both citizen and non-citizen
-  if (!subscriberGateway.password) {
-    throw new Error('Invalid credentials');
-  }
-
-  // Get status and subscriber data from appropriate source
-  let status: string;
-  let subscriberData: any;
-
-  if (subscriberGateway.type === 'CITIZEN' && subscriberGateway.citizen) {
-    status = subscriberGateway.citizen.residencyStatus || 'PENDING';
-    subscriberData = subscriberGateway.citizen;
-    // Citizens are always allowed to log in (they don't have the same status restrictions)
-  } else if (subscriberGateway.type === 'SUBSCRIBER' && subscriberGateway.nonCitizen) {
-    status = subscriberGateway.nonCitizen.status;
-    subscriberData = subscriberGateway.nonCitizen;
-
-    // Only allow ACTIVE subscribers to log in
-    // PENDING, EXPIRED, and BLOCKED accounts are not allowed
-    if (status !== 'ACTIVE') {
-      if (status === 'BLOCKED') {
-        throw new Error('Account is blocked');
-      } else if (status === 'PENDING') {
-        throw new Error('Account is pending activation. Please contact an administrator.');
-      } else if (status === 'EXPIRED') {
-        throw new Error('Account subscription has expired');
-      } else {
-        throw new Error('Account is not active. Please contact an administrator.');
-      }
-    }
-  } else {
-    throw new Error('Invalid credentials');
-  }
-
-  // Validate credentials - password is hashed for all subscribers
-  const isPasswordValid = await comparePassword(data.password.trim(), subscriberGateway.password);
-
-  if (!isPasswordValid) {
-    throw new Error('Invalid credentials');
-  }
-
-  const tokenPayload: TokenPayload = {
-    id: subscriberGateway.id, // Use gateway ID
-    phoneNumber: data.phoneNumber,
-    role: 'subscriber',
-    type: 'subscriber',
-  };
-
-  const token = generateToken(tokenPayload);
-  const refreshToken = generateRefreshToken(tokenPayload);
-
-  // Store refresh token in database
-  await createRefreshToken({
-    subscriberId: subscriberGateway.id,
-    token: refreshToken,
-    deviceInfo: data.deviceInfo,
-    ipAddress: data.ipAddress,
-    userAgent: data.userAgent,
-  });
-
-  // Return subscriber data - handle both citizen and nonCitizen structures
-  const subscriberResponse: any = {
-    id: subscriberGateway.id,
-    firstName: subscriberData.firstName,
-    middleName: subscriberData.middleName,
-    lastName: subscriberData.lastName,
-    extensionName: subscriberData.extensionName,
-    phoneNumber: subscriberData.phoneNumber,
-    email: subscriberData.email,
-  };
-
-  // Add status field (different for citizens vs nonCitizens)
-  if (subscriberGateway.type === 'CITIZEN') {
-    subscriberResponse.status = subscriberData.residencyStatus || 'PENDING';
-  } else {
-    subscriberResponse.status = subscriberData.status;
-  }
-
-  return {
-    subscriber: subscriberResponse,
-    token,
-    refreshToken,
-  };
-};
-
-export const portalSignup = async (data: PortalSignupData) => {
-  // Check if phone number already exists in Citizen table
-  const existingCitizen = await prisma.citizen.findFirst({
-    where: { phoneNumber: data.phoneNumber },
-  });
-
-  if (existingCitizen) {
-    throw new Error('Phone number already registered');
-  }
-
-  // Check if phone number already exists in NonCitizen
-  const existingNonCitizen = await (prisma as any).nonCitizen.findUnique({
-    where: { phoneNumber: data.phoneNumber },
-  });
-
-  if (existingNonCitizen) {
-    throw new Error('Phone number already registered');
-  }
-
-  const hashedPassword = await hashPassword(data.password);
-
-  // Generate resident ID
-  const year = new Date().getFullYear();
-  const count = await (prisma as any).nonCitizen.count({
-    where: {
-      createdAt: {
-        gte: new Date(`${year}-01-01`),
-        lt: new Date(`${year + 1}-01-01`),
-      },
-    },
-  });
-  const residentId = `RES-${year}-${String(count + 1).padStart(3, '0')}`;
-
-  // Create NonCitizen record (without password - password is stored in Subscriber)
-  const nonCitizen = await (prisma as any).nonCitizen.create({
-    data: {
-      firstName: data.firstName,
-      middleName: data.middleName,
-      lastName: data.lastName,
-      extensionName: data.extensionName,
-      phoneNumber: data.phoneNumber,
-      email: data.email || null,
-      status: 'PENDING',
-      residentId,
-      residencyType: 'RESIDENT',
-      ...(data.region &&
-        data.province &&
-        data.municipality && {
-          placeOfBirth: {
-            create: {
-              region: data.region,
-              province: data.province,
-              municipality: data.municipality,
+        credentials = await prisma.residentCredential.findUnique({
+          where: { id: residentByEmail.credentials.id },
+          include: {
+            resident: {
+              include: {
+                barangay: { include: { municipality: true } },
+              },
             },
           },
-        }),
-      ...(data.motherFirstName &&
-        data.motherLastName && {
-          motherInfo: {
-            create: {
-              firstName: data.motherFirstName,
-              middleName: data.motherMiddleName,
-              lastName: data.motherLastName,
-            },
-          },
-        }),
-    },
-    include: {
-      placeOfBirth: true,
-      motherInfo: true,
-    },
-  });
+        });
+      }
+    }
 
-  // Create Subscriber gateway with password
-  const subscriberGateway = await (prisma as any).subscriber.create({
-    data: {
-      type: 'SUBSCRIBER',
-      citizenId: null,
-      nonCitizenId: nonCitizen.id,
-      password: hashedPassword,
-    },
-  });
-
-  const tokenPayload: TokenPayload = {
-    id: subscriberGateway.id, // Use gateway ID
-    phoneNumber: nonCitizen.phoneNumber,
-    role: 'subscriber',
-    type: 'subscriber',
-  };
-
-  const token = generateToken(tokenPayload);
-  const refreshToken = generateRefreshToken(tokenPayload);
-
-  // Store refresh token in database
-  await createRefreshToken({
-    subscriberId: subscriberGateway.id,
-    token: refreshToken,
-    deviceInfo: data.deviceInfo,
-    ipAddress: data.ipAddress,
-    userAgent: data.userAgent,
-  });
-
-  // Send welcome email (non-blocking)
-  if (data.email) {
-    try {
-      const subscriberName = `${nonCitizen.firstName} ${nonCitizen.lastName}`;
-      const emailData = {
-        subscriberName,
-        email: data.email,
-        phoneNumber: nonCitizen.phoneNumber,
-        status: nonCitizen.status,
+    if (!credentials || !credentials.resident) {
+      return {
+        success: false,
+        error:
+          'This Google account is not registered. Please register first or contact the administrator.',
+        errorCode: 'NOT_REGISTERED',
       };
-      const { subject, html, text } = getWelcomeEmail(emailData);
-      await sendEmailSafely(data.email, subject, html, text);
-    } catch (error: any) {
-      console.error('Failed to send welcome email:', error.message);
     }
-  }
 
-  return {
-    subscriber: {
-      id: subscriberGateway.id,
-      firstName: nonCitizen.firstName,
-      middleName: nonCitizen.middleName,
-      lastName: nonCitizen.lastName,
-      extensionName: nonCitizen.extensionName,
-      phoneNumber: nonCitizen.phoneNumber,
-      email: nonCitizen.email,
-      status: nonCitizen.status,
-      residentId: nonCitizen.residentId,
-    },
-    token,
-    refreshToken,
-  };
+    const resident = credentials.resident;
+
+    // Status checks
+    if (resident.status === 'pending') {
+      return {
+        success: false,
+        error: 'Your registration is pending approval. Please wait for the barangay to review your application.',
+        errorCode: 'ACCOUNT_PENDING',
+      };
+    }
+    if (resident.status === 'rejected') {
+      return {
+        success: false,
+        error: 'Your registration was not approved. Please visit your barangay hall for assistance.',
+        errorCode: 'ACCOUNT_REJECTED',
+      };
+    }
+    if (resident.status === 'inactive') {
+      return {
+        success: false,
+        error: 'Account is inactive. Please contact an administrator.',
+        errorCode: 'ACCOUNT_INACTIVE',
+      };
+    }
+    if (resident.status === 'deceased' || resident.status === 'moved_out') {
+      return {
+        success: false,
+        error: 'Account is no longer active.',
+        errorCode: 'ACCOUNT_INACTIVE',
+      };
+    }
+
+    const tokenPayload: TokenPayload = {
+      id: resident.id,
+      username: resident.username ?? undefined,
+      role: 'resident',
+      type: 'resident',
+    };
+
+    const token = generateToken(tokenPayload);
+    const refreshToken = generateRefreshToken(tokenPayload);
+
+    await createRefreshToken({
+      residentId: resident.id,
+      token: refreshToken,
+      deviceInfo: data.deviceInfo,
+      ipAddress: data.ipAddress,
+      userAgent: data.userAgent,
+    });
+
+    return {
+      success: true,
+      resident: formatResidentResponse(resident),
+      token,
+      refreshToken,
+    };
+  } catch (error: any) {
+    console.error('Google OAuth login error:', error.message);
+    return {
+      success: false,
+      error: 'Google authentication failed. Please try again.',
+      errorCode: 'GOOGLE_AUTH_FAILED',
+    };
+  }
 };
 
-export const getCurrentUser = async (userId: string, type: 'admin' | 'subscriber' | 'dev') => {
+// =============================================================================
+// GET CURRENT USER  (used by /api/auth/me and token refresh)
+// =============================================================================
+
+export const getCurrentUser = async (
+  userId: string,
+  type: 'admin' | 'resident' | 'dev'
+) => {
   if (type === 'dev') {
-    // Dev users don't exist in database, return dev user info from environment
-    const devEmail = process.env.DEV_EMAIL || 'dev@multysis.local';
     return {
       id: 'dev-user',
-      email: devEmail,
+      email: process.env.DEV_EMAIL || 'dev@local',
       name: 'Developer',
       role: 'developer',
       createdAt: new Date().toISOString(),
@@ -547,82 +304,84 @@ export const getCurrentUser = async (userId: string, type: 'admin' | 'subscriber
   if (type === 'admin') {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-      },
+      select: { id: true, email: true, name: true, role: true, createdAt: true },
     });
-
-    if (!user) {
-      throw new Error('User not found');
-    }
-
+    if (!user) throw new Error('User not found');
     return user;
-  } else {
-    // Fetch from Subscriber gateway
-    const subscriberGateway = await (prisma as any).subscriber.findUnique({
-      where: { id: userId },
-      include: {
-        citizen: {
-          include: {
-            placeOfBirth: true,
-          },
-        },
-        nonCitizen: {
-          include: {
-            placeOfBirth: true,
-            motherInfo: true,
-          },
-        },
-      },
-    });
+  }
 
-    if (!subscriberGateway) {
-      throw new Error('Subscriber not found');
-    }
+  // resident
+  const resident = await prisma.resident.findUnique({
+    where: { id: userId },
+    include: {
+      barangay: { include: { municipality: true } },
+      credentials: true,
+    },
+  });
 
-    // Merge data based on type
-    if (subscriberGateway.type === 'CITIZEN' && subscriberGateway.citizen) {
-      const citizen = subscriberGateway.citizen;
-      return {
-        id: subscriberGateway.id,
-        firstName: citizen.firstName,
-        middleName: citizen.middleName,
-        lastName: citizen.lastName,
-        extensionName: citizen.extensionName,
-        phoneNumber: citizen.phoneNumber,
-        email: citizen.email,
-        status: 'ACTIVE',
-        residentId: citizen.residentId,
-        placeOfBirth: citizen.placeOfBirth
+  if (!resident) throw new Error('Resident not found');
+  return formatResidentResponse(resident);
+};
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+export const formatResidentResponse = (resident: any) => ({
+  id: resident.id,
+  residentId: resident.residentId,
+  username: resident.username,
+  firstName: resident.firstName,
+  middleName: resident.middleName,
+  lastName: resident.lastName,
+  extensionName: resident.extensionName,
+  sex: resident.sex,
+  civilStatus: resident.civilStatus,
+  birthdate: resident.birthdate,
+  birthRegion: resident.birthRegion,
+  birthProvince: resident.birthProvince,
+  birthMunicipality: resident.birthMunicipality,
+  citizenship: resident.citizenship,
+  email: resident.email,
+  contactNumber: resident.contactNumber,
+  streetAddress: resident.streetAddress,
+  occupation: resident.occupation,
+  profession: resident.profession,
+  employmentStatus: resident.employmentStatus,
+  educationAttainment: resident.educationAttainment,
+  monthlyIncome: resident.monthlyIncome,
+  height: resident.height,
+  weight: resident.weight,
+  isVoter: resident.isVoter,
+  isEmployed: resident.isEmployed,
+  indigenousPerson: resident.indigenousPerson,
+  spouseName: resident.spouseName,
+  emergencyContactPerson: resident.emergencyContactPerson,
+  emergencyContactNumber: resident.emergencyContactNumber,
+  idType: resident.idType,
+  idDocumentNumber: resident.idDocumentNumber,
+  acrNo: resident.acrNo,
+  proofOfIdentification: resident.proofOfIdentification,
+  applicationRemarks: resident.applicationRemarks,
+  status: resident.status,
+  barangayId: resident.barangayId,
+  barangay: resident.barangay
+    ? {
+        id: resident.barangay.id,
+        name: resident.barangay.barangayName,
+        municipality: resident.barangay.municipality
           ? {
-              region: citizen.placeOfBirth.region,
-              province: citizen.placeOfBirth.province,
-              municipality: citizen.placeOfBirth.municipality,
+              id: resident.barangay.municipality.id,
+              name: resident.barangay.municipality.municipalityName,
+              province: resident.barangay.municipality.province,
+              region: resident.barangay.municipality.region,
             }
           : null,
-        motherInfo: null, // Citizens don't have motherInfo in this structure
-      };
-    } else if (subscriberGateway.type === 'SUBSCRIBER' && subscriberGateway.nonCitizen) {
-      const nonCitizen = subscriberGateway.nonCitizen;
-      return {
-        id: subscriberGateway.id,
-        firstName: nonCitizen.firstName,
-        middleName: nonCitizen.middleName,
-        lastName: nonCitizen.lastName,
-        extensionName: nonCitizen.extensionName,
-        phoneNumber: nonCitizen.phoneNumber,
-        email: nonCitizen.email,
-        status: nonCitizen.status,
-        residentId: nonCitizen.residentId,
-        placeOfBirth: nonCitizen.placeOfBirth,
-        motherInfo: nonCitizen.motherInfo,
-      };
-    }
-
-    throw new Error('Subscriber data not found');
-  }
-};
+      }
+    : null,
+  picturePath: resident.picturePath,
+  // Expose googleLinked flag (without exposing the actual googleId)
+  googleLinked: !!(resident.credentials?.googleId),
+  createdAt: resident.createdAt,
+  updatedAt: resident.updatedAt,
+});

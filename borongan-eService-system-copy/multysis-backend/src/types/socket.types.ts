@@ -3,7 +3,7 @@
 
 export interface SocketUser {
   id: string;
-  type: 'admin' | 'subscriber' | 'dev';
+  type: 'admin' | 'resident' | 'dev';
   email?: string;
   phoneNumber?: string;
 }
@@ -40,7 +40,7 @@ export interface TransactionNoteResponse {
   id: string;
   transactionId: string;
   message: string;
-  senderType: 'ADMIN' | 'SUBSCRIBER';
+  senderType: 'ADMIN' | 'RESIDENT';
   senderId: string;
   isInternal: boolean;
   isRead: boolean;
@@ -50,7 +50,7 @@ export interface TransactionNoteResponse {
 export interface TransactionNoteReadPayload {
   noteId: string;
   transactionId: string;
-  senderType: 'ADMIN' | 'SUBSCRIBER';
+  senderType: 'ADMIN' | 'RESIDENT';
   isRead: boolean;
   updatedAt: Date | string;
 }
@@ -63,7 +63,7 @@ export interface TypingIndicatorPayload {
 
 export interface TypingIndicatorResponse {
   userId: string;
-  userType: 'admin' | 'subscriber' | 'dev';
+  userType: 'admin' | 'resident' | 'dev';
   isTyping: boolean;
 }
 
@@ -98,7 +98,7 @@ export interface NotificationPayload {
     | 'appointment_update';
   message: string;
   transactionId?: string;
-  subscriberId?: string;
+  residentId?: string;
   timestamp?: Date | string;
 }
 
@@ -134,7 +134,7 @@ export interface AppointmentNewPayload {
   serviceCode?: string;
   appointmentDate: Date | string;
   appointmentStatus: string;
-  subscriberId: string;
+  residentId: string;
 }
 
 export interface AppointmentUpdatePayload {
@@ -144,14 +144,14 @@ export interface AppointmentUpdatePayload {
   oldAppointmentStatus?: string;
   serviceId?: string;
   serviceCode?: string;
-  subscriberId?: string;
+  residentId?: string;
   updatedAt: Date | string;
 }
 
 // New Transaction Event
 export interface NewTransactionPayload {
   id: string;
-  subscriberId: string;
+  residentId?: string;
   transactionId: string;
   serviceId: string;
   status?: string;
@@ -176,7 +176,7 @@ export interface SubscribeSubscriberPayload {
 export interface BeneficiaryNewPayload {
   beneficiaryId: string;
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT';
-  citizenId: string;
+  residentId: string;
   status?: string;
   programIds?: string[];
   createdAt: Date | string;
@@ -185,7 +185,7 @@ export interface BeneficiaryNewPayload {
 export interface BeneficiaryUpdatePayload {
   beneficiaryId: string;
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT';
-  citizenId?: string;
+  residentId?: string;
   status?: string;
   oldStatus?: string;
   programIds?: string[];
@@ -195,7 +195,7 @@ export interface BeneficiaryUpdatePayload {
 export interface BeneficiaryDeletePayload {
   beneficiaryId: string;
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT';
-  citizenId?: string;
+  residentId?: string;
 }
 
 // Government Program Events

@@ -154,23 +154,20 @@ export const ApplicationDetailsModal: React.FC<ApplicationDetailsModalProps> = (
   };
 
   const getSubscriberName = () => {
-    if (transaction.subscriber?.citizen) {
-      const { firstName, lastName } = transaction.subscriber.citizen;
-      return `${firstName} ${lastName}`;
+    // v2: resident field or guest applicant name
+    if (transaction.resident?.firstName && transaction.resident?.lastName) {
+      return `${transaction.resident.firstName} ${transaction.resident.lastName}`;
     }
-    if (transaction.subscriber?.nonCitizen) {
-      const { firstName, lastName } = transaction.subscriber.nonCitizen;
-      return `${firstName} ${lastName}`;
-    }
+    if (transaction.applicantName) return transaction.applicantName;
     return 'Unknown';
   };
 
   const getSubscriberEmail = () => {
-    return transaction.subscriber?.citizen?.email || transaction.subscriber?.nonCitizen?.email || 'N/A';
+    return transaction.resident?.email || transaction.applicantEmail || 'N/A';
   };
 
   const getSubscriberPhone = () => {
-    return transaction.subscriber?.citizen?.phoneNumber || transaction.subscriber?.nonCitizen?.phoneNumber || 'N/A';
+    return transaction.resident?.contactNumber || transaction.applicantContact || 'N/A';
   };
 
   const formatStatus = (status: string | undefined): string => {
@@ -511,8 +508,8 @@ export const ApplicationDetailsModal: React.FC<ApplicationDetailsModalProps> = (
                   Resident of Borongan
                 </label>
                 <div className="min-h-[40px] flex items-center">
-                  <Badge className={transaction.isResidentOfBorongan ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}>
-                    {transaction.isResidentOfBorongan ? 'Yes' : 'No'}
+                  <Badge className={(transaction.isLocalResident ?? transaction.isResidentOfBorongan) ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}>
+                    {(transaction.isLocalResident ?? transaction.isResidentOfBorongan) ? 'Yes' : 'No'}
                   </Badge>
                 </div>
               </div>

@@ -1,3 +1,4 @@
+// @ts-nocheck — obsolete file (replaced by unified residents architecture)
 // React imports
 import React, { useState } from 'react';
 

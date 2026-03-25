@@ -315,11 +315,7 @@ const BarangayBoundaryMap = ({
                       House #: {popupData.houseNumber}
                     </p>
                   )}
-                  {popupData.purok && (
-                    <p className="text-sm text-gray-600 mb-1">
-                      Purok: {popupData.purok}
-                    </p>
-                  )}
+
                   <p className="text-sm text-gray-600">
                     Coordinates: {center[0].toFixed(6)}, {center[1].toFixed(6)}
                   </p>

@@ -594,125 +594,15 @@ export const barangayInfo = async (req, res, next) => {
   }
 };
 
-export const upsertPurok = async (req, res, next) => {
-  let { barangayId, purokName, purokLeader, description } = req.body;
-  const { purokId } = req.params;
+// Puroks removed in v2 schema — these handlers return 410 Gone to prevent
+// any accidental route binding from reinstating the purok API.
+const _purokGone = (req, res) =>
+  res.status(410).json({ message: "Puroks have been removed in v2." });
 
-  if (!barangayId) barangayId = req.user?.target_id;
-
-  logger.info("upsertPurok called:", { barangayId, purokName, purokLeader, description, purokId });
-  console.log("upsertPurok called:", { barangayId, purokName, purokLeader, description, purokId });
-
-  try {
-    let result;
-
-    if (!purokId) {
-      result = await Barangay.insertPurok({
-        barangayId,
-        purokName,
-        purokLeader,
-        description,
-      });
-    } else {
-      result = await Barangay.updatePurok({
-        purokId,
-        barangayId,
-        purokName,
-        purokLeader,
-        description,
-      });
-    }
-
-    return res.status(200).json({
-      message: "Successfully upserted purok",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return next(error);
-
-    logger.error("Controller error in upsertPurok: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
-
-export const deletePurok = async (req, res, next) => {
-  const { purokId } = req.params;
-
-  if (!purokId) {
-    logger.error("Missing required Field purokId");
-    return next(new ApiError(400, "Missing required field purokId"));
-  }
-  try {
-    const purok = await Barangay.purokInfo(purokId);
-
-    if (!purok) {
-      return next(
-        new ApiError(404, `Purok with ID: ${purokId} does not exist`)
-      );
-    }
-
-    const result = await Barangay.deletePurok(purokId);
-
-    return res.status(200).json({
-      message: "Purok is successfully deleted",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return next(error);
-
-    logger.error("Controller error in deletePurok: ", error.message);
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
-
-export const purokList = async (req, res, next) => {
-  let { barangayId } = req.params;
-
-  if (!barangayId) barangayId = req.user.target_id;
-
-  try {
-    const result = await Barangay.purokList(barangayId);
-
-    return res.status(200).json({
-      message: "Successfully fetch purok List",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return next(error);
-
-    logger.error("Controller error id purokList:", error.message);
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
-
-export const purokInfo = async (req, res, next) => {
-  const { purokId } = req.params;
-
-  if (!purokId) {
-    logger.error("Missing required field purokID");
-    return next(new ApiError(400, "Missing required field purokId"));
-  }
-
-  try {
-    const purok = await Barangay.purokInfo(purokId);
-
-    if (!purok) {
-      return next(new ApiError(404, "Purok not found"));
-    }
-
-    const result = await Barangay.purokInfo(purokId);
-
-    return res.status(200).json({
-      message: "Successfully fetch purok information",
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof ApiError) return error;
-
-    logger.error("Controller error in purokInfo:", error.message);
-    return next(new ApiError(500, "Internal server error"));
-  }
-};
+export const upsertPurok = _purokGone;
+export const deletePurok = _purokGone;
+export const purokList   = _purokGone;
+export const purokInfo   = _purokGone;
 
 export const upsertOfficial = async (req, res, next) => {
   const {
@@ -850,7 +740,6 @@ export const exportResidents = async (req, res, next) => {
 
     // Extract filters from query parameters
     const filters = {
-      purokId: req.query.purokId,
       search: req.query.search,
       classificationType: req.query.classificationType,
     };
@@ -912,7 +801,6 @@ export const exportHouseholds = async (req, res, next) => {
 
     // Extract filters from query parameters
     const filters = {
-      purokId: req.query.purokId,
       search: req.query.search,
     };
 

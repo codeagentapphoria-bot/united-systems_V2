@@ -39,7 +39,7 @@ export const sessionTimeout = async (
     // Find active session for this user
     const session = await prisma.session.findFirst({
       where: {
-        ...(userType === 'admin' ? { userId } : { subscriberId: userId }),
+        ...(userType === 'admin' ? { userId } : { residentId: userId }),
         expiresAt: {
           gt: new Date(),
         },
@@ -123,7 +123,7 @@ export const sessionTimeout = async (
  */
 export const createOrUpdateSession = async (
   userId: string,
-  userType: 'admin' | 'subscriber' | 'dev',
+  userType: 'admin' | 'resident' | 'dev',
   refreshTokenId: string,
   req: Request
 ): Promise<void> => {
@@ -148,7 +148,7 @@ export const createOrUpdateSession = async (
     // Check if session exists
     const existingSession = await prisma.session.findFirst({
       where: {
-        ...(userType === 'admin' ? { userId } : { subscriberId: userId }),
+        ...(userType === 'admin' ? { userId } : { residentId: userId }),
         refreshTokenId,
       },
     });
@@ -169,7 +169,7 @@ export const createOrUpdateSession = async (
       // Create new session
       await prisma.session.create({
         data: {
-          ...(userType === 'admin' ? { userId } : { subscriberId: userId }),
+          ...(userType === 'admin' ? { userId } : { residentId: userId }),
           refreshTokenId,
           ipAddress,
           userAgent,

@@ -21,7 +21,7 @@ import api from "@/utils/api";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import logger from "@/utils/logger";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://13.211.71.85";
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
 
 // PVC Card dimensions (CR80 standard)
 const CARD_WIDTH_MM = 54;
@@ -467,9 +467,6 @@ const ResidentIDCard = ({
                 <span>ADDRESS:</span>
                 <span className="font-semibold">
                   {barangayData?.barangay_name?.toUpperCase() || ""}
-                  {viewResident.purok_name
-                    ? `, ${viewResident.purok_name.toUpperCase()}`
-                    : ""}
                   {municipalityData?.municipality_name
                     ? `, ${municipalityData.municipality_name.toUpperCase()}`
                     : ""}

@@ -1,49 +1,92 @@
-import { Router } from 'express';
+/**
+ * address.routes.ts
+ *
+ * Provides address hierarchy data from barangays + municipalities tables.
+ * Used by the portal registration wizard for cascading address dropdowns.
+ *
+ * Replaces the old "addresses" reference lookup table routes.
+ */
+
+import { Request, Response, Router } from 'express';
 import {
-  activateAddressController,
-  createAddressController,
-  deactivateAddressController,
-  deleteAddressController,
-  getAddressController,
-  getAddressesController,
-  updateAddressController,
-} from '../controllers/address.controller';
-import { verifyAdmin } from '../middleware/auth';
-import { validate } from '../middleware/validation';
-import {
-  activateAddressValidation,
-  createAddressValidation,
-  deactivateAddressValidation,
-  getAddressValidation,
-  getAddressesValidation,
-  updateAddressValidation,
-} from '../validations/address.schema';
+  getBarangay,
+  getBarangaysByMunicipality,
+  getMunicipalities,
+} from '../services/address.service';
 
 const router = Router();
 
-// GET routes are accessible to everyone (read-only, public geographic data)
-// Get all addresses with filters
-router.get('/', validate(getAddressesValidation), getAddressesController);
+// =============================================================================
+// General Settings: Address CRUD stub
+// The old standalone "addresses" table was removed in v2 — address data now
+// comes from gis_municipality + barangays tables.
+// These stubs prevent 404s on the General Settings > Address admin page.
+// =============================================================================
 
-// Get single address
-router.get('/:id', validate(getAddressValidation), getAddressController);
+router.get('/', async (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'success', data: [] });
+});
 
-// All other routes (POST, PUT, PATCH, DELETE) require admin authentication
-router.use(verifyAdmin);
+router.post('/', async (_req: Request, res: Response) => {
+  res.status(501).json({ status: 'error', message: 'Address management is handled via GIS data. Use the municipality setup flow.' });
+});
 
-// Create address
-router.post('/', validate(createAddressValidation), createAddressController);
+router.put('/:id', async (_req: Request, res: Response) => {
+  res.status(501).json({ status: 'error', message: 'Address management is handled via GIS data.' });
+});
 
-// Update address
-router.put('/:id', validate(updateAddressValidation), updateAddressController);
+router.delete('/:id', async (_req: Request, res: Response) => {
+  res.status(501).json({ status: 'error', message: 'Address management is handled via GIS data.' });
+});
 
-// Activate address
-router.patch('/:id/activate', validate(activateAddressValidation), activateAddressController);
+router.patch('/:id/activate', async (_req: Request, res: Response) => {
+  res.status(501).json({ status: 'error', message: 'Address management is handled via GIS data.' });
+});
 
-// Deactivate address
-router.patch('/:id/deactivate', validate(deactivateAddressValidation), deactivateAddressController);
+router.patch('/:id/deactivate', async (_req: Request, res: Response) => {
+  res.status(501).json({ status: 'error', message: 'Address management is handled via GIS data.' });
+});
 
-// Delete address
-router.delete('/:id', validate(getAddressValidation), deleteAddressController);
+// =============================================================================
+// Public address hierarchy endpoints (no auth required)
+// =============================================================================
+
+// GET /api/addresses/municipalities
+// Returns all active municipalities (for portal dropdowns)
+router.get('/municipalities', async (_req: Request, res: Response) => {
+  try {
+    const municipalities = await getMunicipalities();
+    res.status(200).json({ status: 'success', data: municipalities });
+  } catch (error: any) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// GET /api/addresses/barangays?municipalityId=1
+// Returns all barangays for a given municipality
+router.get('/barangays', async (req: Request, res: Response) => {
+  try {
+    const { municipalityId } = req.query;
+    if (!municipalityId) {
+      res.status(400).json({ status: 'error', message: 'municipalityId is required' });
+      return;
+    }
+    const barangays = await getBarangaysByMunicipality(Number(municipalityId));
+    res.status(200).json({ status: 'success', data: barangays });
+  } catch (error: any) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// GET /api/addresses/barangays/:id
+// Returns a single barangay with full address context
+router.get('/barangays/:id', async (req: Request, res: Response) => {
+  try {
+    const barangay = await getBarangay(Number(req.params.id));
+    res.status(200).json({ status: 'success', data: barangay });
+  } catch (error: any) {
+    res.status(404).json({ status: 'error', message: error.message });
+  }
+});
 
 export default router;

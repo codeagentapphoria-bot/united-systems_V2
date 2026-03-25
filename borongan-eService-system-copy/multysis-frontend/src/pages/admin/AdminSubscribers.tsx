@@ -1,514 +1,457 @@
+/**
+ * AdminSubscribers.tsx  (now: Admin Residents)
+ *
+ * Previously managed "subscribers" — now displays the unified residents list.
+ * Residents are no longer created here; they self-register via the portal.
+ * Admins can: view, edit, activate, deactivate, mark deceased, mark moved out.
+ */
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import {
-    ActivateSubscriberModal,
-    AddSubscriberModal,
-    BlockSubscriberModal,
-    ChangePasswordModal,
-    EditProfileModal
-} from '@/components/modals/subscribers';
-import { SubscriberTabs } from '@/components/subscribers/SubscriberTabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { adminMenuItems } from '@/config/admin-menu';
-import { useSocket } from '@/context/SocketContext';
-import { useSubscribers } from '@/hooks/subscribers/useSubscribers';
+import { useResidents } from '@/hooks/residents/useResidents';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
-import { subscriberService } from '@/services/api/subscriber.service';
-import type { NewSubscriberPayload, SubscriberUpdatePayload } from '@/types/socket.types';
-import type { AddSubscriberInput, EditProfileInput } from '@/validations/subscriber.schema';
-import React, { useEffect, useState } from 'react';
-import { FiDownload, FiEdit, FiPlus, FiSearch, FiUser, FiX } from 'react-icons/fi';
+import { cn, formatDateWithoutTimezone } from '@/lib/utils';
+import { residentService, type Resident } from '@/services/api/resident.service';
+import React, { useState } from 'react';
+import {
+  FiCalendar,
+  FiDownload,
+  FiEdit,
+  FiMapPin,
+  FiSearch,
+  FiUser,
+  FiX,
+} from 'react-icons/fi';
 
+// ── Status badge helper ───────────────────────────────────────────────────────
+const STATUS_STYLES: Record<string, string> = {
+  active:    'bg-success-100 text-success-700',
+  pending:   'bg-warning-100 text-warning-700',
+  inactive:  'bg-neutral-200 text-neutral-700',
+  rejected:  'bg-red-100 text-red-700',
+  deceased:  'bg-gray-300 text-gray-700',
+  moved_out: 'bg-blue-100 text-blue-700',
+};
+
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
+  <Badge className={STATUS_STYLES[status.toLowerCase()] ?? 'bg-neutral-200 text-neutral-700'}>
+    {status.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+  </Badge>
+);
+
+// ── Resident Detail Panel ────────────────────────────────────────────────────
+const ResidentDetailPanel: React.FC<{ resident: Resident }> = ({ resident }) => {
+  const fullName = [resident.firstName, resident.middleName, resident.lastName, resident.extensionName]
+    .filter(Boolean)
+    .join(' ');
+
+  const address = [
+    resident.streetAddress,
+    resident.barangay?.name,
+    resident.barangay?.municipality?.name,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  return (
+    <Tabs defaultValue="personal">
+      <TabsList className="mb-4">
+        <TabsTrigger value="personal">Personal</TabsTrigger>
+        <TabsTrigger value="address">Address</TabsTrigger>
+        <TabsTrigger value="contact">Contact &amp; IDs</TabsTrigger>
+      </TabsList>
+
+      {/* Personal Info */}
+      <TabsContent value="personal" className="space-y-3">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+            {resident.picturePath ? (
+              <img
+                src={resident.picturePath}
+                alt={fullName}
+                className="w-16 h-16 rounded-full object-cover"
+              />
+            ) : (
+              <FiUser size={28} className="text-primary-600" />
+            )}
+          </div>
+          <div>
+            <p className="font-semibold text-heading-700 text-lg">{fullName}</p>
+            {resident.residentId && (
+              <p className="text-xs font-mono text-primary-600">{resident.residentId}</p>
+            )}
+            <StatusBadge status={resident.status} />
+          </div>
+        </div>
+        <Separator />
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <InfoRow label="Sex"          value={resident.sex} />
+          <InfoRow label="Civil Status" value={resident.civilStatus} />
+          <InfoRow label="Birthdate"    value={resident.birthdate ? formatDateWithoutTimezone(resident.birthdate) : undefined} />
+          <InfoRow label="Citizenship"  value={resident.citizenship} />
+          <InfoRow label="Occupation"   value={resident.occupation} />
+          <InfoRow label="Employment"   value={resident.employmentStatus} />
+          <InfoRow label="Education"    value={resident.educationAttainment} />
+          <InfoRow label="Monthly Income" value={resident.monthlyIncome ? `₱${Number(resident.monthlyIncome).toLocaleString()}` : undefined} />
+        </div>
+        {resident.spouseName && (
+          <InfoRow label="Spouse" value={resident.spouseName} />
+        )}
+      </TabsContent>
+
+      {/* Address */}
+      <TabsContent value="address" className="space-y-3 text-sm">
+        <div className="flex items-start gap-2">
+          <FiMapPin className="text-primary-500 mt-0.5 flex-shrink-0" size={16} />
+          <div>
+            <p className="font-medium text-heading-700">Current Address</p>
+            <p className="text-gray-600">{address || '—'}</p>
+          </div>
+        </div>
+        <Separator />
+        <div className="grid grid-cols-2 gap-3">
+          <InfoRow label="Barangay"     value={resident.barangay?.name} />
+          <InfoRow label="Municipality" value={resident.barangay?.municipality?.name} />
+          <InfoRow label="Street"       value={resident.streetAddress} />
+        </div>
+        {(resident.birthRegion || resident.birthProvince || resident.birthMunicipality) && (
+          <>
+            <Separator />
+            <p className="font-medium text-heading-700 text-sm">Place of Birth</p>
+            <div className="grid grid-cols-2 gap-3">
+              <InfoRow label="Region"   value={resident.birthRegion} />
+              <InfoRow label="Province" value={resident.birthProvince} />
+              <InfoRow label="City/Mun" value={resident.birthMunicipality} />
+            </div>
+          </>
+        )}
+      </TabsContent>
+
+      {/* Contact & IDs */}
+      <TabsContent value="contact" className="space-y-3 text-sm">
+        <div className="grid grid-cols-2 gap-3">
+          <InfoRow label="Contact No." value={resident.contactNumber} />
+          <InfoRow label="Email"       value={resident.email} />
+          <InfoRow label="Username"    value={resident.username} />
+        </div>
+        <Separator />
+        <p className="font-medium text-heading-700">Identification</p>
+        <div className="grid grid-cols-2 gap-3">
+          <InfoRow label="ID Type"    value={resident.idType} />
+          <InfoRow label="ID Number"  value={resident.idDocumentNumber} />
+          <InfoRow label="ACR No."    value={resident.acrNo} />
+        </div>
+        <Separator />
+        <p className="font-medium text-heading-700">Emergency Contact</p>
+        <div className="grid grid-cols-2 gap-3">
+          <InfoRow label="Name"   value={resident.emergencyContactPerson} />
+          <InfoRow label="Number" value={resident.emergencyContactNumber} />
+        </div>
+        <Separator />
+        <p className="font-medium text-heading-700 flex items-center gap-1">
+          <FiCalendar size={14} /> Record
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <InfoRow label="Registered"    value={resident.createdAt ? formatDateWithoutTimezone(resident.createdAt) : undefined} />
+          <InfoRow label="Last Updated"  value={resident.updatedAt ? formatDateWithoutTimezone(resident.updatedAt) : undefined} />
+        </div>
+        {resident.applicationRemarks && (
+          <div>
+            <p className="font-medium text-heading-700 mb-1">Remarks</p>
+            <p className="text-gray-600 text-sm">{resident.applicationRemarks}</p>
+          </div>
+        )}
+      </TabsContent>
+    </Tabs>
+  );
+};
+
+const InfoRow: React.FC<{ label: string; value?: string | null }> = ({ label, value }) => (
+  <div>
+    <p className="text-xs text-gray-500">{label}</p>
+    <p className="font-medium text-heading-700">{value || '—'}</p>
+  </div>
+);
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export const AdminSubscribers: React.FC = () => {
   const {
-    filteredSubscribers,
-    paginatedFilteredSubscribers,
-    selectedSubscriber,
-    setSelectedSubscriber,
+    residents,
+    isLoading,
+    total,
+    totalPages,
+    currentPage,
+    selectedResident,
+    setSelectedResident,
     searchQuery,
     setSearchQuery,
-    residencyFilter,
-    setResidencyFilter,
-    // Pagination
-    currentPage,
-    totalPages,
-    goToPage,
-    goToNextPage,
-    goToPreviousPage,
-    isLoading,
-    refreshSubscribers,
-  } = useSubscribers();
-  
+    statusFilter,
+    setStatusFilter,
+    handlePageChange,
+    refresh,
+  } = useResidents({ limit: 12 });
+
   const { toast } = useToast();
-  const { socket, isConnected, subscribeToSubscriber, unsubscribeFromSubscriber } = useSocket();
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-  const [isActivateModalOpen, setIsActivateModalOpen] = useState(false);
-  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
-  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
-  const [profileImageError, setProfileImageError] = useState(false);
-  const [isActivating, setIsActivating] = useState(false);
-  const [isDeactivating, setIsDeactivating] = useState(false);
-  const [isBlocking, setIsBlocking] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isImageOpen, setIsImageOpen] = useState(false);
+  const [isWorking, setIsWorking] = useState(false);
 
-  // Listen for new subscribers via WebSocket
-  useEffect(() => {
-    if (!socket || !isConnected) {
-      return;
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  const handleStatusChange = async (
+    action: 'activate' | 'deactivate' | 'deceased' | 'moved-out',
+    label: string
+  ) => {
+    if (!selectedResident) return;
+    setIsWorking(true);
+    try {
+      let updated: Resident;
+      if (action === 'activate')   updated = await residentService.activate(selectedResident.id);
+      else if (action === 'deactivate') updated = await residentService.deactivate(selectedResident.id);
+      else if (action === 'deceased')   updated = await residentService.markDeceased(selectedResident.id);
+      else                              updated = await residentService.markMovedOut(selectedResident.id);
+
+      setSelectedResident(updated);
+      refresh();
+      toast({ title: 'Success', description: `Resident marked as ${label}` });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setIsWorking(false);
     }
-
-    const handleNewSubscriber = (data: NewSubscriberPayload) => {
-      // Refresh subscribers list to include new subscriber
-      refreshSubscribers();
-      toast({
-        title: 'New Subscriber',
-        description: `${data.firstName} ${data.lastName} has been added`,
-      });
-    };
-
-    socket.on('subscriber:new', handleNewSubscriber);
-
-    return () => {
-      socket.off('subscriber:new', handleNewSubscriber);
-    };
-  }, [socket, isConnected, refreshSubscribers, toast]);
-
-  // Listen for subscriber updates via WebSocket
-  useEffect(() => {
-    if (!socket || !isConnected || !selectedSubscriber) {
-      return;
-    }
-
-    subscribeToSubscriber(selectedSubscriber.id);
-
-    const handleSubscriberUpdate = (update: SubscriberUpdatePayload) => {
-      if (update.subscriberId === selectedSubscriber.id) {
-        // Refresh subscribers list to get updated status
-        refreshSubscribers();
-        toast({
-          title: 'Subscriber Updated',
-          description: `Subscriber status has been updated to ${update.status || 'unknown'}`,
-        });
-      }
-    };
-
-    socket.on('subscriber:update', handleSubscriberUpdate);
-
-    return () => {
-      if (selectedSubscriber) {
-        unsubscribeFromSubscriber(selectedSubscriber.id);
-      }
-      socket.off('subscriber:update', handleSubscriberUpdate);
-    };
-  }, [socket, isConnected, selectedSubscriber, subscribeToSubscriber, unsubscribeFromSubscriber, refreshSubscribers, toast]);
+  };
 
   const handleDownload = () => {
-    // Create CSV content
-    const headers = ['Name', 'Phone Number', 'Email', 'Status', 'Residency', 'Date Subscribed'];
-    const rows = filteredSubscribers.map(sub => [
-      sub.name,
-      sub.phoneNumber,
-      sub.email || '',
-      sub.status,
-      sub.residencyType || '',
-      sub.dateSubscribed
+    const headers = ['Resident ID', 'Last Name', 'First Name', 'Middle Name', 'Sex', 'Birthdate', 'Barangay', 'Contact', 'Email', 'Status'];
+    const rows = residents.map((r) => [
+      r.residentId ?? '',
+      r.lastName,
+      r.firstName,
+      r.middleName ?? '',
+      r.sex ?? '',
+      r.birthdate ?? '',
+      r.barangay?.name ?? '',
+      r.contactNumber ?? '',
+      r.email ?? '',
+      r.status,
     ]);
-    
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    // Download file
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `subscribers-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `residents-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-    window.URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url);
   };
 
-  const handleAddSubscriber = async (data: AddSubscriberInput) => {
-    try {
-      await subscriberService.createSubscriber(data);
-      toast({
-        title: 'Success',
-        description: 'Subscriber created successfully',
-      });
-      setIsAddModalOpen(false);
-      // Refresh subscribers list
-      await refreshSubscribers();
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.message || error.message || 'Failed to create subscriber',
-      });
-      throw error; // Re-throw to prevent modal from closing on error
-    }
-  };
+  const fullName = (r: Resident) =>
+    [r.firstName, r.middleName, r.lastName].filter(Boolean).join(' ');
 
-  const handleEditProfile = async (data: EditProfileInput) => {
-    if (!selectedSubscriber) return;
-    try {
-      const updatedSubscriber = await subscriberService.updateSubscriber(selectedSubscriber.id, data);
-      toast({
-        title: 'Success',
-        description: 'Subscriber updated successfully',
-      });
-      setIsEditModalOpen(false);
-      // Update selected subscriber with the updated data
-      setSelectedSubscriber(updatedSubscriber);
-      // Refresh subscribers list
-      await refreshSubscribers();
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.message || error.message || 'Failed to update subscriber',
-      });
-      throw error; // Re-throw to prevent modal from closing
-    }
-  };
-
-  const handleActivateSubscriber = async () => {
-    if (!selectedSubscriber) return;
-    setIsActivating(true);
-    try {
-      const updatedSubscriber = await subscriberService.activateSubscriber(selectedSubscriber.id);
-      const wasBlocked = selectedSubscriber.status?.toLowerCase() === 'blocked';
-      toast({
-        title: 'Success',
-        description: wasBlocked 
-          ? 'Subscriber unblocked and activated successfully' 
-          : 'Subscriber activated successfully',
-      });
-      setIsActivateModalOpen(false);
-      // Update selected subscriber with the updated data
-      setSelectedSubscriber(updatedSubscriber);
-      // Refresh subscribers list
-      await refreshSubscribers();
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.message || error.message || 'Failed to activate subscriber',
-      });
-    } finally {
-      setIsActivating(false);
-    }
-  };
-
-  const handleDeactivateSubscriber = async () => {
-    if (!selectedSubscriber) return;
-    setIsDeactivating(true);
-    try {
-      const updatedSubscriber = await subscriberService.deactivateSubscriber(selectedSubscriber.id);
-      toast({
-        title: 'Success',
-        description: 'Subscriber deactivated successfully',
-      });
-      setIsActivateModalOpen(false);
-      // Update selected subscriber with the updated data
-      setSelectedSubscriber(updatedSubscriber);
-      // Refresh subscribers list
-      await refreshSubscribers();
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.message || error.message || 'Failed to deactivate subscriber',
-      });
-    } finally {
-      setIsDeactivating(false);
-    }
-  };
-
-  const handleBlockSubscriber = async (remarks: string) => {
-    if (!selectedSubscriber) return;
-    setIsBlocking(true);
-    try {
-      const updatedSubscriber = await subscriberService.blockSubscriber(selectedSubscriber.id, remarks);
-      toast({
-        title: 'Success',
-        description: 'Subscriber blocked successfully',
-      });
-      setIsBlockModalOpen(false);
-      // Update selected subscriber with the updated data
-      setSelectedSubscriber(updatedSubscriber);
-      // Refresh subscribers list
-      await refreshSubscribers();
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.message || error.message || 'Failed to block subscriber',
-      });
-    } finally {
-      setIsBlocking(false);
-    }
-  };
-
-  const handleChangePassword = async (data: { password: string; confirmPassword: string }) => {
-    if (!selectedSubscriber) return;
-    try {
-      await subscriberService.changePassword(selectedSubscriber.id, data.password, data.confirmPassword);
-      toast({
-        title: 'Success',
-        description: 'Password changed successfully',
-      });
-      setIsChangePasswordModalOpen(false);
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.message || error.message || 'Failed to change password',
-      });
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, string> = {
-      active: 'bg-success-100 text-success-700',
-      pending: 'bg-warning-100 text-warning-700',
-      expired: 'bg-neutral-200 text-neutral-700',
-    };
-
-    return (
-      <Badge className={variants[status]}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
-  };
-
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout menuItems={adminMenuItems}>
       <div className="space-y-4">
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-semibold text-heading-700">Subscribers</h2>
+            <h2 className="text-2xl font-semibold text-heading-700">Residents</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Manage and view all subscribers
+              Registered residents — {total} total
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              className="text-primary-600 hover:text-primary-700 hover:bg-primary-50"
-              onClick={handleDownload}
-            >
-              <div className="mr-2"><FiDownload size={16} /></div>
-              Download List
-            </Button>
-            <Button 
-              className="bg-primary-600 hover:bg-primary-700"
-              onClick={() => setIsAddModalOpen(true)}
-            >
-              <div className="mr-2"><FiPlus size={16} /></div>
-              Add New Subscriber
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            className="text-primary-600 hover:bg-primary-50"
+            onClick={handleDownload}
+          >
+            <FiDownload size={16} className="mr-2" /> Export CSV
+          </Button>
         </div>
 
-        {/* Main Content: List + Details */}
+        {/* Content */}
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-          {/* Left: Subscribers List */}
-          <Card className="lg:col-span-2 overflow-visible min-w-fit">
-            <CardHeader>
-              <CardTitle className="text-heading-700 text-lg">Subscribers List</CardTitle>
-              
-              {/* Search */}
-              <div className="relative mt-4">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <FiSearch size={18} />
-                </div>
+
+          {/* Left: List */}
+          <Card className="xl:col-span-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-heading-700 text-lg">Residents List</CardTitle>
+
+              <div className="relative mt-2">
+                <FiSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <Input
-                  placeholder="Search subscribers..."
+                  placeholder="Search name, ID, email…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-10"
+                  className="pl-9 h-9"
                 />
               </div>
 
-              {/* Filter */}
-              <div className="flex gap-2 mt-3">
-                <Button
-                  size="sm"
-                  variant={residencyFilter === 'all' ? 'default' : 'outline'}
-                  onClick={() => setResidencyFilter('all')}
-                  className={residencyFilter === 'all' ? 'bg-primary-600 hover:bg-primary-700' : 'text-primary-600 hover:bg-primary-50'}
-                >
-                  All
-                </Button>
-                <Button
-                  size="sm"
-                  variant={residencyFilter === 'resident' ? 'default' : 'outline'}
-                  onClick={() => setResidencyFilter('resident')}
-                  className={residencyFilter === 'resident' ? 'bg-primary-600 hover:bg-primary-700' : 'text-primary-600 hover:bg-primary-50'}
-                >
-                  Resident
-                </Button>
-                <Button
-                  size="sm"
-                  variant={residencyFilter === 'non-resident' ? 'default' : 'outline'}
-                  onClick={() => setResidencyFilter('non-resident')}
-                  className={residencyFilter === 'non-resident' ? 'bg-primary-600 hover:bg-primary-700' : 'text-primary-600 hover:bg-primary-50'}
-                >
-                  Non-Resident
-                </Button>
-              </div>
-              
-              {/* Total count */}
-              <div className="flex justify-between items-center mt-3 text-sm text-gray-600">
-                <span>Total: {filteredSubscribers.length} subscribers</span>
-                <span>Page {currentPage} of {totalPages}</span>
-              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9 mt-2">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="deceased">Deceased</SelectItem>
+                  <SelectItem value="moved_out">Moved Out</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <p className="text-xs text-gray-500 mt-2">
+                Page {currentPage} of {totalPages} · {total} total
+              </p>
             </CardHeader>
-            
-            <CardContent className="flex flex-col">
+
+            <CardContent className="flex flex-col gap-2">
               {isLoading ? (
-                <div className="text-center py-8 text-gray-500">
-                  Loading subscribers...
-                </div>
+                <p className="text-center py-8 text-gray-500 text-sm">Loading…</p>
+              ) : residents.length === 0 ? (
+                <p className="text-center py-8 text-gray-500 text-sm">No residents found.</p>
               ) : (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto overflow-x-visible pr-4">
-                  {paginatedFilteredSubscribers.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      No subscribers found.
-                    </div>
-                  ) : (
-                    paginatedFilteredSubscribers.map((subscriber) => (
-                    <div key={subscriber.id} className="relative">
+                <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+                  {residents.map((r) => (
+                    <div key={r.id} className="relative">
                       <Card
                         className={cn(
-                          'cursor-pointer transition-all hover:shadow-md',
-                          selectedSubscriber?.id === subscriber.id
+                          'cursor-pointer transition-all hover:shadow-sm',
+                          selectedResident?.id === r.id
                             ? 'border-primary-600 bg-primary-50'
                             : 'hover:border-primary-300'
                         )}
-                        onClick={() => setSelectedSubscriber(subscriber)}
+                        onClick={() => setSelectedResident(r)}
                       >
-                        <CardContent className="p-4">
-                          <div className="flex flex-col gap-2 items-start justify-between">
-                            <div className="flex items-center gap-2">
-                              {getStatusBadge(subscriber.status)}
-                              {/* Non-Citizen Badge */}
-                              {subscriber.person?.type === 'SUBSCRIBER' && (
-                                <Badge className="bg-blue-100 text-blue-700 text-xs">
-                                  Non-Citizen
-                                </Badge>
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-heading-700 text-sm truncate">
+                                {fullName(r)}
+                              </p>
+                              {r.residentId && (
+                                <p className="text-xs font-mono text-gray-500 truncate">
+                                  {r.residentId}
+                                </p>
                               )}
                             </div>
-                            <div className="flex-1">
-                              <h3 className="font-semibold text-heading-700">{subscriber.name}</h3>
-                            </div>
+                            <StatusBadge status={r.status} />
                           </div>
                         </CardContent>
                       </Card>
-                      
-                      {/* Pointing Arrow - Only on large screens */}
-                      {selectedSubscriber?.id === subscriber.id && (
-                        <div className="absolute -right-4 top-1/2 -translate-y-1/2 hidden lg:block z-20">
-                          <div className="w-0 h-0 border-t-[15px] border-t-transparent border-b-[15px] border-b-transparent border-l-[15px] border-l-primary-600"></div>
+                      {selectedResident?.id === r.id && (
+                        <div className="absolute -right-4 top-1/2 -translate-y-1/2 hidden xl:block z-20">
+                          <div className="w-0 h-0 border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent border-l-[12px] border-l-primary-600" />
                         </div>
                       )}
                     </div>
-                    ))
-                  )}
+                  ))}
                 </div>
               )}
-              
-              {/* Pagination - Always at bottom */}
+
               {totalPages > 1 && (
-                <div className="mt-4 pt-4 border-t flex-shrink-0">
+                <div className="mt-3 pt-3 border-t">
                   <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
-                    onPageChange={goToPage}
-                    onPrevious={goToPreviousPage}
-                    onNext={goToNextPage}
+                    onPageChange={handlePageChange}
+                    onPrevious={() => handlePageChange(Math.max(1, currentPage - 1))}
+                    onNext={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                   />
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Right: Selected Subscriber Information */}
-          <Card className="lg:col-span-3">
+          {/* Right: Detail */}
+          <Card className="xl:col-span-3">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-heading-700 text-lg">Subscriber Information</CardTitle>
-                {selectedSubscriber && (
-                  <div className="flex gap-2">
-                    {selectedSubscriber.status?.toLowerCase() === 'active' ? (
-                      <Button 
-                        size="sm" 
-                        className="bg-orange-600 hover:bg-orange-700"
-                        onClick={() => setIsActivateModalOpen(true)}
-                      >
-                        Deactivate
-                      </Button>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <CardTitle className="text-heading-700 text-lg">Resident Information</CardTitle>
+
+                {selectedResident && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedResident.status === 'active' ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                          onClick={() => handleStatusChange('deactivate', 'inactive')}
+                          disabled={isWorking}
+                        >
+                          Deactivate
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-gray-600 border-gray-200 hover:bg-gray-50"
+                          onClick={() => handleStatusChange('deceased', 'deceased')}
+                          disabled={isWorking}
+                        >
+                          Mark Deceased
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                          onClick={() => handleStatusChange('moved-out', 'moved out')}
+                          disabled={isWorking}
+                        >
+                          Mark Moved Out
+                        </Button>
+                      </>
                     ) : (
-                      // Show Activate button for PENDING, EXPIRED, and BLOCKED (activating BLOCKED will unblock)
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="bg-green-600 hover:bg-green-700"
-                        onClick={() => setIsActivateModalOpen(true)}
+                        onClick={() => handleStatusChange('activate', 'active')}
+                        disabled={isWorking}
                       >
-                        {selectedSubscriber.status?.toLowerCase() === 'blocked' ? 'Unblock & Activate' : 'Activate'}
+                        Activate
                       </Button>
                     )}
-                    {selectedSubscriber.status?.toLowerCase() !== 'blocked' && (
-                      // Show Block button for ACTIVE, PENDING, and EXPIRED (not for BLOCKED)
-                      <Button 
-                        size="sm" 
-                        className="bg-red-600 hover:bg-red-700"
-                        onClick={() => setIsBlockModalOpen(true)}
-                      >
-                        Block
-                      </Button>
-                    )}
-                    {/* Only show Edit button if subscriber is NOT linked to a citizen */}
-                    {selectedSubscriber?.person?.type !== 'CITIZEN' && (
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        className="text-primary-600 hover:text-primary-700 hover:bg-primary-50"
-                        onClick={() => setIsEditModalOpen(true)}
-                      >
-                        <div className="mr-1"><FiEdit size={14} /></div>
-                        Edit
-                      </Button>
-                    )}
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="text-primary-600 hover:text-primary-700 hover:bg-primary-50"
-                      onClick={() => setIsChangePasswordModalOpen(true)}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-primary-600 hover:bg-primary-50"
+                      onClick={() => setIsEditOpen(true)}
                     >
-                      Change Password
+                      <FiEdit size={14} className="mr-1" /> Edit
                     </Button>
                   </div>
                 )}
               </div>
             </CardHeader>
+
             <CardContent className="max-h-[680px] overflow-y-auto">
-              {selectedSubscriber ? (
-                <SubscriberTabs 
-                  selectedSubscriber={selectedSubscriber}
-                  onImageClick={() => setIsImageModalOpen(true)}
-                />
+              {selectedResident ? (
+                <ResidentDetailPanel resident={selectedResident} />
               ) : (
-                <div className="text-center py-12 text-gray-500">
-                  Select a subscriber to view details
+                <div className="text-center py-16 text-gray-400">
+                  <FiUser size={48} className="mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">Select a resident to view details</p>
                 </div>
               )}
             </CardContent>
@@ -516,117 +459,51 @@ export const AdminSubscribers: React.FC = () => {
         </div>
       </div>
 
-      {/* Modals */}
-      <AddSubscriberModal 
-        open={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSubmit={handleAddSubscriber}
-      />
-      
-      <EditProfileModal 
-        open={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSubmit={handleEditProfile}
-        isLinkedToCitizen={selectedSubscriber?.person?.type === 'CITIZEN'}
-        initialData={selectedSubscriber ? {
-          firstName: selectedSubscriber.firstName || '',
-          middleName: selectedSubscriber.middleName || '',
-          lastName: selectedSubscriber.lastName || '',
-          extensionName: selectedSubscriber.extensionName || '',
-          email: selectedSubscriber.email || '',
-          phoneNumber: selectedSubscriber.phoneNumber || '',
-          civilStatus: selectedSubscriber.civilStatus || '',
-          sex: selectedSubscriber.sex || '',
-          birthdate: selectedSubscriber.birthDate || '',
-          region: selectedSubscriber.placeOfBirth?.region || '',
-          province: selectedSubscriber.placeOfBirth?.province || '',
-          municipality: selectedSubscriber.placeOfBirth?.municipality || '',
-          motherFirstName: selectedSubscriber.motherInfo?.firstName || '',
-          motherMiddleName: selectedSubscriber.motherInfo?.middleName || '',
-          motherLastName: selectedSubscriber.motherInfo?.lastName || '',
-          picture: selectedSubscriber.profilePicture || '',
-          // Address fields
-          residentAddress: selectedSubscriber.residentAddress || '',
-          addressRegion: selectedSubscriber.addressRegion || '',
-          addressProvince: selectedSubscriber.addressProvince || '',
-          addressMunicipality: selectedSubscriber.addressMunicipality || '',
-          addressBarangay: selectedSubscriber.addressBarangay || '',
-          addressStreetAddress: selectedSubscriber.addressStreetAddress || '',
-          addressPostalCode: selectedSubscriber.addressPostalCode || '',
-        } : undefined}
-      />
-
-      {/* Activate/Deactivate Subscriber Modal */}
-      <ActivateSubscriberModal 
-        open={isActivateModalOpen}
-        onClose={() => setIsActivateModalOpen(false)}
-        onConfirm={selectedSubscriber?.status?.toLowerCase() === 'active' ? handleDeactivateSubscriber : handleActivateSubscriber}
-        subscriberName={selectedSubscriber ? `${selectedSubscriber.firstName} ${selectedSubscriber.lastName}` : ''}
-        isActivating={selectedSubscriber?.status?.toLowerCase() !== 'active'}
-        isLoading={isActivating || isDeactivating}
-        currentStatus={selectedSubscriber?.status}
-      />
-
-      {/* Change Password Modal */}
-      <ChangePasswordModal 
-        open={isChangePasswordModalOpen}
-        onClose={() => setIsChangePasswordModalOpen(false)}
-        onSubmit={handleChangePassword}
-        subscriberName={selectedSubscriber ? `${selectedSubscriber.firstName} ${selectedSubscriber.lastName}` : ''}
-      />
-
-      {/* Block Subscriber Modal */}
-      <BlockSubscriberModal 
-        open={isBlockModalOpen}
-        onClose={() => setIsBlockModalOpen(false)}
-        onConfirm={handleBlockSubscriber}
-        subscriberName={selectedSubscriber ? `${selectedSubscriber.firstName} ${selectedSubscriber.lastName}` : ''}
-        isLoading={isBlocking}
-      />
-
-      {/* Image Modal */}
-      {isImageModalOpen && selectedSubscriber && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
-          onClick={() => setIsImageModalOpen(false)}
+      {/* Image lightbox */}
+      {isImageOpen && selectedResident?.picturePath && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50"
+          onClick={() => setIsImageOpen(false)}
         >
-          <div 
-            className="bg-white rounded-lg p-6 max-w-4xl max-h-[95vh] overflow-hidden" 
+          <div
+            className="bg-white rounded-xl p-4 max-w-lg relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-heading-800">
-                {selectedSubscriber.firstName} {selectedSubscriber.lastName} - Profile Picture
-              </h3>
-              <button 
-                onClick={() => setIsImageModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700 transition-colors p-2 hover:bg-gray-100 rounded-full"
-              >
-                <FiX size={28} />
+            <button
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+              onClick={() => setIsImageOpen(false)}
+            >
+              <FiX size={22} />
+            </button>
+            <img
+              src={selectedResident.picturePath}
+              alt={fullName(selectedResident)}
+              className="rounded-lg max-h-[75vh] object-cover"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* TODO: EditResidentModal — Step 8 will implement inline editing */}
+      {isEditOpen && selectedResident && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-heading-700">Edit Resident</h3>
+              <button onClick={() => setIsEditOpen(false)}>
+                <FiX size={20} className="text-gray-500" />
               </button>
             </div>
-            <div className="flex flex-col justify-center items-center min-h-[70vh]">
-              {selectedSubscriber.profilePicture && !profileImageError ? (
-                <img 
-                  src={selectedSubscriber.profilePicture} 
-                  alt={`${selectedSubscriber.firstName} ${selectedSubscriber.lastName}`}
-                  className="w-auto h-[70vh] object-cover rounded-xl shadow-2xl"
-                  onError={() => {
-                    setProfileImageError(true);
-                  }}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-gray-400">
-                  <FiUser size={128} className="mb-4 text-primary-600" />
-                  <p className="text-lg font-medium text-gray-600">No profile picture available</p>
-                  <p className="text-sm text-gray-500 mt-2">Click "Edit" to upload a profile picture</p>
-                </div>
-              )}
-            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Full resident editing is coming in the next update. For now, use the BIMS portal
+              or the resident's own profile to update personal information.
+            </p>
+            <Button className="w-full" onClick={() => setIsEditOpen(false)}>
+              Close
+            </Button>
           </div>
         </div>
       )}
     </DashboardLayout>
   );
 };
-

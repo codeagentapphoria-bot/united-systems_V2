@@ -24,7 +24,9 @@ const residentInfoSchema = z.object({
   middle_name: z.string().optional(),
   sex: z.string().min(1, "Sex is required"),
   birthdate: z.string().min(1, "Birthdate is required"),
-  birthplace: z.string().optional(),
+  birth_region: z.string().optional(),
+  birth_province: z.string().optional(),
+  birth_municipality: z.string().optional(),
   civil_status: z.string().min(1, "Civil status is required"),
   contact_number: z.string().optional(),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
@@ -32,7 +34,7 @@ const residentInfoSchema = z.object({
   monthly_income: z.string().optional(),
   employment_status: z.string().min(1, "Employment status is required"),
   education_attainment: z.string().min(1, "Education attainment is required"),
-  resident_status: z.string().min(1, "Resident status is required"),
+  status: z.string().min(1, "Resident status is required"),
   indigenous_person: z.string().min(1, "Indigent person status is required"),
 });
 
@@ -79,9 +81,11 @@ const ResidentInfoForm = ({
       occupation: "",
       employment_status: "",
       education_attainment: "",
-      resident_status: "",
+      status: "",
       indigenous_person: "No",
-      birthplace: "",
+      birth_region: "",
+      birth_province: "",
+      birth_municipality: "",
       monthly_income: "",
     },
     mode: "onTouched",
@@ -112,8 +116,8 @@ const ResidentInfoForm = ({
           resident.education_attainment,
           educationAttainmentOptions
         ),
-        resident_status: normalizeFieldValue(
-          resident.resident_status,
+        status: normalizeFieldValue(
+          resident.status,
           residentStatusOptions
         ),
         indigenous_person: normalizeFieldValue(
@@ -122,7 +126,9 @@ const ResidentInfoForm = ({
             : "No",
           indigenousPersonOptions
         ),
-        birthplace: resident.birthplace || "",
+        birth_region: resident.birth_region || "",
+        birth_province: resident.birth_province || "",
+        birth_municipality: resident.birth_municipality || "",
         monthly_income: resident.monthly_income || "",
       });
     } else {
@@ -139,9 +145,11 @@ const ResidentInfoForm = ({
         occupation: "",
         employment_status: "",
         education_attainment: "",
-        resident_status: "",
+        status: "",
         indigenous_person: "No",
-        birthplace: "",
+        birth_region: "",
+        birth_province: "",
+        birth_municipality: "",
         monthly_income: "",
       });
     }
@@ -272,11 +280,29 @@ const ResidentInfoForm = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="birthplace">Birthplace (optional)</Label>
+              <Label htmlFor="birth_region">Region (optional)</Label>
               <Input
-                id="birthplace"
-                placeholder="Enter birthplace"
-                {...form.register("birthplace")}
+                id="birth_region"
+                placeholder="Region"
+                {...form.register("birth_region")}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="birth_province">Province (optional)</Label>
+              <Input
+                id="birth_province"
+                placeholder="Province"
+                {...form.register("birth_province")}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="birth_municipality">Municipality (optional)</Label>
+              <Input
+                id="birth_municipality"
+                placeholder="Municipality"
+                {...form.register("birth_municipality")}
               />
             </div>
 
@@ -443,13 +469,13 @@ const ResidentInfoForm = ({
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="resident_status">Resident Status</Label>
+              <Label htmlFor="status">Resident Status</Label>
               <Select
                 value={
-                  form.watch("resident_status") || resident?.resident_status
+                  form.watch("status") || resident?.status
                 }
                 onValueChange={(value) =>
-                  form.setValue("resident_status", value)
+                  form.setValue("status", value)
                 }
               >
                 <SelectTrigger>
@@ -463,9 +489,9 @@ const ResidentInfoForm = ({
                   ))}
                 </SelectContent>
               </Select>
-              {form.formState.errors.resident_status && (
+              {form.formState.errors.status && (
                 <p className="text-sm text-destructive">
-                  {form.formState.errors.resident_status.message}
+                  {form.formState.errors.status.message}
                 </p>
               )}
             </div>

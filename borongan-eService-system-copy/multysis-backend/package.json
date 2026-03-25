@@ -20,7 +20,6 @@
     "db:migrate:prod": "npx prisma migrate deploy",
     "db:push": "npx prisma db push",
     "db:seed": "npx prisma db seed",
-    "db:seed:sample": "ts-node src/database/seeds/sample-data.seed.ts",
     "db:reset": "npx prisma migrate reset",
     "db:studio": "npx prisma studio",
     "db:setup": "npx prisma generate && npx prisma migrate deploy && npx prisma db seed",

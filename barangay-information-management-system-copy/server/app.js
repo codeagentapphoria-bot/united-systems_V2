@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import compression from "compression";
+import cookieParser from "cookie-parser";
 import authRouter from "./src/routes/auth.js";
 import municipalityRouter from "./src/routes/municipalityRoutes.js";
 import barangayRouter from "./src/routes/barangayRoutes.js";
@@ -22,8 +23,15 @@ import monitoringRouter from "./src/routes/monitoringRoutes.js";
 import systemManagementRouter from "./src/routes/systemManagementRoutes.js";
 import openApiRouter from "./src/routes/openApiRoutes.js";
 import apiKeyAdminRouter from "./src/routes/apiKeyAdminRoutes.js";
+// New routes for v2 architecture
+import setupRouter from "./src/routes/setupRoutes.js";
+import portalHouseholdRouter from "./src/routes/portalHouseholdRoutes.js";
+import certificateRouter from "./src/routes/certificateRoutes.js";
+// Registration approval workflow (C1 fix — BIMS handles directly via shared DB)
+import registrationRouter from "./src/routes/registrationRoutes.js";
 import ApiKeyModel from "./src/models/ApiKey.js";
 import { errorHandler, notFoundHandler } from "./src/middlewares/error.js";
+import { rateLimiter } from "./src/middlewares/rateLimiter.js";
 import { testRedisConnection } from "./src/config/redis.js";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -36,34 +44,83 @@ const app = express();
 // Middleware
 app.use(compression({
   level: 6,
-  threshold: 1024, // Only compress responses > 1KB
+  threshold: 1024,
 }));
-app.use(cors());
+// CORS — supports comma-separated list of origins in CORS_ORIGIN env var.
+// Both the BIMS frontend (5173) and the E-Services portal (5174) may call
+// BIMS backend endpoints (e.g. portal household routes use credentials).
+const _allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow requests with no origin (curl, server-to-server)
+    if (!origin) return cb(null, true);
+    if (_allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin '${origin}' not allowed`));
+  },
+  credentials: true,
+}));
 app.use(morgan("dev"));
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(cookieParser());
 
 // Ensure api_keys table exists on startup (non-blocking)
 ApiKeyModel.ensureTable().catch((e) => {
   console.error("Failed to ensure api_keys table:", e?.message);
 });
 
-// Serve the uploads folder at /uploads and /api/uploads
+// Serve the uploads folder
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/uploads", express.static(path.join(__dirname, "uploads")));
 
+// =============================================================================
 // Routes
-app.use("/api/auth", authRouter);
+// =============================================================================
 
-// Mount Open API and API key admin routes under same parent
+// Rate limiting
+const authRateLimiter = rateLimiter({ 
+  windowMs: 15 * 60 * 1000, 
+  maxRequests: 100, 
+  message: 'Too many login attempts. Please try again later.',
+  keyGenerator: (req) => `${req.ip}:${req.path}`
+});
+const apiRateLimiter  = rateLimiter({ 
+  windowMs: 15 * 60 * 1000, 
+  maxRequests: 100,
+  keyGenerator: (req) => `${req.ip}:${req.path}`
+});
+
+// Apply API rate limiter globally to all /api routes (auth gets additional stricter limiter below)
+app.use("/api", apiRateLimiter);
+
+app.use("/api/auth", authRateLimiter, authRouter);
+
+// Open API routes
 app.use("/api/openapi", openApiRouter);
 app.use("/api/openapi", apiKeyAdminRouter);
 
-// Other routers (may enforce JWT internally)
+// Setup routes (municipality GeoJSON setup + bulk ID download)
+app.use("/api/setup", setupRouter);
+
+// Portal household self-registration (resident portal → BIMS DB)
+app.use("/api/portal/household", portalHouseholdRouter);
+
+// Certificate template management + PDF generation (AC4)
+app.use("/api/certificates", certificateRouter);
+
+// Portal registration review (approve/reject/under-review/request-docs)
+app.use("/api/portal-registration", registrationRouter);
+
+// Core BIMS routes
 app.use("/api", municipalityRouter);
 app.use("/api", userRouter);
 app.use("/api", barangayRouter);
-app.use("/api", residentRouter);
-app.use("/api", householdRouter);
+app.use("/api", residentRouter);      // READ-ONLY + classifications
+app.use("/api", householdRouter);     // READ-ONLY (portal registers households)
 app.use("/api/logs", logsRouter);
 app.use("/api/statistics", statisticsRouter);
 app.use("/api", petsRouter);
@@ -77,23 +134,22 @@ app.use("/api/redis", redisRouter);
 app.use("/api/monitoring", monitoringRouter);
 app.use("/api/system-management", systemManagementRouter);
 
-app.use("/welcome", (req, res) => {
-  res.status(200).send("Welcome to the API");
-});
-
-// Health check endpoint
+// Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "healthy",
     timestamp: new Date().toISOString(),
-    message: "Server is running"
+    message: "BIMS Server is running",
+    version: "2.0.0",
   });
 });
 
-// Catch 404 routes
-app.use(notFoundHandler);
+app.use("/welcome", (req, res) => {
+  res.status(200).send("Welcome to the BIMS API v2");
+});
 
-// Error handling
+// 404 + error handling
+app.use(notFoundHandler);
 app.use(errorHandler);
 
 export default app;

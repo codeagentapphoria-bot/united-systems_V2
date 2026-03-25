@@ -28,7 +28,7 @@ export function HeroSection() {
       <div className="absolute inset-0 z-0">
         <img
           src={heroBg2Image}
-          alt="Borongan City - Modern Urban Landscape"
+          alt="Municipality"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-br from-slate-800/80 via-blue-700/60 to-sky-500/40"></div>
