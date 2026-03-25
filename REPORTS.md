@@ -966,8 +966,8 @@ All confirmed outstanding items have been resolved. Three items are deferred to 
 
 | Finding | Status |
 |---|---|
-| `test_fuzzy_match.sh` — production Supabase credentials hardcoded | **UNRESOLVED.** Credential still present at line ~5. Requires immediate rotation + script cleanup. |
-| `test_fuzzy_match.sh` — inserts into dropped `citizens` / `citizen_resident_mapping` tables | **Partially addressed** — script now has an error guard (line 63) that prints a warning, but the broken INSERT statements on lines 164–168 and the `DELETE FROM citizen_resident_mapping` block remain in the file. Script will still fail if someone bypasses the guard or removes it. Needs full rewrite. |
+| `test_fuzzy_match.sh` — production Supabase credentials hardcoded | **RESOLVED.** File deleted 2026-03-25. ✅ |
+| `test_fuzzy_match.sh` — inserts into dropped `citizens` / `citizen_resident_mapping` tables | **RESOLVED.** File deleted 2026-03-25. ✅ |
 | Rate limiter **partial coverage gap** | `authRateLimiter` covers `/api/auth`. `apiRateLimiter` covers `/api` via `municipalityRouter` (line 107) **only**. Routes on lines 91–104 (`/api/openapi`, `/api/setup`, `/api/portal/household`, `/api/certificates`, `/api/portal-registration`) and lines 108–123 (user, barangay, resident, household, logs, statistics, pets, vaccine, archives, inventories, requests, gis, counter, redis, monitoring, system-management) have **no rate limiter applied**. Only `municipalityRouter` got the treatment. |
 
 ---
