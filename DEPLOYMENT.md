@@ -1,7 +1,246 @@
 # United Systems — Deployment Guide
 
-> **Version:** v2 (March 2026)  
+> **Version:** v2 (March 2026)
 > **Architecture:** Two Express backends + two Vite frontends sharing one PostgreSQL database
+
+---
+
+## Production Deployment: Vercel + Supabase
+
+This section covers the recommended production setup:
+
+| Layer | Platform | Notes |
+|---|---|---|
+| BIMS Frontend | **Vercel** | Static SPA |
+| E-Services Frontend | **Vercel** | Static SPA |
+| BIMS Backend | **Railway / Render / Fly.io** | Must be a persistent server — see why below |
+| E-Services Backend | **Railway / Render / Fly.io** | Must be a persistent server — see why below |
+| Database | **Supabase** (PostgreSQL + PostGIS) | Shared by both backends |
+| Cache / Queue | **Upstash Redis** | Required for E-Services job queues |
+| File Storage | **Supabase Storage** or **AWS S3** | Multer local disk won't persist |
+
+> **Why Vercel only for frontends?**
+> Both backends are long-running Node.js processes. Vercel's serverless functions have a maximum execution timeout (~10–60 s depending on plan) and do not support:
+> - **WebSockets** — E-Services uses Socket.io for real-time notifications
+> - **Puppeteer / headless Chrome** — BIMS generates certificate PDFs via Puppeteer (binary too large, needs persistent process)
+> - **Bull job queues** — require a persistent Redis connection that survives request boundaries
+>
+> Use Railway, Render, or Fly.io for both backends. They offer free/hobby tiers and run persistent Node.js servers.
+
+---
+
+### External Services Checklist
+
+Before deploying, provision the following:
+
+#### Required
+
+| Service | What it does | Where to get it |
+|---|---|---|
+| **Supabase project** | PostgreSQL 15 + PostGIS + Auth | supabase.com → New project |
+| **Upstash Redis** | Caching + Bull job queues (E-Services) | upstash.com → Create database |
+| **Google Cloud OAuth credentials** | Portal Google Sign-In | console.cloud.google.com → Credentials |
+| **Gmail App Password** | Transactional email (both backends) | Google account → Security → App passwords |
+
+#### Optional but recommended
+
+| Service | What it does |
+|---|---|
+| **Supabase Storage bucket** | Persistent file uploads (replaces Multer local disk) |
+| **Twilio** | SMS OTP for portal registration |
+| **Sentry / BetterStack** | Error tracking + log aggregation |
+
+---
+
+### Step A — Supabase Setup
+
+1. **Create a new Supabase project** at [supabase.com](https://supabase.com). Choose the region closest to your users.
+
+2. **Enable PostGIS** — go to the SQL Editor in the Supabase dashboard and run:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
+   ```
+   (The schema.sql does this too, but run it first to avoid errors.)
+
+3. **Run the schema scripts** in order via the Supabase SQL Editor or `psql`:
+   ```bash
+   # Use your Supabase direct connection string (Settings → Database → Connection string → URI)
+   SUPABASE_URL="postgresql://postgres:[password]@db.[ref].supabase.co:5432/postgres"
+
+   psql "$SUPABASE_URL" -f united-database/schema.sql
+   psql "$SUPABASE_URL" -f united-database/seed.sql
+   psql "$SUPABASE_URL" -f united-database/seed_gis.sql
+   ```
+
+4. **Row Level Security (RLS)** — The app manages its own auth at the application layer (JWT). Supabase enables RLS by default but the backends connect as the `postgres` service role, bypassing RLS. This is fine — do **not** add Supabase RLS policies on the shared tables unless you fully understand the schema. Leave RLS disabled or bypassed for application tables.
+
+5. **Get your connection strings** — from Supabase Dashboard → Settings → Database:
+   - **Session mode (port 5432)** — use as `DIRECT_URL` in Prisma and as the `PG_*` vars in the BIMS backend
+   - **Transaction mode / PgBouncer (port 6543)** — use as `DATABASE_URL` in Prisma (pooled for short-lived serverless-style connections)
+
+   ```env
+   # E-Services backend .env — Prisma needs both
+   DATABASE_URL=postgresql://postgres:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
+   DIRECT_URL=postgresql://postgres:[password]@db.[ref].supabase.co:5432/postgres
+
+   # BIMS backend .env — uses direct pg driver, not Prisma
+   PG_HOST=db.[ref].supabase.co
+   PG_PORT=5432
+   PG_USER=postgres
+   PG_PASSWORD=[your-supabase-password]
+   PG_DATABASE=postgres
+   PG_SSL=true
+   ```
+
+   > **Why two URLs for Prisma?** Supabase's PgBouncer (port 6543) doesn't support the `SET` statement that Prisma migrations use. `DIRECT_URL` bypasses the pooler for migrations while `DATABASE_URL` uses the pooler for runtime queries.
+
+6. **File uploads** — by default both backends write uploads to local disk via Multer. This will not persist on Railway/Render (ephemeral containers). Either:
+   - Enable the **AWS S3** integration already wired in the E-Services backend (`aws-sdk` is already a dependency — add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`, `AWS_REGION` to env)
+   - Or use **Supabase Storage** (create a public bucket and swap the Multer disk storage for `@supabase/storage-js` upload calls)
+
+---
+
+### Step B — Redis Setup (Upstash)
+
+The E-Services backend uses **Bull** job queues and **ioredis** for caching. Redis is required in production.
+
+1. Go to [upstash.com](https://upstash.com) → Create Redis database → choose the same region as your backend host.
+
+2. Copy the **Redis URL** (format: `redis://default:[token]@[host]:[port]`) from the Upstash console.
+
+3. Set in E-Services backend `.env`:
+   ```env
+   REDIS_URL=redis://default:[token]@[host]:[port]
+   ```
+
+4. The BIMS backend also optionally uses Redis for caching (`ioredis` is a dependency). Set in BIMS backend `.env`:
+   ```env
+   REDIS_HOST=[host]
+   REDIS_PORT=[port]
+   REDIS_PASSWORD=[token]
+   ```
+
+> **Upstash vs self-hosted Redis:** Upstash is serverless-compatible (HTTP-based with per-request billing), works from Railway/Render without a separate Redis service, and has a free tier. It is the simplest option. If your backend host (e.g. Railway) offers a native Redis service, that works too and may have lower latency.
+
+---
+
+### Step C — Backend Deployment (Railway example)
+
+Railway is the closest match to the existing setup (supports PM2, persistent processes, env vars, custom domains).
+
+1. **Create a new Railway project** → Add service → Deploy from GitHub repo.
+
+2. **BIMS Backend service:**
+   - Root directory: `barangay-information-management-system-copy/server`
+   - Build command: `npm install`
+   - Start command: `node server.js`
+   - Set all env vars from `server/.env.example`
+   - Assign a custom domain: `bims-api.your-domain.com`
+
+3. **E-Services Backend service:**
+   - Root directory: `borongan-eService-system-copy/multysis-backend`
+   - Build command: `npm install && npm run build && npx prisma generate`
+   - Start command: `node dist/index.js`
+   - Set all env vars from `multysis-backend/.env.example`
+   - Assign a custom domain: `eservice-api.your-domain.com`
+
+4. **Puppeteer on Railway** — Railway runs on Debian-based containers. Add these env vars to the BIMS backend service:
+   ```env
+   PUPPETEER_NO_SANDBOX=true
+   PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+   ```
+   If Chromium fails to launch, install system dependencies via a `nixpacks.toml` or `Dockerfile` (see Step 4 below for the Dockerfile snippet).
+
+---
+
+### Step D — Frontend Deployment (Vercel)
+
+#### BIMS Frontend
+
+1. In Vercel dashboard → New Project → import from GitHub → set root directory to `barangay-information-management-system-copy/client`.
+2. Framework preset: **Vite**
+3. Build command: `npm run build`
+4. Output directory: `dist`
+5. Add a `vercel.json` at `barangay-information-management-system-copy/client/vercel.json`:
+   ```json
+   {
+     "rewrites": [
+       { "source": "/(.*)", "destination": "/index.html" }
+     ]
+   }
+   ```
+6. Set environment variables in Vercel dashboard (Settings → Environment Variables):
+   ```
+   VITE_API_BASE_URL        https://bims-api.your-domain.com/api
+   VITE_SERVER_URL          https://bims-api.your-domain.com
+   VITE_ESERVICE_URL        https://portal.your-domain.com
+   VITE_ESERVICE_SERVER_URL https://eservice-api.your-domain.com
+   ```
+
+#### E-Services Frontend
+
+1. In Vercel dashboard → New Project → import from GitHub → set root directory to `borongan-eService-system-copy/multysis-frontend`.
+2. Framework preset: **Vite**
+3. Build command: `npm run build`
+4. Output directory: `dist`
+5. The existing `vercel.json` proxies to a Railway URL — **update it** to your actual backend URL:
+   ```json
+   {
+     "rewrites": [
+       { "source": "/api/(.*)", "destination": "https://eservice-api.your-domain.com/api/$1" },
+       { "source": "/socket.io/(.*)", "destination": "https://eservice-api.your-domain.com/socket.io/$1" },
+       { "source": "/(.*)", "destination": "/index.html" }
+     ]
+   }
+   ```
+6. Set environment variables in Vercel dashboard:
+   ```
+   VITE_API_BASE_URL         https://eservice-api.your-domain.com/api
+   VITE_BIMS_API_BASE_URL    https://bims-api.your-domain.com/api
+   VITE_PORTAL_URL           https://portal.your-domain.com
+   VITE_SUPABASE_URL         https://[ref].supabase.co
+   VITE_SUPABASE_ANON_KEY    [your anon key from Supabase dashboard]
+   VITE_SUPABASE_TIMEOUT     120000
+   ```
+
+> **Important:** Vercel injects `VITE_*` variables at **build time**, not runtime. Any change to these variables requires a redeploy. Do not put secrets in `VITE_*` vars — they are embedded in the JavaScript bundle and visible to anyone who inspects it.
+
+---
+
+### Step E — Google OAuth Production Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials.
+2. Under your OAuth 2.0 Client ID, add to **Authorized redirect URIs**:
+   ```
+   https://eservice-api.your-domain.com/api/auth/portal/google/callback
+   ```
+3. Add to **Authorized JavaScript origins** (for Supabase Google auth on the frontend):
+   ```
+   https://portal.your-domain.com
+   https://[ref].supabase.co
+   ```
+4. Set in E-Services backend `.env`:
+   ```env
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   GOOGLE_CALLBACK_URL=https://eservice-api.your-domain.com/api/auth/portal/google/callback
+   ```
+
+---
+
+### Step F — Pre-launch Checklist
+
+- [ ] Supabase project created, PostGIS enabled, all three SQL scripts applied in order
+- [ ] Both backends deployed and health checks return 200
+- [ ] `JWT_SECRET` is **identical** in both backend env configs
+- [ ] BIMS backend `CORS_ORIGIN` includes both `https://bims.your-domain.com` and `https://portal.your-domain.com`
+- [ ] E-Services backend `CORS_ORIGIN` includes `https://portal.your-domain.com`
+- [ ] Redis URL configured in E-Services backend (Bull queues will crash on startup without it)
+- [ ] File upload storage configured (Supabase Storage or S3) — local Multer disk not suitable for production
+- [ ] Google OAuth redirect URIs updated to production URLs
+- [ ] `PUPPETEER_NO_SANDBOX=true` set on BIMS backend
+- [ ] GeoJSON municipality setup completed (Step 7 below) before any resident registration
+- [ ] Smoke tests passed (Step 9 below)
 
 ---
 
