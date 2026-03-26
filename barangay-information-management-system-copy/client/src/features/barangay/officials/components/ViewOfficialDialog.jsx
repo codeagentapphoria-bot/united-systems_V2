@@ -19,7 +19,6 @@ import {
   Users,
   FileText,
   User,
-  Building,
   Maximize2,
   X,
 } from "lucide-react";
@@ -129,9 +128,6 @@ const ViewOfficialDialog = ({ open, onOpenChange, official }) => {
                             {official.committee}
                           </Badge>
                         )}
-                        <Badge variant="outline" className="text-xs sm:text-sm">
-                          ID: {official.official_id}
-                        </Badge>
                       </div>
                     </div>
                   </div>
@@ -244,16 +240,6 @@ const ViewOfficialDialog = ({ open, onOpenChange, official }) => {
                           <Users className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
                           <span className="font-semibold text-xs sm:text-sm">Committee:</span>
                           <span className="ml-1 text-xs sm:text-sm">{official.committee || "No committee assigned"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <User className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
-                          <span className="font-semibold text-xs sm:text-sm">Official ID:</span>
-                          <span className="ml-1 font-mono text-xs sm:text-sm">{official.official_id}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Building className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
-                          <span className="font-semibold text-xs sm:text-sm">Resident ID:</span>
-                          <span className="ml-1 font-mono text-xs sm:text-sm">{official.resident_id}</span>
                         </div>
                       </CardContent>
                     </Card>

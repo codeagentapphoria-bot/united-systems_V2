@@ -22,6 +22,7 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import logger from "@/utils/logger";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
+const ESERVICE_SERVER_URL = import.meta.env.VITE_ESERVICE_SERVER_URL || "http://localhost:3000";
 
 // PVC Card dimensions (CR80 standard)
 const CARD_WIDTH_MM = 54;
@@ -193,20 +194,20 @@ const ResidentIDCard = ({
   downloadPDFLoading,
   householdInfo,
 }) => {
-  // Helper to get municipality image path
-  const municipalityBgImgFront = municipalityData?.id_background_front_path
-    ? `${SERVER_URL}/${municipalityData.id_background_front_path.replace(
-        /\\/g,
-        "/"
-      )}`
-    : null;
+  // Build an absolute URL for any stored path.
+  // Handles both BIMS-relative paths ("uploads/...") and absolute URLs
+  // ("http://...") — the latter come from eService-uploaded photos.
+  const toAbsUrl = (p) => {
+    if (!p) return null;
+    if (p.startsWith("http://") || p.startsWith("https://")) return p;
+    const clean = p.startsWith("/") ? p.slice(1) : p.replace(/\\/g, "/");
+    // Files under uploads/images/ were uploaded via eService and live on port 3000
+    if (clean.startsWith("uploads/images/")) return `${ESERVICE_SERVER_URL}/${clean}`;
+    return `${SERVER_URL}/${clean}`;
+  };
 
-  const municipalityBgImgBack = municipalityData?.id_background_back_path
-    ? `${SERVER_URL}/${municipalityData.id_background_back_path.replace(
-        /\\/g,
-        "/"
-      )}`
-    : null;
+  const municipalityBgImgFront = toAbsUrl(municipalityData?.id_background_front_path);
+  const municipalityBgImgBack  = toAbsUrl(municipalityData?.id_background_back_path);
 
   if (idTabLoading) {
     return (
@@ -345,14 +346,7 @@ const ResidentIDCard = ({
           )}
           <div className="relative z-10 flex w-full justify-between items-center mb-2">
             <img
-              src={
-                municipalityData?.municipality_logo_path
-                  ? `${SERVER_URL}/${municipalityData.municipality_logo_path.replace(
-                      /\\/g,
-                      "/"
-                    )}`
-                  : ""
-              }
+              src={toAbsUrl(municipalityData?.municipality_logo_path) || ""}
               alt="Municipality Logo"
               className="h-8 w-8 object-contain rounded-full"
               style={{
@@ -377,14 +371,7 @@ const ResidentIDCard = ({
               </p>
             </div>
             <img
-              src={
-                barangayData?.barangay_logo_path
-                  ? `${SERVER_URL}/${barangayData.barangay_logo_path.replace(
-                      /\\/g,
-                      "/"
-                    )}`
-                  : ""
-              }
+              src={toAbsUrl(barangayData?.barangay_logo_path) || ""}
               alt="Barangay Logo"
               className="h-8 w-8 object-contain rounded-full"
               style={{
@@ -401,14 +388,7 @@ const ResidentIDCard = ({
             <div className="w-16 h-16 rounded-md overflow-hidden border-2 border-primary bg-white ">
               {viewResident.picture_path ? (
                 <img
-                  src={
-                    viewResident.picture_path
-                      ? `${SERVER_URL}/${viewResident.picture_path.replace(
-                          /\\/g,
-                          "/"
-                        )}`
-                      : ""
-                  }
+                  src={toAbsUrl(viewResident.picture_path) || ""}
                   alt="Resident"
                   className="w-full h-full object-cover"
                   style={{

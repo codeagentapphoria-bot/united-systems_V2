@@ -10,10 +10,17 @@
  */
 
 import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import QRCode from "qrcode";
 import { pool } from "../config/db.js";
 import { municipalityAdminOnly, allUsers } from "../middlewares/auth.js";
 import logger from "../utils/logger.js";
-import PDFDocument from "pdfkit";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Resolve to the server root (server/src/routes -> server/)
+const SERVER_ROOT = path.resolve(__dirname, "../../");
 
 const router = express.Router();
 
@@ -223,10 +230,15 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
         r.extension_name,
         r.sex,
         r.birthdate,
+        r.civil_status,
         r.status,
         r.picture_path,
+        b.id AS barangay_id,
         b.barangay_name,
+        b.barangay_logo_path,
+        m.id AS municipality_id,
         m.municipality_name,
+        m.municipality_logo_path,
         m.id_background_front_path,
         m.id_background_back_path
       FROM residents r
@@ -246,59 +258,222 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
       });
     }
 
-    // PDF response
-    const doc = new PDFDocument({
-      size: [153.07, 242.65], // CR80 card size in points (54mm × 85.6mm)
-      margin: 5,
-      autoFirstPage: false,
-    });
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="resident-ids-${Date.now()}.pdf"`
-    );
-    doc.pipe(res);
-
-    for (const resident of result.rows) {
-      doc.addPage();
-
-      const fullName = [
-        resident.first_name,
-        resident.middle_name ? resident.middle_name.charAt(0) + "." : "",
-        resident.last_name,
-        resident.extension_name || "",
-      ]
-        .filter(Boolean)
-        .join(" ");
-
-      // Draw resident ID card (simple layout — customize with background images in production)
-      doc
-        .fontSize(7)
-        .font("Helvetica-Bold")
-        .text(resident.municipality_name || "LGU", { align: "center" })
-        .moveDown(0.3)
-        .fontSize(6)
-        .font("Helvetica")
-        .text(resident.barangay_name || "", { align: "center" })
-        .moveDown(0.5)
-        .fontSize(8)
-        .font("Helvetica-Bold")
-        .text(fullName, { align: "center" })
-        .moveDown(0.3)
-        .fontSize(7)
-        .font("Helvetica")
-        .text(resident.resident_id || "PENDING", { align: "center" })
-        .moveDown(0.3)
-        .fontSize(6)
-        .text(
-          `DOB: ${resident.birthdate ? new Date(resident.birthdate).toLocaleDateString("en-PH") : "N/A"}`,
-          { align: "center" }
-        )
-        .text(`Sex: ${resident.sex || "N/A"}`, { align: "center" });
+    // Fetch Punong Barangay for each unique barangay
+    const uniqueBarangayIds = [...new Set(result.rows.map((r) => r.barangay_id).filter(Boolean))];
+    const punongMap = {};
+    if (uniqueBarangayIds.length > 0) {
+      const pbResult = await pool.query(
+        `SELECT o.barangay_id, r.first_name, r.middle_name, r.last_name
+         FROM officials o
+         JOIN residents r ON o.resident_id = r.id
+         WHERE o.barangay_id = ANY($1)
+           AND (LOWER(o.position) LIKE '%captain%'
+             OR LOWER(o.position) LIKE '%punong barangay%'
+             OR LOWER(o.position) LIKE '%barangay captain%'
+             OR LOWER(o.position) LIKE '%pb%')`,
+        [uniqueBarangayIds]
+      );
+      pbResult.rows.forEach((pb) => {
+        if (!punongMap[pb.barangay_id]) punongMap[pb.barangay_id] = pb;
+      });
     }
 
-    doc.end();
+    // Convert a DB-stored path to a URL Puppeteer can load.
+    // Absolute HTTP URLs (e.g. from eService uploads) are used as-is.
+    // Relative BIMS paths (e.g. "uploads/foo.jpg") become file:// URLs.
+    function toFileUrl(relPath) {
+      if (!relPath) return null;
+      if (relPath.startsWith("http://") || relPath.startsWith("https://")) return relPath;
+      const normalized = relPath.replace(/\\/g, "/");
+      return `file://${path.join(SERVER_ROOT, normalized)}`;
+    }
+
+    function formatDateLong(dateStr) {
+      if (!dateStr) return "N/A";
+      return new Date(dateStr)
+        .toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })
+        .toUpperCase();
+    }
+
+    function getAge(dateStr) {
+      if (!dateStr) return "N/A";
+      const today = new Date();
+      const bdate = new Date(dateStr);
+      return Math.floor((today - bdate) / (365.25 * 24 * 60 * 60 * 1000));
+    }
+
+    // Pre-generate QR data URLs for each resident (same logic as the client: btoa(resident_id))
+    const qrMap = {};
+    await Promise.all(
+      result.rows.map(async (r) => {
+        if (r.resident_id) {
+          try {
+            qrMap[r.id] = await QRCode.toDataURL(Buffer.from(String(r.resident_id)).toString("base64"), {
+              width: 120,
+              margin: 1,
+            });
+          } catch {
+            qrMap[r.id] = null;
+          }
+        }
+      })
+    );
+
+    const cardsHtml = result.rows.map((r) => {
+      const qrDataUrl = qrMap[r.id];
+      const pb = punongMap[r.barangay_id];
+      const pbName = pb
+        ? `${pb.first_name}${pb.middle_name ? " " + pb.middle_name : ""} ${pb.last_name}`.toUpperCase()
+        : "HON. [PUNONG BARANGAY]";
+
+      const fullName = [
+        r.first_name,
+        r.middle_name ? r.middle_name.charAt(0) + "." : "",
+        r.last_name,
+        r.extension_name || "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toUpperCase();
+
+      const bgFront = toFileUrl(r.id_background_front_path);
+      const bgBack = toFileUrl(r.id_background_back_path);
+      const photo = toFileUrl(r.picture_path);
+      const muniLogo = toFileUrl(r.municipality_logo_path);
+      const brgyLogo = toFileUrl(r.barangay_logo_path);
+
+      // Escape HTML special chars to prevent broken markup
+      const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+      // Card pixel dimensions matching ResidentIDCard.jsx exactly (96 DPI)
+      // CARD_WIDTH_MM=54, CARD_HEIGHT_MM=85.6, MM_TO_PX=96/25.4
+      const W = Math.round(54 * 96 / 25.4);   // 204px
+      const H = Math.round(85.6 * 96 / 25.4); // 323px
+
+      return `
+<div class="resident-page">
+  <div id="resident-id-printable" style="display:flex;flex-direction:row;gap:32px;padding:16px;align-items:center;justify-content:center;">
+
+    <!-- FRONT — mirrors id-card-front in ResidentIDCard.jsx exactly -->
+    <div class="id-card-front" style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:space-between;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.2);border:1px solid hsl(220,90%,56%);padding:16px;overflow:hidden;background:transparent;width:${W}px;height:${H}px;min-width:${W}px;max-width:${W}px;min-height:${H}px;max-height:${H}px;flex-shrink:0;">
+      ${bgFront ? `<img src="${bgFront}" alt="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;" onerror="this.style.display='none'">` : ""}
+
+      <!-- Header row: muni logo | barangay+muni names | brgy logo -->
+      <div style="position:relative;z-index:10;display:flex;width:100%;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        ${muniLogo ? `<img src="${muniLogo}" alt="Municipality Logo" style="height:32px;width:32px;object-fit:contain;border-radius:50%;" onerror="this.style.display='none'">` : `<div style="width:32px;"></div>`}
+        <div style="text-align:center;flex:1;">
+          <div style="font-weight:700;font-size:10px;letter-spacing:2px;color:hsl(220,90%,56%);">${esc((r.barangay_name || "").toUpperCase())}</div>
+          <p style="font-size:10px;font-weight:600;color:#6b7280;">${esc((r.municipality_name || "").toUpperCase())}</p>
+        </div>
+        ${brgyLogo ? `<img src="${brgyLogo}" alt="Barangay Logo" style="height:32px;width:32px;object-fit:contain;border-radius:50%;" onerror="this.style.display='none'">` : `<div style="width:32px;"></div>`}
+      </div>
+
+      <!-- Main content -->
+      <div style="position:relative;z-index:10;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;">
+        <div style="font-weight:700;font-size:10px;letter-spacing:2px;color:#000;margin-bottom:8px;">BARANGAY ID</div>
+
+        <!-- Photo: w-16 h-16 = 64px, rounded-md, border-2 border-primary -->
+        <div style="width:64px;height:64px;border-radius:6px;overflow:hidden;border:2px solid hsl(220,90%,56%);background:#fff;display:flex;align-items:center;justify-content:center;">
+          ${photo
+            ? `<img src="${photo}" alt="Resident" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:8px;color:#9ca3af;">No Image</div>`}
+        </div>
+
+        <!-- Name: text-[12px] font-bold underline mt-2 -->
+        <div style="font-size:12px;font-weight:700;text-decoration:underline;margin-top:8px;text-align:center;">${esc(fullName)}</div>
+        <!-- Resident ID: text-[10px] font-semibold -->
+        <div style="font-size:10px;font-weight:600;text-align:center;margin-bottom:8px;">${esc(r.resident_id || "PENDING")}</div>
+
+        <!-- Personal Information -->
+        <div style="font-weight:700;font-size:10px;text-decoration:underline;margin-bottom:4px;width:100%;">PERSONAL INFORMATION</div>
+        <div style="font-size:10px;display:flex;flex-direction:column;width:100%;gap:1px;">
+          <div style="display:flex;gap:4px;"><span>CIVIL STATUS:</span><span style="font-weight:600;">${esc((r.civil_status || "N/A").toUpperCase())}</span></div>
+          <div style="display:flex;gap:4px;"><span>SEX:</span><span style="font-weight:600;">${esc((r.sex || "N/A").toUpperCase())}</span></div>
+          <div style="display:flex;gap:4px;"><span>BIRTH DATE:</span><span style="font-weight:600;">${esc(formatDateLong(r.birthdate))}</span></div>
+          <div style="display:flex;gap:4px;"><span>AGE:</span><span style="font-weight:600;">${getAge(r.birthdate)}</span></div>
+          <div style="display:flex;gap:4px;"><span>ADDRESS:</span><span style="font-weight:600;">${esc((r.barangay_name || "").toUpperCase())}${r.municipality_name ? esc(", " + r.municipality_name.toUpperCase()) : ""}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BACK — mirrors id-card-back in ResidentIDCard.jsx exactly -->
+    <div class="id-card-back" style="position:relative;display:flex;flex-direction:column;justify-content:space-between;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.2);border:1px solid hsl(220,90%,56%);padding:16px;overflow:hidden;background:transparent;width:${W}px;height:${H}px;min-width:${W}px;max-width:${W}px;min-height:${H}px;max-height:${H}px;flex-shrink:0;">
+      ${bgBack ? `<img src="${bgBack}" alt="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;" onerror="this.style.display='none'">` : ""}
+
+      <!-- font-bold italic text-[8px] -->
+      <div style="font-weight:700;font-style:italic;font-size:8px;margin-bottom:4px;text-align:center;">NOTIFY INCASE OF EMERGENCY:</div>
+
+      <!-- border-1 border-primary rounded-lg p-1 mb-2 -->
+      <div style="position:relative;z-index:10;border:1px solid hsl(220,90%,56%);border-radius:8px;padding:4px;margin-bottom:8px;">
+        <div style="font-size:8px;">Name: <span style="font-weight:600;">N/A</span></div>
+        <div style="font-size:8px;">Contact No.: <span style="font-weight:600;">N/A</span></div>
+      </div>
+
+      <!-- LGU name: text-[8px] font-semibold text-center mb-2 -->
+      <div style="position:relative;z-index:10;font-size:8px;font-weight:600;text-align:center;margin-bottom:8px;">LGU-${esc((r.municipality_name || "").toUpperCase())}</div>
+
+      <!-- Certification text: text-[8px] text-center mb-2 -->
+      <div style="position:relative;z-index:10;font-size:8px;text-align:center;margin-bottom:8px;">THIS IS TO CERTIFY THE BEARER OF THIS CARD WHOSE PICTURE AND SIGNATURE APPEAR HEREIN IS A RESIDENT OF BARANGAY ${esc((r.barangay_name || "").toUpperCase())}${r.municipality_name ? ", " + esc(r.municipality_name.toUpperCase()) : ""}</div>
+
+      <!-- QR code: w-16 h-16 centered -->
+      <div style="position:relative;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-bottom:8px;">
+        ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR Code" style="width:64px;height:64px;image-rendering:crisp-edges;">` : ""}
+      </div>
+
+      <!-- Disclaimers: text-[8px] font-semibold text-center -->
+      <div style="position:relative;z-index:10;font-size:8px;font-weight:600;text-align:center;margin-bottom:4px;">THIS ID IS NON-TRANSFERRABLE</div>
+      <div style="position:relative;z-index:10;font-size:8px;font-weight:600;text-align:center;margin-bottom:8px;">IN CASE OF LOSS PLEASE RETURN TO BARANGAY</div>
+
+      <!-- Punong Barangay: mt-auto flex flex-col items-center -->
+      <div style="position:relative;z-index:10;margin-top:auto;display:flex;flex-direction:column;align-items:center;">
+        <div style="font-weight:700;text-decoration:underline;font-size:8px;">${esc(pbName)}</div>
+        <div style="font-size:8px;font-weight:700;">PUNONG BARANGAY</div>
+      </div>
+    </div>
+
+  </div>
+</div>`;
+    }).join("\n");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 10mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Helvetica, Arial, sans-serif; background: #fff; }
+  .resident-page { page-break-after: always; display: flex; align-items: flex-start; justify-content: center; padding: 8px 0; }
+  .resident-page:last-child { page-break-after: avoid; }
+</style>
+</head>
+<body>
+${cardsHtml}
+</body>
+</html>`;
+
+    const { default: puppeteer } = await import("puppeteer");
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: "networkidle0" });
+      const pdfBuffer = await page.pdf({
+        format: "A4",
+        printBackground: true,
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="resident-ids-${Date.now()}.pdf"`
+      );
+      res.send(pdfBuffer);
+    } finally {
+      await browser.close();
+    }
   } catch (error) {
     logger.error("Bulk ID download error:", error);
     if (!res.headersSent) {

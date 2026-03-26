@@ -118,9 +118,9 @@ export const RequestServiceModal: React.FC<RequestServiceModalProps> = ({
           fieldSchema = field.required ? z.string().min(1, `${field.label} is required`) : z.string().optional();
           break;
         case 'file':
-          fieldSchema = field.required 
-            ? z.string().url('File must be uploaded').min(1, `${field.label} is required`)
-            : z.string().url('File must be uploaded').optional();
+          fieldSchema = field.required
+            ? z.string().min(1, `${field.label} is required`).url('File must be uploaded')
+            : z.union([z.string().url(), z.literal(''), z.undefined()]);
           break;
         default: {
           let stringSchema = z.string();

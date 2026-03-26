@@ -117,7 +117,7 @@ export const PortalMyID: React.FC = () => {
               <div className="w-28 bg-primary-50 flex items-center justify-center border-r">
                 {resident.picturePath ? (
                   <img
-                    src={`${BACKEND_URL}/${resident.picturePath}`}
+                    src={resident.picturePath?.startsWith('http') ? resident.picturePath : `${BACKEND_URL}/${resident.picturePath?.startsWith('/') ? resident.picturePath.slice(1) : resident.picturePath}`}
                     alt="Photo"
                     className="w-24 h-24 object-cover rounded"
                   />

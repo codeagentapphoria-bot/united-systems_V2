@@ -12,6 +12,26 @@ import {
 
 const router = Router();
 
+// Upload profile picture during self-registration (public — no auth required)
+// Rate-limited at the route mount level (uploadLimiter in index.ts)
+router.post(
+  '/registration/profile-picture',
+  uploadProfilePicture.single('file'),
+  async (_req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!_req.file) {
+        res.status(400).json({ status: 'error', message: 'No file uploaded' });
+        return;
+      }
+      const filePath = getFilePath(_req.file.filename, 'image');
+      const fileUrl = getFileUrl(filePath);
+      res.status(200).json({ status: 'success', data: { url: fileUrl, path: filePath } });
+    } catch (error: any) {
+      res.status(500).json({ status: 'error', message: error.message || 'Failed to upload photo' });
+    }
+  }
+);
+
 // Upload profile picture
 router.post(
   '/residents/:id/profile-picture',

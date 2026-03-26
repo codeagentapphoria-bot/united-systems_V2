@@ -37,6 +37,7 @@ export const submitRegistrationController = async (
       monthlyIncome, height, weight,
       isVoter, isEmployed, indigenousPerson,
       idType, idDocumentNumber, idDocumentUrl, selfieUrl,
+      picturePath,
       username, password,
       emergencyContactPerson, emergencyContactNumber, spouseName, acrNo,
     } = req.body;
@@ -55,6 +56,7 @@ export const submitRegistrationController = async (
       isEmployed: Boolean(isEmployed),
       indigenousPerson: Boolean(indigenousPerson),
       idType, idDocumentNumber, idDocumentUrl, selfieUrl,
+      picturePath,
       username, password,
       emergencyContactPerson, emergencyContactNumber, spouseName, acrNo,
     });

@@ -11,7 +11,7 @@ export const createTransactionSchema = z.object({
   applicantContact: z.string().optional(),
   applicantEmail: z.string().email().optional().or(z.literal('')),
   applicantAddress: z.string().optional(),
-  serviceId: z.string().uuid('Invalid service ID'),
+  serviceId: z.string().min(1, 'Service ID is required'),
   serviceData: serviceDataSchema,
   paymentAmount: z.number().min(0, 'Payment amount must be positive').optional(),
   isLocalResident: z.boolean().optional(),

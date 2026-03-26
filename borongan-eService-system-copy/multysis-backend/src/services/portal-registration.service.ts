@@ -61,6 +61,8 @@ export interface ResidentRegistrationData {
   idDocumentUrl: string;   // base64 or uploaded file path
   // Selfie (for admin identity verification)
   selfieUrl?: string;
+  // Profile picture path (from pre-registration upload)
+  picturePath?: string;
   // Portal credentials (set during registration)
   username: string;
   password: string;
@@ -155,6 +157,7 @@ export const submitRegistration = async (data: ResidentRegistrationData) => {
         idType: data.idType,
         idDocumentNumber: data.idDocumentNumber,
         proofOfIdentification: data.idDocumentUrl,
+        picturePath: data.picturePath || null,
         emergencyContactPerson: data.emergencyContactPerson || null,
         emergencyContactNumber: data.emergencyContactNumber || null,
         spouseName: data.spouseName || null,

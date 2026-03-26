@@ -258,11 +258,23 @@ export const getTransactions = async (
   residentId: string,
   serviceId?: string,
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
+  status?: string,
+  search?: string
 ) => {
   const where: any = { residentId };
   if (serviceId) {
     where.serviceId = serviceId;
+  }
+  if (status) {
+    where.status = { equals: status, mode: 'insensitive' };
+  }
+  if (search) {
+    where.OR = [
+      { referenceNumber: { contains: search, mode: 'insensitive' } },
+      { transactionId: { contains: search, mode: 'insensitive' } },
+      { service: { name: { contains: search, mode: 'insensitive' } } },
+    ];
   }
 
   const skip = (page - 1) * limit;

@@ -13,6 +13,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
+import { getToken } from "@/constants/token";
 import useAuth from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -55,7 +56,7 @@ export default function BulkIDPage() {
       const params = new URLSearchParams({ format: "pdf", status: "active" });
       if (selectedBarangay) params.append("barangayId", selectedBarangay);
 
-      const token = document.cookie.match(/access_token=([^;]+)/)?.[1];
+      const token = getToken();
 
       const response = await fetch(`${BIMS_API}/setup/residents/bulk-id?${params}`, {
         credentials: "include",

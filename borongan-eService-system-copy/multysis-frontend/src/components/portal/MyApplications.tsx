@@ -37,6 +37,7 @@ export const MyApplications: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [serviceFilter, setServiceFilter] = useState<string | undefined>();
   const [page, setPage] = useState(1);
@@ -46,14 +47,14 @@ export const MyApplications: React.FC = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [transactionsWithUnreadCounts, setTransactionsWithUnreadCounts] = useState<Transaction[]>([]);
 
-  const limit = 10;
+  const limit = 5;
 
   useEffect(() => {
     if (currentUser?.id) {
       fetchTransactions();
       fetchServices();
     }
-  }, [currentUser, page, statusFilter, serviceFilter]);
+  }, [currentUser, page, statusFilter, serviceFilter, searchQuery]);
 
   const fetchTransactions = async () => {
     if (!currentUser?.id) return;
@@ -64,37 +65,20 @@ export const MyApplications: React.FC = () => {
         currentUser.id,
         serviceFilter,
         page,
-        limit
+        limit,
+        statusFilter || undefined,
+        searchQuery || undefined
       );
 
-      // Ensure transactions is always an array
       const transactionsArray = result?.transactions || [];
 
-      // Filter by status if provided
-      let filteredTransactions = transactionsArray;
-      if (statusFilter) {
-        filteredTransactions = filteredTransactions.filter(
-          (t) => t.status?.toLowerCase() === statusFilter.toLowerCase()
-        );
-      }
-
-      // Filter by search query if provided
-      if (searchQuery) {
-        filteredTransactions = filteredTransactions.filter(
-          (t) =>
-            t.referenceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            t.transactionId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            t.service?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      }
-
-      setTransactions(filteredTransactions || []);
+      setTransactions(transactionsArray);
       setTotalPages(result?.pagination?.totalPages || 1);
       setTotal(result?.pagination?.total || 0);
 
       // Fetch unread counts for all transactions
       const transactionsWithCounts = await Promise.all(
-        (filteredTransactions || []).map(async (transaction) => {
+        transactionsArray.map(async (transaction) => {
           try {
             const unreadCount = await transactionNoteService.getUnreadCount(transaction.id);
             return {
@@ -273,15 +257,19 @@ export const MyApplications: React.FC = () => {
                 <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <Input
                   type="text"
-                  placeholder="Search by reference number, transaction ID, or service name..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setPage(1);
-                  }}
+                  placeholder="Search by reference no., transaction ID, or service…"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      fetchTransactions();
+                      setSearchQuery(searchInput);
+                      setPage(1);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (searchInput !== searchQuery) {
+                      setSearchQuery(searchInput);
+                      setPage(1);
                     }
                   }}
                   className="pl-10"
@@ -464,35 +452,33 @@ export const MyApplications: React.FC = () => {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
-                    Showing {((page - 1) * limit) + 1} to{' '}
-                    {Math.min(page * limit, total)} of {total} applications
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(page - 1)}
-                      disabled={page === 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(page + 1)}
-                      disabled={page >= totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {total > 0 && (
+            <div className="flex items-center justify-between px-1">
+              <p className="text-sm text-gray-500">
+                Showing {((page - 1) * limit) + 1}–{Math.min(page * limit, total)} of {total} application{total !== 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page - 1)}
+                  disabled={page === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-500 px-2">
+                  {page} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page + 1)}
+                  disabled={page >= totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </>
       )}

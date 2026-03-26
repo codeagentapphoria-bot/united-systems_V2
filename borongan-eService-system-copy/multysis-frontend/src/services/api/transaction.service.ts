@@ -126,16 +126,20 @@ export interface GetTransactionsByServiceFilters {
 export const transactionService = {
   async getTransactions(
     subscriberId: string,
-    type?: string,
+    serviceId?: string,
     page: number = 1,
-    limit: number = 10
+    limit: number = 10,
+    status?: string,
+    search?: string
   ): Promise<PaginatedTransactions> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
 
-    if (type) params.append('serviceId', type);
+    if (serviceId) params.append('serviceId', serviceId);
+    if (status) params.append('status', status);
+    if (search) params.append('search', search);
 
     const response = await api.get(`/transactions/subscriber/${subscriberId}?${params.toString()}`);
     // Backend returns: { status: 'success', data: transactions[], pagination: {...} }

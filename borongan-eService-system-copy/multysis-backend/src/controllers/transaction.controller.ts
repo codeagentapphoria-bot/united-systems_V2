@@ -147,8 +147,10 @@ export const getTransactionsController = async (req: AuthRequest, res: Response)
     const serviceId = req.query.serviceId as string | undefined;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
+    const status = req.query.status as string | undefined;
+    const search = req.query.search as string | undefined;
 
-    const result = await getTransactions(residentId, serviceId, page, limit);
+    const result = await getTransactions(residentId, serviceId, page, limit, status, search);
 
     res.status(200).json({
       status: 'success',

@@ -69,6 +69,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         role: 'resident',
         status: resident.status,
         createdAt: resident.createdAt || new Date().toISOString(),
+        picturePath: resident.picturePath || null,
+        firstName: firstName,
+        middleName: middleName,
+        lastName: lastName,
+        birthdate: resident.birthdate || null,
+        barangay: resident.barangay || null,
       } as any;
 
       setUser(userData);

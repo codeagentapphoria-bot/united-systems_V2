@@ -358,12 +358,6 @@ export const PortalProfile: React.FC = () => {
                 )}
                 <div className="flex gap-4 mt-2 text-sm justify-center sm:justify-start">
                   <button
-                    onClick={() => navigate('/portal/my-id')}
-                    className="flex items-center gap-1 text-primary-600 hover:underline"
-                  >
-                    <FiShield size={13} /> My ID Card
-                  </button>
-                  <button
                     onClick={() => navigate('/portal/my-household')}
                     className="flex items-center gap-1 text-primary-600 hover:underline"
                   >

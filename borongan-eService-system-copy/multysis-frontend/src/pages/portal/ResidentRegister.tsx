@@ -9,7 +9,7 @@
  * Step 4: Create Credentials (username + password)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -129,6 +129,9 @@ export const ResidentRegister: React.FC = () => {
   const [formData, setFormData] = useState<Partial<Step1Data & Step2Data & Step3Data>>({});
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Load municipalities on mount
   useEffect(() => {
@@ -173,6 +176,31 @@ export const ResidentRegister: React.FC = () => {
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+
+  // Upload profile photo and store the returned path in formData
+  const handlePhotoUpload = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ variant: 'destructive', title: 'File too large', description: 'Max 5MB' });
+      return;
+    }
+    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoUploading(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await api.post('/upload/registration/profile-picture', body, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      // Store the absolute URL so both BIMS and eService can display it without
+      // prepending a server origin (avoids cross-server path confusion).
+      setFormData(prev => ({ ...prev, picturePath: res.data.data.url }));
+    } catch {
+      toast({ variant: 'destructive', title: 'Photo upload failed', description: 'Please try again.' });
+      setPhotoPreview(null);
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   // Step navigation
   const handleStep1 = (data: Step1Data) => {
@@ -239,6 +267,41 @@ export const ResidentRegister: React.FC = () => {
               <Form {...step1Form}>
                 <form className="space-y-4" onSubmit={step1Form.handleSubmit(handleStep1)}>
                   <h3 className="font-semibold text-gray-700">Personal Information</h3>
+
+                  {/* Profile Photo */}
+                  <div className="flex flex-col items-center gap-3">
+                    <div
+                      className="w-24 h-24 rounded-full border-2 border-dashed border-gray-300 overflow-hidden flex items-center justify-center bg-gray-50 cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => photoInputRef.current?.click()}
+                    >
+                      {photoPreview ? (
+                        <img src={photoPreview} alt="Profile preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-center p-2">
+                          <div className="text-2xl text-gray-300">📷</div>
+                          <p className="text-xs text-gray-400 mt-1">Add Photo</p>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePhotoUpload(file);
+                      }}
+                    />
+                    <p className="text-xs text-gray-500">
+                      {photoUploading
+                        ? 'Uploading...'
+                        : photoPreview
+                        ? 'Click to change photo'
+                        : 'Profile photo (optional)'}
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <FormField control={step1Form.control} name="firstName" render={({ field }) => (
                       <FormItem><FormLabel>First Name *</FormLabel><FormControl>

@@ -71,7 +71,6 @@ export const getAdminMenuItems = async (notificationCounts?: NotificationCounts)
 
   return [
     { path: '/admin/dashboard', label: 'Dashboard', icon: <FiHome /> },
-    { path: '/admin/residents', label: 'Residents', icon: <FiUsers /> },
     { 
       path: '/admin/registration-workflow', 
       label: 'Registration Requests', 

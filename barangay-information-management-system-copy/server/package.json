@@ -44,6 +44,7 @@
     "pdfkit": "^0.18.0",
     "pg": "^8.16.2",
     "puppeteer": "^24.40.0",
+    "qrcode": "^1.5.4",
     "redis": "^5.8.2",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
