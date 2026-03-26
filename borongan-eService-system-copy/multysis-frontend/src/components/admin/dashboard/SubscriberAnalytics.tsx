@@ -16,8 +16,8 @@ const chartConfig = {
     label: 'Residents',
     color: 'rgb(59, 130, 246)',
   },
-  nonCitizens: {
-    label: 'Non-Residents',
+  pendingResidents: {
+    label: 'Pending Residents',
     color: 'rgb(34, 197, 94)',
   },
 };

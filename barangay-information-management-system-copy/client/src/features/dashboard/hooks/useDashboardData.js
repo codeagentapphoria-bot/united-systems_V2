@@ -68,12 +68,10 @@ const cachedApiCall = async (endpoint, params = {}) => {
   return requestPromise;
 };
 
-export const useDashboardData = (role, selectedBarangay, selectedPurok) => {
+export const useDashboardData = (role, selectedBarangay) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [barangays, setBarangays] = useState([]);
-  // puroks removed in v2 — kept as empty state for API compatibility
-  const puroks = [];
 
   // Statistics state
   const [stats, setStats] = useState({
@@ -154,8 +152,6 @@ export const useDashboardData = (role, selectedBarangay, selectedPurok) => {
       setBarangays([]);
     }
   }, [role]);
-
-  // fetchPuroks removed — puroks table dropped in v2 schema
 
   // Fetch all statistics in parallel (cached)
   const fetchStatistics = useCallback(async () => {
@@ -260,7 +256,7 @@ export const useDashboardData = (role, selectedBarangay, selectedPurok) => {
     }
   }, [buildParams]);
 
-  // Fetch distribution data by barangay (puroks removed in v2)
+  // Fetch distribution data by barangay
   const fetchDistributionData = useCallback(async () => {
     try {
       let barangaysList = [];
@@ -387,7 +383,6 @@ export const useDashboardData = (role, selectedBarangay, selectedPurok) => {
     demographics,
     distributionData,
     barangays,
-    puroks,
     loadDashboardData,
   };
 };

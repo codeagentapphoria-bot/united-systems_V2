@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const ResidentStats = ({
   residents = [],
-  filterPurok = "",
+  filterBarangay = "",
   filterClassification = "all",
   classificationOptions = [],
 }) => {
@@ -28,8 +28,8 @@ const ResidentStats = ({
 
         if (user?.target_type === "barangay") {
           params.barangayId = user.target_id;
-        } else if (filterPurok && filterPurok !== "all") {
-          params.barangayId = filterPurok;
+        } else if (filterBarangay && filterBarangay !== "all") {
+          params.barangayId = filterBarangay;
         }
 
         // Add classification filter if specified
@@ -93,7 +93,7 @@ const ResidentStats = ({
     };
 
     fetchStats();
-  }, [user, filterPurok, filterClassification, residents]);
+  }, [user, filterBarangay, filterClassification, residents]);
 
   if (loading) {
     return (

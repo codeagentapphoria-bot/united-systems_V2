@@ -10,6 +10,7 @@
 import { Request, Response, Router } from 'express';
 import {
   getBarangay,
+  getBarangayGeojson,
   getBarangaysByMunicipality,
   getMunicipalities,
 } from '../services/address.service';
@@ -84,6 +85,18 @@ router.get('/barangays/:id', async (req: Request, res: Response) => {
   try {
     const barangay = await getBarangay(Number(req.params.id));
     res.status(200).json({ status: 'success', data: barangay });
+  } catch (error: any) {
+    res.status(404).json({ status: 'error', message: error.message });
+  }
+});
+
+// GET /api/addresses/barangays/:id/geojson
+// Returns the barangay boundary as GeoJSON (for household map picker overlay).
+// Returns 404 if the barangay has no GIS code assigned yet.
+router.get('/barangays/:id/geojson', async (req: Request, res: Response) => {
+  try {
+    const geojson = await getBarangayGeojson(Number(req.params.id));
+    res.status(200).json({ status: 'success', data: geojson });
   } catch (error: any) {
     res.status(404).json({ status: 'error', message: error.message });
   }

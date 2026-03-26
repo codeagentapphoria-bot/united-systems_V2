@@ -130,8 +130,6 @@ const HouseholdForm = ({
     mode: "onChange",
   });
 
-  // puroks removed in v2 — no fetch needed
-
   // Pre-load house head resident for edit mode
   useEffect(() => {
     const preloadHouseHead = async () => {
@@ -1386,7 +1384,6 @@ const HouseholdForm = ({
                   placeholder="Enter street name"
                 />
               </div>
-              {/* purokId field removed — puroks table dropped in v2 */}
               <div className="space-y-2">
                 <Label htmlFor="lat">Latitude (optional)</Label>
                 <Input
@@ -1463,13 +1460,6 @@ const HouseholdForm = ({
                 popupData={{
                   houseHead: form.watch("houseHead"),
                   houseNumber: form.watch("houseNumber"),
-                  purok: (() => {
-                    const purokId = form.watch("purokId");
-                    if (purokId === "1") return "Purok 1";
-                    if (purokId === "2") return "Purok 2";
-                    if (purokId === "3") return "Purok 3";
-                    return "";
-                  })(),
                 }}
                 onSelect={([lat, lng]) => {
                   form.setValue("geom.lat", lat.toString());

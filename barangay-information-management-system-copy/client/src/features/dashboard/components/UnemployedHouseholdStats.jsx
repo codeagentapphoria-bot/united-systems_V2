@@ -20,7 +20,6 @@ import useAuth from "@/hooks/useAuth";
 const UnemployedHouseholdStats = ({
   role,
   selectedBarangay,
-  selectedPurok,
 }) => {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
@@ -39,10 +38,6 @@ const UnemployedHouseholdStats = ({
       } else if (selectedBarangay) {
         // For municipality role, only include if barangay is selected
         params.barangayId = selectedBarangay;
-      }
-
-      if (selectedPurok) {
-        params.purokId = selectedPurok;
       }
 
       const response = await api.get("/statistics/unemployed-household-stats", {
@@ -69,10 +64,6 @@ const UnemployedHouseholdStats = ({
         params.barangayId = selectedBarangay;
       }
 
-      if (selectedPurok) {
-        params.purokId = selectedPurok;
-      }
-
       const response = await api.get(
         "/statistics/unemployed-household-details",
         {
@@ -92,7 +83,6 @@ const UnemployedHouseholdStats = ({
           if (!householdGroups[item.household_id]) {
             householdGroups[item.household_id] = {
               barangay: item.barangay_name,
-              purok: item.purok_name || "N/A",
               address: item.address,
               totalResidents: item.total_residents,
               totalUnemployed: item.unemployed_count,
@@ -114,7 +104,6 @@ const UnemployedHouseholdStats = ({
           household.residents.forEach((resident, residentIndex) => {
             exportData.push({
               Barangay: residentIndex === 0 ? household.barangay : "",
-              Purok: residentIndex === 0 ? household.purok : "",
               Address: residentIndex === 0 ? household.address : "",
               "Total Residents":
                 residentIndex === 0 ? household.totalResidents : "",
@@ -155,7 +144,7 @@ const UnemployedHouseholdStats = ({
 
   useEffect(() => {
     fetchStats();
-  }, [role, selectedBarangay, selectedPurok, user?.target_id]);
+  }, [role, selectedBarangay, user?.target_id]);
 
   if (loading) {
     return (

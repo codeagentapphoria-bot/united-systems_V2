@@ -57,7 +57,6 @@ const reactSelectStyles = {
 const locationSchema = z.object({
   houseNumber: z.string().optional(),
   street: z.string().optional(),
-  purokId: z.string().optional(),
   area: z.string().optional(),
   geom: z
     .object({
@@ -84,7 +83,6 @@ const HouseholdLocationForm = ({
     defaultValues: {
       houseNumber: "",
       street: "",
-      purokId: "",
       area: "",
       geom: { lat: "", lng: "" },
     },

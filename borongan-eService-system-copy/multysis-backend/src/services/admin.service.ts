@@ -222,10 +222,10 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
     students,
     soloParents,
     recentTransactionsData,
-    recentCitizensData,
+    recentResidentsData,
     transactionTrendsRaw,
-    citizenGrowthRaw,
-    nonCitizenGrowthRaw,
+    activeResidentGrowthRaw,
+    pendingResidentGrowthRaw,
   ] = await Promise.all([
     prisma.transaction.count(),
     prisma.transaction.count({
@@ -364,12 +364,12 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
 
   // Resident growth trends (active vs pending registrations per month)
   const residentGrowthMap = new Map<string, { active: number; pending: number }>();
-  (citizenGrowthRaw as any[]).forEach((c) => {
+  (activeResidentGrowthRaw as any[]).forEach((c) => {
     const dateKey = c.date.toISOString().split('T')[0];
     const existing = residentGrowthMap.get(dateKey) || { active: 0, pending: 0 };
     residentGrowthMap.set(dateKey, { ...existing, active: Number(c.count) });
   });
-  (nonCitizenGrowthRaw as any[]).forEach((nc) => {
+  (pendingResidentGrowthRaw as any[]).forEach((nc) => {
     const dateKey = nc.date.toISOString().split('T')[0];
     const existing = residentGrowthMap.get(dateKey) || { active: 0, pending: 0 };
     residentGrowthMap.set(dateKey, { ...existing, pending: Number(nc.count) });
@@ -396,7 +396,7 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
     }));
 
   const recentCitizens: DashboardStatistics['recentCitizens'] =
-    recentCitizensData.map((c: any) => ({
+    recentResidentsData.map((c: any) => ({
       id: c.id,
       firstName: c.firstName,
       lastName: c.lastName,

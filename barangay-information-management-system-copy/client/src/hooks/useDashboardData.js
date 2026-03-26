@@ -6,15 +6,12 @@ import { handleErrorSilently } from "@/utils/errorHandler";
 export const useDashboardData = (
   role,
   selectedBarangay,
-  selectedPurok,
   selectedMonth,
   selectedYear
 ) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [barangays, setBarangays] = useState([]);
-  // puroks removed in v2 — kept as empty array for API compatibility
-  const puroks = [];
 
   // Statistics state
   const [stats, setStats] = useState({
@@ -374,11 +371,9 @@ export const useDashboardData = (
     fetchBarangays();
   }, [role]);
 
-  // fetchPuroks removed — puroks table dropped in v2
-
   useEffect(() => {
     loadDashboardData();
-  }, [selectedBarangay, selectedPurok, selectedMonth, selectedYear]);
+  }, [selectedBarangay, selectedMonth, selectedYear]);
 
   return {
     loading,
@@ -386,7 +381,6 @@ export const useDashboardData = (
     demographics,
     distributionData,
     barangays,
-    puroks,
     loadDashboardData,
   };
 };

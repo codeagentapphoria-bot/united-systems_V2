@@ -61,6 +61,11 @@ export interface Resident {
   status: string;
   applicationRemarks?: string;
   hasGoogleLinked?: boolean;
+  // Beneficiary / classification
+  seniorCitizen?: { id: string; status: string } | null;
+  pwd?: { id: string; status: string } | null;
+  student?: { id: string; status: string } | null;
+  soloParent?: { id: string; status: string } | null;
   createdAt: string;
   updatedAt: string;
 }

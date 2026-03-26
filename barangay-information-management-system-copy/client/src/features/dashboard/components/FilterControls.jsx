@@ -10,7 +10,6 @@ import { Filter } from "lucide-react";
 import { months, years } from "@/constants/dashboardConstants";
 import ReactSelect from "@/components/ui/react-select";
 
-// puroks removed in v2 — selectedPurok/setSelectedPurok/puroks props are no longer used
 const FilterControls = ({
   role,
   selectedBarangay,
@@ -60,7 +59,6 @@ const FilterControls = ({
               />
             </div>
           )}
-          {/* Purok filter removed — puroks table dropped in v2 */}
         </div>
       </CardContent>
     </Card>

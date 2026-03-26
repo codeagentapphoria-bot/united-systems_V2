@@ -70,7 +70,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import api from "@/utils/api";
 import { mockBarangays } from "@/features/municipality/barangays/mockBarangays";
 import { residentSchema } from "@/utils/residentSchema";
-import AddResidentDialog from "@/features/barangay/residents/AddResidentDialog";
 import useAuth from "@/hooks/useAuth";
 import { residentStatusOptions } from "@/features/barangay/residents/constant/options";
 import { useClassificationTypes } from "@/hooks/useClassificationTypes";
@@ -132,8 +131,7 @@ const ResidentsPage = ({ role }) => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterClassification, setFilterClassification] = useState("all");
-  const [filterPurok, setFilterPurok] = useState("");
-  // Puroks removed - v2 schema no longer has puroks table
+  const [filterBarangay, setFilterBarangay] = useState("");
   const [barangays, setBarangays] = useState([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
@@ -347,15 +345,10 @@ const ResidentsPage = ({ role }) => {
 
     // Prepare params
     const params = {
-      ...(role === "barangay"
-        ? {
-            purokId:
-              filterPurok === "all" ? undefined : filterPurok || undefined,
-          }
-        : {
-            barangayId:
-              filterPurok === "all" ? undefined : filterPurok || undefined,
-          }),
+      ...(role !== "barangay" && {
+        barangayId:
+          filterBarangay === "all" ? undefined : filterBarangay || undefined,
+      }),
       classificationType:
         filterClassification === "all" ? undefined : filterClassification,
       search: searchTerm || undefined,
@@ -385,7 +378,7 @@ const ResidentsPage = ({ role }) => {
     } finally {
       setLoading(false);
     }
-  }, [barangayId, role, filterPurok, filterClassification, searchTerm, page, perPage, user?.target_type]);
+  }, [barangayId, role, filterBarangay, filterClassification, searchTerm, page, perPage, user?.target_type]);
 
   // Create a stable refresh function that doesn't change
   const stableRefresh = useCallback(async () => {
@@ -399,15 +392,10 @@ const ResidentsPage = ({ role }) => {
 
     // Prepare params
     const params = {
-      ...(role === "barangay"
-        ? {
-            purokId:
-              filterPurok === "all" ? undefined : filterPurok || undefined,
-          }
-        : {
-            barangayId:
-              filterPurok === "all" ? undefined : filterPurok || undefined,
-          }),
+      ...(role !== "barangay" && {
+        barangayId:
+          filterBarangay === "all" ? undefined : filterBarangay || undefined,
+      }),
       classificationType:
         filterClassification === "all" ? undefined : filterClassification,
       search: searchTerm || undefined,
@@ -440,7 +428,7 @@ const ResidentsPage = ({ role }) => {
     } finally {
       setLoading(false);
     }
-  }, [barangayId, role, filterPurok, filterClassification, searchTerm, page, perPage, user?.target_type]);
+  }, [barangayId, role, filterBarangay, filterClassification, searchTerm, page, perPage, user?.target_type]);
 
   // Register refresh callback for auto refresh
   useEffect(() => {
@@ -455,7 +443,7 @@ const ResidentsPage = ({ role }) => {
     fetchResidents();
   }, [
     barangayId,
-    filterPurok,
+    filterBarangay,
     filterClassification,
     searchTerm,
     page,
@@ -1145,15 +1133,10 @@ const ResidentsPage = ({ role }) => {
 
       // Prepare filter parameters
       const params = {
-        ...(role === "barangay"
-          ? {
-              purokId:
-                filterPurok === "all" ? undefined : filterPurok || undefined,
-            }
-          : {
-              barangayId:
-                filterPurok === "all" ? undefined : filterPurok || undefined,
-            }),
+        ...(role !== "barangay" && {
+          barangayId:
+            filterBarangay === "all" ? undefined : filterBarangay || undefined,
+        }),
         classificationType:
           filterClassification === "all" ? undefined : filterClassification,
         search: searchTerm || undefined,
@@ -1339,8 +1322,8 @@ const ResidentsPage = ({ role }) => {
       <ResidentsFilters
         searchInput={searchInput}
         setSearchInput={setSearchInput}
-        filterPurok={filterPurok}
-        setFilterPurok={setFilterPurok}
+        filterBarangay={filterBarangay}
+        setFilterBarangay={setFilterBarangay}
         filterClassification={filterClassification}
         setFilterClassification={setFilterClassification}
         classificationOptions={classificationOptions}
@@ -1352,7 +1335,7 @@ const ResidentsPage = ({ role }) => {
       {/* Resident Stats */}
       <ResidentStats
         residents={residents}
-        filterPurok={filterPurok}
+        filterBarangay={filterBarangay}
         filterClassification={filterClassification}
         classificationOptions={classificationOptions}
       />

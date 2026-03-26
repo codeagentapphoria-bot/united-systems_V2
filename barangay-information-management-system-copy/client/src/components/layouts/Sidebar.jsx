@@ -329,7 +329,6 @@ export const Sidebar = ({ userType, role, onLogout }) => {
                           {item.title === "Households" && "Manage household data"}
                           {item.title === "Pets" && "Manage pet registrations"}
                           {item.title === "Barangays" && "Manage barangay information"}
-                          {/* Puroks removed in v2 */}
                           {item.title === "Officials" && "Manage barangay officials"}
                           {item.title === "Archives" && "View archived records"}
                           {item.title === "Inventory" && "Manage barangay inventory"}

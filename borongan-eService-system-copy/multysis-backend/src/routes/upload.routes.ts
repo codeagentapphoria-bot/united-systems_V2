@@ -113,6 +113,26 @@ router.get(
   }
 );
 
+// Upload household image (portal self-registration)
+router.post(
+  '/households/image',
+  verifyToken,
+  uploadProfilePicture.single('file'),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ status: 'error', message: 'No file uploaded' });
+        return;
+      }
+      const filePath = getFilePath(req.file.filename, 'image');
+      const fileUrl  = getFileUrl(filePath);
+      res.status(200).json({ status: 'success', data: { url: fileUrl, path: filePath } });
+    } catch (error: any) {
+      res.status(500).json({ status: 'error', message: error.message || 'Failed to upload image' });
+    }
+  }
+);
+
 // Upload transaction document (temporary - for new transactions)
 router.post(
   '/transactions/documents',

@@ -76,6 +76,41 @@ export const getBarangay = async (barangayId: number) => {
 };
 
 // =============================================================================
+// GET BARANGAY GEOJSON BOUNDARY  (for household map picker overlay)
+// Joins barangays → gis_barangay to return PostGIS geometry as GeoJSON.
+// Returns null (not an error) if the barangay has no GIS code yet.
+// =============================================================================
+
+export const getBarangayGeojson = async (barangayId: number) => {
+  const rows = await prisma.$queryRaw<{ geojson: any }[]>`
+    SELECT jsonb_build_object(
+      'type', 'FeatureCollection',
+      'features', jsonb_agg(
+        jsonb_build_object(
+          'type', 'Feature',
+          'geometry', ST_AsGeoJSON(gb.geom)::jsonb,
+          'properties', jsonb_build_object(
+            'id',       b.id,
+            'name',     b.barangay_name,
+            'gis_code', gb.gis_barangay_code
+          )
+        )
+      )
+    ) AS geojson
+    FROM barangays b
+    JOIN gis_barangay gb ON b.gis_code = gb.gis_barangay_code
+    WHERE b.id = ${barangayId}
+      AND b.gis_code IS NOT NULL
+  `;
+
+  const geojson = rows[0]?.geojson;
+  if (!geojson?.features || geojson.features.length === 0) {
+    throw new Error('No GIS boundary data for this barangay');
+  }
+  return geojson;
+};
+
+// =============================================================================
 // RESOLVE FULL ADDRESS STRING  (used when displaying a resident's address)
 // Format: {street}, {barangay}, {municipality}, {province}, {region}
 // =============================================================================

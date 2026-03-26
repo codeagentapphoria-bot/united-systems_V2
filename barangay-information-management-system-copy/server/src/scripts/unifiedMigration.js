@@ -1,3 +1,8 @@
+// =============================================================================
+// DEPRECATED (v1 only) — Targets old schema with puroks, citizens, and
+// citizen_resident_mapping tables that no longer exist in v2.
+// Do NOT run against a v2 database. Keep for historical reference only.
+// =============================================================================
 import pg from 'pg';
 import fs from 'fs';
 import path from 'path';

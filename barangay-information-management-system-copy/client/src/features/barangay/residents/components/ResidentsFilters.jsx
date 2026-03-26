@@ -12,8 +12,8 @@ import ReactSelect from "@/components/ui/react-select";
 const ResidentsFilters = ({
   searchInput,
   setSearchInput,
-  filterPurok,
-  setFilterPurok,
+  filterBarangay,
+  setFilterBarangay,
   filterClassification,
   setFilterClassification,
   classificationOptions,
@@ -92,9 +92,9 @@ const ResidentsFilters = ({
           <div className="relative">
             <Filter className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
             <ReactSelect
-              value={locationOptions.find(option => option.value === (filterPurok || "all"))}
+              value={locationOptions.find(option => option.value === (filterBarangay || "all"))}
               onChange={(selectedOption) => {
-                setFilterPurok(selectedOption.value);
+                setFilterBarangay(selectedOption.value);
                 setPage(1);
               }}
               options={locationOptions}

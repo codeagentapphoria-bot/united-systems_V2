@@ -213,6 +213,10 @@ export const updateMyProfile = async (id: string, data: SelfUpdateData) => {
     include: {
       barangay: { include: { municipality: true } },
       credentials: { select: { googleId: true } },
+      seniorCitizenBeneficiary: true,
+      pwdBeneficiary: true,
+      studentBeneficiary: true,
+      soloParentBeneficiary: true,
     },
   });
 

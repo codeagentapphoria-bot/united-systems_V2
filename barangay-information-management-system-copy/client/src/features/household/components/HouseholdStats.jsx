@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const HouseholdStats = ({
   households = [],
-  filterPurok = "",
+  filterBarangay = "",
   filterHousingType = "all",
 }) => {
   const { user } = useAuth();
@@ -24,13 +24,13 @@ const HouseholdStats = ({
       setLoading(true);
       try {
         // Build query parameters for filtering
-        // Note: filterPurok now refers to barangay in v2 (puroks removed)
+        // Note: filterBarangay now refers to barangay in v2 (puroks removed)
         const params = {};
 
         if (user?.target_type === "barangay") {
           params.barangayId = user.target_id;
-        } else if (filterPurok && filterPurok !== "all") {
-          params.barangayId = filterPurok;
+        } else if (filterBarangay && filterBarangay !== "all") {
+          params.barangayId = filterBarangay;
         }
 
         // Fetch total households and families from statistics API
@@ -124,7 +124,7 @@ const HouseholdStats = ({
     };
 
     fetchStats();
-  }, [user, filterPurok, filterHousingType, households]);
+  }, [user, filterBarangay, filterHousingType, households]);
 
   if (loading) {
     return (

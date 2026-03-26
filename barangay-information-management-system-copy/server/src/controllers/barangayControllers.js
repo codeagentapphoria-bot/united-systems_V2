@@ -594,16 +594,6 @@ export const barangayInfo = async (req, res, next) => {
   }
 };
 
-// Puroks removed in v2 schema — these handlers return 410 Gone to prevent
-// any accidental route binding from reinstating the purok API.
-const _purokGone = (req, res) =>
-  res.status(410).json({ message: "Puroks have been removed in v2." });
-
-export const upsertPurok = _purokGone;
-export const deletePurok = _purokGone;
-export const purokList   = _purokGone;
-export const purokInfo   = _purokGone;
-
 export const upsertOfficial = async (req, res, next) => {
   const {
     barangayId,

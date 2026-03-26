@@ -43,6 +43,9 @@ psql -U postgres -d your_database -f united-database/schema.sql
 # 2. Load seed data (roles, permissions, services, FAQs, etc.)
 psql -U postgres -d your_database -f united-database/seed.sql
 
+# 3. Load GIS municipality/barangay geometry data
+psql -U postgres -d your_database -f united-database/seed_gis.sql
+
 # Expected output from seed.sql:
 #   Roles:                        4
 #   Permissions:                  15
@@ -53,7 +56,8 @@ psql -U postgres -d your_database -f united-database/seed.sql
 #   Services (certificates):      9
 ```
 
-> **Important:** Always run `schema.sql` before `seed.sql`. The seed depends on tables the schema creates.
+> **Important:** Always run `schema.sql` → `seed.sql` → `seed_gis.sql` in order.
+> Without `seed_gis.sql`, the GeoMap page will show an empty map and barangay auto-creation from the GeoSetup page will fail.
 
 ### PostGIS
 
@@ -179,6 +183,10 @@ GOOGLE_CALLBACK_URL=https://eservice-api.your-domain.com/api/auth/portal/google/
 VITE_API_BASE_URL=https://bims-api.your-domain.com/api
 VITE_SERVER_URL=https://bims-api.your-domain.com
 VITE_ESERVICE_URL=https://portal.your-domain.com
+
+# E-Services backend base URL — used to resolve household images uploaded via the portal
+# Must point to the E-Services backend (not BIMS). Required for household photos to display.
+VITE_ESERVICE_SERVER_URL=https://eservice-api.your-domain.com
 ```
 
 ---

@@ -280,11 +280,6 @@ class Barangay {
     }
   }
 
-  // Puroks removed in v2 — these stubs prevent any accidental DB access.
-  static async insertPurok() { return null; }
-  static async updatePurok() { return null; }
-  static async deletePurok() { return null; }
-
   static async barangayList({ search = "", page = 1, perPage = 10 }) {
     const client = await pool.connect();
     try {
@@ -468,10 +463,6 @@ class Barangay {
       client.release();
     }
   }
-
-  // Puroks removed in v2 — returns empty results.
-  static async purokList() { return []; }
-  static async purokInfo() { return null; }
 
   static async insertOfficial({
     barangayId,

@@ -11,10 +11,14 @@
  * VITE_API_BASE_URL) so the resident's auth cookie is always in scope.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { HouseholdLocation } from '@/components/portal/HouseholdMapPicker';
+
+// Lazy-load the map to avoid SSR/bundle issues with Leaflet
+const HouseholdMapPicker = lazy(() => import('@/components/portal/HouseholdMapPicker'));
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -73,6 +77,7 @@ const householdInfoSchema = z.object({
   electricity:    z.string().optional(), // "Yes" | "No"
   waterSource:    z.string().optional(),
   toiletFacility: z.string().optional(),
+  area:           z.string().optional(), // numeric string, sqm
 });
 
 const addMemberSchema = z.object({
@@ -148,6 +153,10 @@ export const PortalMyHousehold: React.FC = () => {
   const [step, setStep]                     = useState<1 | 2>(1);
   const [savedInfo, setSavedInfo]           = useState<HouseholdInfoData | null>(null);
   const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<HouseholdLocation | null>(null);
+  const [householdImagePath, setHouseholdImagePath] = useState<string | null>(null);
+  const [householdImagePreview, setHouseholdImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Post-registration state
   const [household, setHousehold]           = useState<any>(null);
@@ -181,6 +190,29 @@ export const PortalMyHousehold: React.FC = () => {
     if (!residentId || !isActive) { setIsLoading(false); return; }
     loadHousehold();
   }, [residentId]);
+
+  // -------------------------------------------------------------------------
+  // Image upload
+  // -------------------------------------------------------------------------
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setHouseholdImagePreview(URL.createObjectURL(file));
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post('/upload/households/image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setHouseholdImagePath(res.data.data.path);
+    } catch {
+      toast({ variant: 'destructive', title: 'Image upload failed' });
+      setHouseholdImagePath(null);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   // -------------------------------------------------------------------------
   // Data fetching
@@ -256,8 +288,11 @@ export const PortalMyHousehold: React.FC = () => {
         electricity:    savedInfo.electricity === 'Yes',
         waterSource:    savedInfo.waterSource    || null,
         toiletFacility: savedInfo.toiletFacility || null,
-        barangayId:     (user as any)?.barangay?.id ?? null,
-        families:       familiesPayload,
+        area:                 savedInfo.area ? parseFloat(savedInfo.area) : null,
+        geom:                 selectedLocation ?? null,
+        barangayId:           (user as any)?.barangay?.id ?? null,
+        householdImagePath:   householdImagePath ?? null,
+        families:             familiesPayload,
       });
       toast({ title: 'Household registered successfully!' });
       loadHousehold();
@@ -345,22 +380,57 @@ export const PortalMyHousehold: React.FC = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Household Information</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <InfoRow label="House / Lot No."  value={household.house_number} />
-            <InfoRow label="Street"            value={household.street} />
-            <InfoRow label="Barangay"          value={household.barangay_name} />
-            <InfoRow label="Municipality"      value={household.municipality_name} />
-            <InfoRow label="Housing Type"      value={household.housing_type} />
-            <InfoRow label="Structure Type"    value={household.structure_type} />
-            <InfoRow
-              label="Electricity"
-              value={
-                household.electricity === true  ? 'Yes' :
-                household.electricity === false ? 'No'  : undefined
-              }
-            />
-            <InfoRow label="Water Source"    value={household.water_source} />
-            <InfoRow label="Toilet Facility" value={household.toilet_facility} />
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              <InfoRow label="House / Lot No."  value={household.house_number} />
+              <InfoRow label="Street"            value={household.street} />
+              <InfoRow label="Barangay"          value={household.barangay_name} />
+              <InfoRow label="Municipality"      value={household.municipality_name} />
+              <InfoRow label="Housing Type"      value={household.housing_type} />
+              <InfoRow label="Structure Type"    value={household.structure_type} />
+              <InfoRow
+                label="Electricity"
+                value={
+                  household.electricity === true  ? 'Yes' :
+                  household.electricity === false ? 'No'  : undefined
+                }
+              />
+              <InfoRow label="Water Source"    value={household.water_source} />
+              <InfoRow label="Toilet Facility" value={household.toilet_facility} />
+              {household.area != null && (
+                <InfoRow label="Area" value={`${household.area} sqm`} />
+              )}
+            </div>
+            {household.geom_lat != null && household.geom_lng != null && (
+              <Suspense fallback={<div className="h-48 rounded border bg-muted flex items-center justify-center text-xs text-muted-foreground">Loading map…</div>}>
+                <HouseholdMapPicker
+                  barangayId={household.barangay_id}
+                  value={{ lat: Number(household.geom_lat), lng: Number(household.geom_lng) }}
+                  onChange={() => {}}
+                  readOnly
+                />
+              </Suspense>
+            )}
+            {(() => {
+              try {
+                const images = typeof household.household_image_path === 'string'
+                  ? JSON.parse(household.household_image_path)
+                  : household.household_image_path;
+                if (Array.isArray(images) && images.length > 0) {
+                  return (
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Photo</p>
+                      <img
+                        src={`${import.meta.env.VITE_API_BASE_URL?.replace('/api', '') ?? ''}${images[0]}`}
+                        alt="Household"
+                        className="h-48 w-full rounded-md object-cover border"
+                      />
+                    </div>
+                  );
+                }
+              } catch { /* ignore */ }
+              return null;
+            })()}
           </CardContent>
         </Card>
 
@@ -570,6 +640,20 @@ export const PortalMyHousehold: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <FormField
                     control={infoForm.control}
+                    name="area"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Area (sqm)</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="number" min="0" placeholder="e.g. 60" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={infoForm.control}
                     name="housingType"
                     render={({ field }) => (
                       <FormItem>
@@ -673,6 +757,47 @@ export const PortalMyHousehold: React.FC = () => {
                   )}
                 />
 
+                <Separator />
+
+                {/* Location */}
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Household Location
+                </p>
+                <Suspense fallback={<div className="h-72 rounded-md border bg-muted flex items-center justify-center text-sm text-muted-foreground">Loading map…</div>}>
+                  <HouseholdMapPicker
+                    barangayId={(user as any)?.barangay?.id ?? null}
+                    value={selectedLocation}
+                    onChange={setSelectedLocation}
+                  />
+                </Suspense>
+
+                <Separator />
+
+                {/* Household Photo */}
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Household Photo
+                </p>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Photo of Household (optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    disabled={isUploadingImage}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
+                  />
+                  {isUploadingImage && (
+                    <p className="text-xs text-muted-foreground">Uploading image...</p>
+                  )}
+                  {householdImagePreview && (
+                    <img
+                      src={householdImagePreview}
+                      alt="Household preview"
+                      className="h-40 w-full rounded-md object-cover border"
+                    />
+                  )}
+                </div>
+
                 <Button type="submit" className="w-full mt-2">
                   Next: Add Family Members
                 </Button>
@@ -709,6 +834,23 @@ export const PortalMyHousehold: React.FC = () => {
               {savedInfo?.electricity    && <span><b>Electricity:</b> {savedInfo.electricity}</span>}
               {savedInfo?.waterSource    && <span><b>Water:</b> {savedInfo.waterSource}</span>}
               {savedInfo?.toiletFacility && <span><b>Toilet:</b> {savedInfo.toiletFacility}</span>}
+              {savedInfo?.area           && <span><b>Area:</b> {savedInfo.area} sqm</span>}
+              {selectedLocation && (
+                <span className="col-span-2">
+                  <b>Location:</b>{' '}
+                  <span className="font-mono">{selectedLocation.lat.toFixed(5)}, {selectedLocation.lng.toFixed(5)}</span>
+                </span>
+              )}
+              {householdImagePreview && (
+                <div className="col-span-2 mt-1">
+                  <b className="block mb-1">Photo:</b>
+                  <img
+                    src={householdImagePreview}
+                    alt="Household"
+                    className="h-28 rounded-md object-cover border"
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 

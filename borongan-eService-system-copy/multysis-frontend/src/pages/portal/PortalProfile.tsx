@@ -32,6 +32,7 @@ import {
   getMunicipalitiesByProvince as getPHMunicipalities,
 } from '@/constants/philippine-addresses';
 import { formatDateWithoutTimezone } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 import {
   FiCalendar,
   FiEdit2,
@@ -47,10 +48,12 @@ import {
   FiShield,
   FiSave,
   FiX,
+  FiUsers,
+  FiExternalLink,
 } from 'react-icons/fi';
+import api from '@/services/api/auth.service';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const CIVIL_STATUS_OPTIONS = ['single','married','widowed','separated','divorced','live_in','annulled'];
 const EMPLOYMENT_STATUS_OPTIONS = ['employed','self_employed','unemployed','student','retired','ofw'];
 const EDUCATION_OPTIONS = [
   'no_formal_education','elementary','high_school','senior_high_school',
@@ -174,16 +177,49 @@ const toForm = (r: Resident): EditForm => ({
   acrNo:                    r.acrNo                    ?? '',
 });
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Household types ────────────────────────────────────────────────────────────
+interface HouseholdMember {
+  member_id: string;
+  member_resident_id: string;
+  relationship: string;
+  resident_name: string;
+}
+interface HouseholdFamily {
+  family_id: number;
+  family_group: string;
+  family_head: string;
+  members: HouseholdMember[];
+}
+interface HouseholdData {
+  id: number;
+  house_number?: string;
+  street?: string;
+  barangay_name?: string;
+  municipality_name?: string;
+  housing_type?: string;
+  electricity?: boolean;
+  water_source?: string;
+  toilet_facility?: string;
+  families: HouseholdFamily[];
+}
+
+// ── Label formatter ────────────────────────────────────────────────────────────
+const fmt = (v?: string | null) =>
+  v ? v.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : undefined;
+
 export const PortalProfile: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [resident, setResident]           = useState<Resident | null>(null);
   const [isLoading, setIsLoading]         = useState(true);
   const [editOpen, setEditOpen]           = useState(false);
   const [isSaving, setIsSaving]           = useState(false);
   const [isEditLoading, setIsEditLoading] = useState(false);
   const [form, setForm]                   = useState<EditForm | null>(null);
+  const [household, setHousehold]         = useState<HouseholdData | null | undefined>(undefined);
+  const [isHouseholdLoading, setIsHouseholdLoading] = useState(false);
+  const [classifications, setClassifications] = useState<{ id: number; classification_type: string; type_name: string | null; type_color: string | null }[]>([]);
 
 
 
@@ -195,6 +231,28 @@ export const PortalProfile: React.FC = () => {
       .then(setResident)
       .catch((err) => toast({ variant: 'destructive', title: 'Failed to load profile', description: err.message }))
       .finally(() => setIsLoading(false));
+  }, [isAuthenticated, user]);
+
+  const fetchHousehold = () => {
+    if (!isAuthenticated || !user) return;
+    setIsHouseholdLoading(true);
+    api
+      .get('/portal/household/my')
+      .then((res) => setHousehold(res.data.data ?? null))
+      .catch(() => setHousehold(null))
+      .finally(() => setIsHouseholdLoading(false));
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && user) fetchHousehold();
+  }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    api
+      .get('/portal/classifications/my')
+      .then((res) => setClassifications(res.data.data ?? []))
+      .catch(() => setClassifications([]));
   }, [isAuthenticated, user]);
 
   // Always fetch fresh data when opening the edit modal
@@ -298,6 +356,20 @@ export const PortalProfile: React.FC = () => {
                     <FiHome size={13} /> {address}
                   </p>
                 )}
+                <div className="flex gap-4 mt-2 text-sm justify-center sm:justify-start">
+                  <button
+                    onClick={() => navigate('/portal/my-id')}
+                    className="flex items-center gap-1 text-primary-600 hover:underline"
+                  >
+                    <FiShield size={13} /> My ID Card
+                  </button>
+                  <button
+                    onClick={() => navigate('/portal/my-household')}
+                    className="flex items-center gap-1 text-primary-600 hover:underline"
+                  >
+                    <FiHome size={13} /> My Household
+                  </button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -308,6 +380,7 @@ export const PortalProfile: React.FC = () => {
           <TabsList>
             <TabsTrigger value="personal"><FiUser size={14} className="mr-1.5" /> Personal</TabsTrigger>
             <TabsTrigger value="contact"><FiPhone size={14} className="mr-1.5" /> Contact</TabsTrigger>
+            <TabsTrigger value="household"><FiHome size={14} className="mr-1.5" /> Household</TabsTrigger>
             <TabsTrigger value="applications"><FiFileText size={14} className="mr-1.5" /> Applications</TabsTrigger>
           </TabsList>
 
@@ -331,8 +404,8 @@ export const PortalProfile: React.FC = () => {
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <InfoRow icon={<FiCalendar size={14} />} label="Date of Birth"
                   value={resident.birthdate ? formatDateWithoutTimezone(resident.birthdate, { dateStyle: 'long' }) : undefined} />
-                <InfoRow label="Sex"          value={resident.sex} />
-                <InfoRow label="Civil Status" value={resident.civilStatus} />
+                <InfoRow label="Sex"          value={fmt(resident.sex)} />
+                <InfoRow label="Civil Status" value={fmt(resident.civilStatus)} />
                 <InfoRow label="Citizenship"  value={resident.citizenship} />
                 <InfoRow icon={<FiHeart size={14} />} label="Spouse Name" value={resident.spouseName} />
                 <InfoRow label="Registered Voter"
@@ -362,10 +435,10 @@ export const PortalProfile: React.FC = () => {
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <InfoRow label="Occupation"        value={resident.occupation} />
                 <InfoRow label="Profession"        value={resident.profession} />
-                <InfoRow label="Employment Status" value={resident.employmentStatus} />
+                <InfoRow label="Employment Status" value={fmt(resident.employmentStatus)} />
                 <InfoRow label="Employed"
                   value={resident.isEmployed === true ? 'Yes' : resident.isEmployed === false ? 'No' : undefined} />
-                <InfoRow icon={<FiBook size={14} />} label="Education Attainment" value={resident.educationAttainment} />
+                <InfoRow icon={<FiBook size={14} />} label="Education Attainment" value={fmt(resident.educationAttainment)} />
                 <InfoRow label="Monthly Income"
                   value={resident.monthlyIncome != null ? `₱${Number(resident.monthlyIncome).toLocaleString()}` : undefined} />
               </CardContent>
@@ -380,6 +453,32 @@ export const PortalProfile: React.FC = () => {
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <InfoRow label="Height" value={resident.height} />
                   <InfoRow label="Weight" value={resident.weight} />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Classification & Programs (from BIMS) */}
+            {classifications.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FiShield size={15} /> Classification & Programs
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {classifications.map((c) => (
+                    <Badge
+                      key={c.id}
+                      style={
+                        c.type_color
+                          ? { backgroundColor: c.type_color + '22', color: c.type_color, borderColor: c.type_color + '44' }
+                          : undefined
+                      }
+                      variant="outline"
+                    >
+                      {c.type_name ?? fmt(c.classification_type)}
+                    </Badge>
+                  ))}
                 </CardContent>
               </Card>
             )}
@@ -418,6 +517,97 @@ export const PortalProfile: React.FC = () => {
                 {resident.acrNo && <InfoRow label="ACR No." value={resident.acrNo} />}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ── Household Tab ── */}
+          <TabsContent value="household" className="space-y-4">
+            {isHouseholdLoading ? (
+              <div className="flex items-center justify-center py-12 text-gray-400 text-sm">
+                Loading household data…
+              </div>
+            ) : household === null ? (
+              <Card>
+                <CardContent className="py-10 text-center space-y-4">
+                  <FiHome size={44} className="mx-auto text-primary-300" />
+                  <div>
+                    <p className="font-medium text-heading-700 mb-1">No household registered yet</p>
+                    <p className="text-sm text-gray-500">
+                      Register your household to link family members and manage your residence information.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => navigate('/portal/my-household')}
+                    className="bg-primary-600 hover:bg-primary-700 text-white"
+                  >
+                    <FiHome size={15} className="mr-2" /> Register Household
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : household ? (
+              <>
+                {/* Household Info */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FiHome size={15} /> Household Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <InfoRow label="House Number" value={household.house_number} />
+                    <InfoRow label="Street"       value={household.street} />
+                    <InfoRow label="Barangay"     value={household.barangay_name} />
+                    <InfoRow label="Municipality" value={household.municipality_name} />
+                    <InfoRow label="Housing Type" value={fmt(household.housing_type)} />
+                    <InfoRow label="Electricity"  value={household.electricity ? 'Yes' : 'No'} />
+                    <InfoRow label="Water Source" value={fmt(household.water_source)} />
+                    <InfoRow label="Toilet Facility" value={fmt(household.toilet_facility)} />
+                  </CardContent>
+                </Card>
+
+                {/* Family Members */}
+                {household.families?.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FiUsers size={15} /> Family Members
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {household.families.map((fam) => (
+                        <div key={fam.family_id}>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                            {fam.family_group}
+                          </p>
+                          <div className="space-y-2">
+                            {fam.members.map((m) => (
+                              <div
+                                key={m.member_id}
+                                className="flex items-center justify-between text-sm py-1.5 border-b last:border-0"
+                              >
+                                <div>
+                                  <span className="font-medium text-heading-700">{m.resident_name}</span>
+                                  <span className="ml-2 text-gray-500 text-xs">{m.relationship}</span>
+                                </div>
+                                <span className="font-mono text-xs text-gray-400">{m.member_resident_id}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => navigate('/portal/my-household')}
+                    className="flex items-center gap-1.5 text-sm text-primary-600 hover:underline"
+                  >
+                    Manage Household <FiExternalLink size={13} />
+                  </button>
+                </div>
+              </>
+            ) : null}
           </TabsContent>
 
           {/* ── Applications Tab ── */}

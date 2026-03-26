@@ -126,7 +126,7 @@ export const AddPWDModal: React.FC<AddPWDModalProps> = ({
 
   const handleAddNewCitizen = () => {
     handleClose();
-    navigate('/admin/subscribers');
+    navigate('/admin/residents');
   };
 
   return (

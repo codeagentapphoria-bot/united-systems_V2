@@ -140,13 +140,12 @@ export const calculateTrend = (current, previous) => {
 };
 
 // Helper function to get filter description
-// Note: puroks parameter kept for backward compatibility but puroks table removed in v2
 export const getFilterDescription = (
   baseDescription,
   selectedBarangay,
-  selectedPurok,
+  _unused1,
   barangays,
-  puroks
+  _unused2
 ) => {
   let description = baseDescription;
   if (selectedBarangay) {

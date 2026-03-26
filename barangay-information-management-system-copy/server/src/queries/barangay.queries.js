@@ -28,11 +28,6 @@ export const UPDATE_BARANGAY = `
   RETURNING id;
 `;
 
-// DEPRECATED: puroks table removed in v2 schema
-// These queries are kept as tombstone exports to prevent import errors
-export const INSERT_PUROK = null;
-export const UPDATE_PUROK = null;
-
 export const ADD_OFFICIAL = `
   INSERT INTO officials (
     barangay_id,

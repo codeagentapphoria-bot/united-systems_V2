@@ -289,26 +289,13 @@ export const PortalEGovernment: React.FC = () => {
                           Login to Request
                           <FiLock className="ml-2" size={16} />
                         </Button>
-                        {service.category === 'Barangay Certificate' ? (
-                          <p className="text-xs text-center text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                            Barangay certificates are for registered residents only.{' '}
-                            <button
-                              onClick={() => navigate('/portal/register')}
-                              className="underline font-medium hover:text-amber-900"
-                            >
-                              Register here
-                            </button>{' '}
-                            or visit your barangay hall for a walk-in request.
-                          </p>
-                        ) : (
-                          <Button
-                            onClick={() => navigate(`/portal/apply-as-guest?serviceId=${service.id}`)}
-                            variant="ghost"
-                            className="w-full text-gray-500 hover:text-gray-700 text-sm"
-                          >
-                            <FiUser size={14} className="mr-1.5" /> Apply as Guest
-                          </Button>
-                        )}
+                        <Button
+                          onClick={() => navigate(`/portal/apply-as-guest?serviceId=${service.id}`)}
+                          variant="ghost"
+                          className="w-full text-gray-500 hover:text-gray-700 text-sm"
+                        >
+                          <FiUser size={14} className="mr-1.5" /> Apply as Guest
+                        </Button>
                       </div>
                     )}
                   </div>

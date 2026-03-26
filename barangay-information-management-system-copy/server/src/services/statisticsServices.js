@@ -80,32 +80,7 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use UNION approach to include both house heads and family members
-        query = `
-          SELECT COALESCE(sex, 'unknown') as sex, COUNT(*) AS count 
-          FROM residents r
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${paramIndex}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${paramIndex}
-          )
-        `;
-        paramIndex++;
-        // purokId removed
-
-        if (barangayId) {
-          query += ` AND r.barangay_id = $${paramIndex++}`;
-          values.push(barangayId);
-        }
-
-        query += " GROUP BY COALESCE(sex, 'unknown')";
-      } else {
-        // Use the same approach as total population for consistency
+      // Use the same approach as total population for consistency
         query = `SELECT COALESCE(sex, 'unknown') as sex, COUNT(*) AS count FROM residents r`;
         const whereClauses = [];
 
@@ -119,7 +94,6 @@ class Statistics {
         }
 
         query += " GROUP BY COALESCE(sex, 'unknown')";
-      }
 
       const result = await client.query(query, values);
       return result.rows;
@@ -138,32 +112,7 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use UNION approach to include both house heads and family members
-        query = `
-          SELECT civil_status, COUNT(*) AS count 
-          FROM residents r
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${paramIndex}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${paramIndex}
-          )
-        `;
-        paramIndex++;
-        // purokId removed
-
-        if (barangayId) {
-          query += ` AND r.barangay_id = $${paramIndex++}`;
-          values.push(barangayId);
-        }
-
-        query += " GROUP BY civil_status";
-      } else {
-        // Standard approach for non-purok filtering
+      // Standard approach for non-purok filtering
         query = `SELECT civil_status, COUNT(*) AS count FROM residents r`;
         const whereClauses = [];
 
@@ -177,7 +126,6 @@ class Statistics {
         }
 
         query += " GROUP BY civil_status";
-      }
 
       const result = await client.query(query, values);
       return result.rows;
@@ -189,42 +137,14 @@ class Statistics {
     }
   }
 
-  static async getEducationalAttainmentDemographics({
-    barangayId,
-    // purokId removed in v2
-  } = {}) {
+  static async getEducationalAttainmentDemographics({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query;
       const values = [];
       let paramIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use simple JOIN approach with UNION subquery
-        query = `
-          SELECT education_attainment, COUNT(*) AS count 
-          FROM residents r
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${paramIndex}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${paramIndex}
-          )
-        `;
-        paramIndex++;
-        // purokId removed
-
-        if (barangayId) {
-          query += ` AND r.barangay_id = $${paramIndex++}`;
-          values.push(barangayId);
-        }
-
-        query += " GROUP BY education_attainment";
-      } else {
-        // Standard approach for non-purok filtering
+      // Standard approach for non-purok filtering
         query = `SELECT education_attainment, COUNT(*) AS count FROM residents r`;
         const whereClauses = [];
 
@@ -238,7 +158,6 @@ class Statistics {
         }
 
         query += " GROUP BY education_attainment";
-      }
 
       const result = await client.query(query, values);
       return result.rows;
@@ -257,32 +176,7 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use simple JOIN approach with UNION subquery
-        query = `
-          SELECT employment_status, COUNT(*) AS count 
-          FROM residents r
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${paramIndex}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${paramIndex}
-          )
-        `;
-        paramIndex++;
-        // purokId removed
-
-        if (barangayId) {
-          query += ` AND r.barangay_id = $${paramIndex++}`;
-          values.push(barangayId);
-        }
-
-        query += " GROUP BY employment_status ORDER BY employment_status";
-      } else {
-        // Standard approach for non-purok filtering
+      // Standard approach for non-purok filtering
         query = `SELECT employment_status, COUNT(*) AS count FROM residents r`;
         const whereClauses = [];
 
@@ -296,7 +190,6 @@ class Statistics {
         }
 
         query += " GROUP BY employment_status ORDER BY employment_status";
-      }
 
       const result = await client.query(query, values);
       return result.rows;
@@ -350,7 +243,6 @@ class Statistics {
 
   static async getTotalFemaleTotalmaleTotalPopulation({
     barangayId,
-    // purokId removed in v2
     classificationType,
   } = {}) {
     const client = await pool.connect();
@@ -359,43 +251,8 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use UNION approach to include both house heads and family members
-        query = `
-          SELECT 
-            COUNT(*) FILTER (WHERE sex = 'male') AS total_male,
-            COUNT(*) FILTER (WHERE sex = 'female') AS total_female,
-            COUNT(*) AS total_population
-          FROM residents r
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${paramIndex++}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${paramIndex++}
-          )
-        `;
-        // purokId removed
-
-        if (barangayId) {
-          query += ` AND r.barangay_id = $${paramIndex++}`;
-          values.push(barangayId);
-        }
-
-        // Add classification filter if specified
-        if (classificationType) {
-          query += ` AND r.id IN (
-            SELECT rc.resident_id 
-            FROM resident_classifications rc 
-            WHERE rc.classification_type = $${paramIndex++}
-          )`;
-          values.push(classificationType);
-        }
-      } else {
-        // Standard approach for non-purok filtering
-        query = `SELECT 
+      // Standard approach for non-purok filtering
+        query = `SELECT
           COUNT(*) FILTER (WHERE sex = 'male') AS total_male,
           COUNT(*) FILTER (WHERE sex = 'female') AS total_female,
           COUNT(*) AS total_population
@@ -410,8 +267,8 @@ class Statistics {
         // Add classification filter if specified
         if (classificationType) {
           whereClauses.push(`r.id IN (
-            SELECT rc.resident_id 
-            FROM resident_classifications rc 
+            SELECT rc.resident_id
+            FROM resident_classifications rc
             WHERE rc.classification_type = $${paramIndex++}
           )`);
           values.push(classificationType);
@@ -420,7 +277,6 @@ class Statistics {
         if (whereClauses.length > 0) {
           query += " WHERE " + whereClauses.join(" AND ");
         }
-      }
 
       const result = await client.query(query, values);
 
@@ -429,41 +285,7 @@ class Statistics {
       const monthValues = [];
       let monthParamIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use UNION approach for month query as well
-        monthQuery = `
-          SELECT COUNT(*) AS added_this_month 
-          FROM residents r
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${monthParamIndex++}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${monthParamIndex++}
-          )
-          AND r.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-          AND r.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-        `;
-        // purokId removed
-
-        if (barangayId) {
-          monthQuery += ` AND r.barangay_id = $${monthParamIndex++}`;
-          monthValues.push(barangayId);
-        }
-
-        // Add classification filter if specified
-        if (classificationType) {
-          monthQuery += ` AND r.id IN (
-            SELECT rc.resident_id 
-            FROM resident_classifications rc 
-            WHERE rc.classification_type = $${monthParamIndex++}
-          )`;
-          monthValues.push(classificationType);
-        }
-      } else {
-        // Standard approach for non-purok filtering
+      // Standard approach for non-purok filtering
         monthQuery = `SELECT COUNT(*) AS added_this_month FROM residents r`;
         const monthWhereClauses = [
           `r.created_at >= DATE_TRUNC('month', CURRENT_DATE)`,
@@ -478,8 +300,8 @@ class Statistics {
         // Add classification filter if specified
         if (classificationType) {
           monthWhereClauses.push(`r.id IN (
-            SELECT rc.resident_id 
-            FROM resident_classifications rc 
+            SELECT rc.resident_id
+            FROM resident_classifications rc
             WHERE rc.classification_type = $${monthParamIndex++}
           )`);
           monthValues.push(classificationType);
@@ -488,7 +310,6 @@ class Statistics {
         if (monthWhereClauses.length > 0) {
           monthQuery += " WHERE " + monthWhereClauses.join(" AND ");
         }
-      }
 
       const monthResult = await client.query(monthQuery, monthValues);
       const addedThisMonth = monthResult.rows[0]?.added_this_month || 0;
@@ -536,57 +357,21 @@ class Statistics {
     }
   }
 
-  static async getResidentClassificationDemographics({
-    barangayId,
-    // purokId removed in v2
-  } = {}) {
+  static async getResidentClassificationDemographics({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query;
       const values = [];
       let paramIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use UNION approach to include both house heads and family members
+      // Standard approach for non-purok filtering
         // Join with classification_types to filter out deleted/inactive types
         query = `
           SELECT ct.name AS classification_type, COUNT(*) AS count
           FROM resident_classifications rc
           JOIN residents r ON rc.resident_id = r.id
           JOIN barangays b ON r.barangay_id = b.id
-          JOIN classification_types ct ON ct.name = rc.classification_type 
-            AND ct.municipality_id = b.municipality_id
-            AND ct.is_active = true
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${paramIndex}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${paramIndex}
-          )
-        `;
-        paramIndex++;
-        // purokId removed
-
-        if (barangayId) {
-          query += ` AND r.barangay_id = $${paramIndex++}`;
-          values.push(barangayId);
-        }
-
-        // Exclude voters from general classifications
-        query += " AND rc.classification_type != 'voter'";
-        query += " GROUP BY ct.name ORDER BY ct.name";
-      } else {
-        // Standard approach for non-purok filtering
-        // Join with classification_types to filter out deleted/inactive types
-        query = `
-          SELECT ct.name AS classification_type, COUNT(*) AS count
-          FROM resident_classifications rc
-          JOIN residents r ON rc.resident_id = r.id
-          JOIN barangays b ON r.barangay_id = b.id
-          JOIN classification_types ct ON ct.name = rc.classification_type 
+          JOIN classification_types ct ON ct.name = rc.classification_type
             AND ct.municipality_id = b.municipality_id
             AND ct.is_active = true
         `;
@@ -605,7 +390,6 @@ class Statistics {
         }
 
         query += " GROUP BY ct.name ORDER BY ct.name";
-      }
 
       const result = await client.query(query, values);
       return result.rows;
@@ -627,44 +411,10 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use simple JOIN approach with UNION subquery
+      // Standard approach for non-purok filtering
         query = `
-          SELECT 
-            CASE 
-              WHEN rc.classification_details::text LIKE '%SK%' THEN 'SK Voter'
-              WHEN rc.classification_details::text LIKE '%Regular%' THEN 'Regular Voter'
-              ELSE 'Other Voter'
-            END AS voter_type,
-            COUNT(*) AS count
-          FROM resident_classifications rc
-          JOIN residents r ON rc.resident_id = r.id
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${paramIndex}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${paramIndex}
-          )
-        `;
-        paramIndex++;
-        // purokId removed
-
-        if (barangayId) {
-          query += ` AND r.barangay_id = $${paramIndex++}`;
-          values.push(barangayId);
-        }
-
-        // Only get voters
-        query += " AND rc.classification_type = 'Voter'";
-        query += " GROUP BY voter_type ORDER BY voter_type";
-      } else {
-        // Standard approach for non-purok filtering
-        query = `
-          SELECT 
-            CASE 
+          SELECT
+            CASE
               WHEN rc.classification_details::text LIKE '%SK%' THEN 'SK Voter'
               WHEN rc.classification_details::text LIKE '%Regular%' THEN 'Regular Voter'
               ELSE 'Other Voter'
@@ -687,7 +437,6 @@ class Statistics {
         // Only get voters
         query += " AND rc.classification_type = 'Voter'";
         query += " GROUP BY voter_type ORDER BY voter_type";
-      }
 
       const result = await client.query(query, values);
       return result.rows;
@@ -699,10 +448,7 @@ class Statistics {
     }
   }
 
-  static async getTotalHouseholdsAndAddedThisMonth({
-    barangayId,
-    // purokId removed in v2
-  } = {}) {
+  static async getTotalHouseholdsAndAddedThisMonth({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query = `SELECT COUNT(*) AS total_households FROM households h`;
@@ -867,41 +613,14 @@ class Statistics {
     }
   }
 
-  static async getTotalRegisteredPetsAndAddedThisMonth({
-    barangayId,
-    // purokId removed in v2
-  } = {}) {
+  static async getTotalRegisteredPetsAndAddedThisMonth({ barangayId } = {}) {
     const client = await pool.connect();
     try {
       let query;
       const values = [];
       let paramIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use UNION approach to include both house heads and family members
-        query = `
-          SELECT COUNT(*) AS total_pets 
-          FROM pets p
-          JOIN residents r ON p.owner_id = r.id
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${paramIndex}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${paramIndex}
-          )
-        `;
-        paramIndex++;
-        // purokId removed
-
-        if (barangayId) {
-          query += ` AND r.barangay_id = $${paramIndex++}`;
-          values.push(barangayId);
-        }
-      } else {
-        // Standard approach for non-purok filtering
+      // Standard approach for non-purok filtering
         query = `SELECT COUNT(*) AS total_pets FROM pets p`;
         const joins = [];
         const whereClauses = [];
@@ -918,7 +637,6 @@ class Statistics {
         if (whereClauses.length > 0) {
           query += " WHERE " + whereClauses.join(" AND ");
         }
-      }
 
       const result = await client.query(query, values);
 
@@ -927,33 +645,7 @@ class Statistics {
       const monthValues = [];
       let monthParamIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        // Use UNION approach for month query as well
-        monthQuery = `
-          SELECT COUNT(*) AS added_this_month 
-          FROM pets p
-          JOIN residents r ON p.owner_id = r.id
-          WHERE r.id IN (
-            SELECT h.house_head FROM households h WHERE h.purok_id = $${monthParamIndex}
-            UNION
-            SELECT fm.family_member 
-            FROM family_members fm
-            JOIN families f ON f.id = fm.family_id
-            JOIN households h ON h.id = f.household_id
-            WHERE h.purok_id = $${monthParamIndex}
-          )
-          AND p.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-          AND p.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-        `;
-        monthParamIndex++;
-        // purokId removed
-
-        if (barangayId) {
-          monthQuery += ` AND r.barangay_id = $${monthParamIndex++}`;
-          monthValues.push(barangayId);
-        }
-      } else {
-        // Standard approach for non-purok filtering
+      // Standard approach for non-purok filtering
         monthQuery = `SELECT COUNT(*) AS added_this_month FROM pets p`;
         const monthJoins = [];
         const monthWhereClauses = [
@@ -973,7 +665,6 @@ class Statistics {
         if (monthWhereClauses.length > 0) {
           monthQuery += " WHERE " + monthWhereClauses.join(" AND ");
         }
-      }
 
       const monthResult = await client.query(monthQuery, monthValues);
       const addedThisMonth = monthResult.rows[0]?.added_this_month || 0;
@@ -1196,11 +887,6 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      if (false && purokId) { // Puroks removed in v2
-        whereClauses.push(`h.purok_id = $${paramIndex++}`);
-        // purokId removed
-      }
-
       if (barangayId) {
         whereClauses.push(`h.barangay_id = $${paramIndex++}`);
         values.push(barangayId);
@@ -1303,11 +989,6 @@ class Statistics {
       const whereClauses = [];
       const values = [];
       let paramIndex = 1;
-
-      if (false && purokId) { // Puroks removed in v2
-        whereClauses.push(`h.purok_id = $${paramIndex++}`);
-        // purokId removed
-      }
 
       if (barangayId) {
         whereClauses.push(`h.barangay_id = $${paramIndex++}`);

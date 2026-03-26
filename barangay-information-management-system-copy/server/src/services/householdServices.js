@@ -200,13 +200,7 @@ class Household {
         }
       }
 
-      // Prepare longitude and latitude for PostGIS
-      let geomWKT = null;
-      if (geom && geom.lat && geom.lng) {
-        const lat = parseFloat(geom.lat);
-        const lng = parseFloat(geom.lng);
-        geomWKT = `POINT(${lng} ${lat})`;
-      }
+      // Prepare longitude and latitude for PostGIS (only used if geom was explicitly passed)
 
       // Fetch OLD household images FIRST (before any update) for cleanup comparison
       // Store in temp variable - will be used AFTER successful update
@@ -279,9 +273,20 @@ class Household {
         updateValues.push(toiletFacility);
         paramIndex++;
       }
-      if (geomWKT !== undefined) {
-        updateFields.push(`geom = $${paramIndex}`);
-        updateValues.push(geomWKT);
+      // Only touch geom if it was explicitly included in the update payload.
+      // Checking `geom !== undefined` (not `geomWKT !== undefined`) prevents
+      // partial updates (e.g. editing housing type) from wiping a saved location.
+      if (geom !== undefined) {
+        if (geom && geom.lat && geom.lng) {
+          const lat = parseFloat(geom.lat);
+          const lng = parseFloat(geom.lng);
+          // Embed inline so ST_GeomFromText sets SRID 4326 (matches query path)
+          updateFields.push(`geom = ST_GeomFromText($${paramIndex}, 4326)`);
+          updateValues.push(`POINT(${lng} ${lat})`);
+        } else {
+          // Explicit null/empty → clear the pin
+          updateFields.push(`geom = NULL`);
+        }
         paramIndex++;
       }
       if (area !== undefined) {

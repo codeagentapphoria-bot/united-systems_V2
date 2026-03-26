@@ -56,7 +56,6 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
  const Dashboard = ({ role }) => {
    const { user } = useAuth();
    const [selectedBarangay, setSelectedBarangay] = useState(null);
-   const [selectedPurok, setSelectedPurok] = useState(null);
    const [activeTab, setActiveTab] = useState("demographics");
 
   const {
@@ -65,9 +64,8 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
     demographics,
     distributionData,
     barangays,
-    puroks,
     loadDashboardData,
-  } = useDashboardData(role, selectedBarangay, selectedPurok);
+  } = useDashboardData(role, selectedBarangay);
 
   const {
     prepareGenderData,
@@ -94,9 +92,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Registered residents",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend:
         (stats.population?.addedThisMonth || 0) > 0
@@ -110,9 +108,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Registered households",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend:
         (stats.households?.addedThisMonth || 0) > 0
@@ -126,9 +124,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Family units",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend:
         (stats.families?.addedThisMonth || 0) > 0
@@ -145,9 +143,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Registered residents",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend:
         (stats.population?.addedThisMonth || 0) > 0
@@ -161,9 +159,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Male population",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend: null,
     },
@@ -174,9 +172,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Female population",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend: null,
     },
@@ -187,9 +185,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Registered households",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend:
         (stats.households?.addedThisMonth || 0) > 0
@@ -203,9 +201,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Family units",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend:
         (stats.families?.addedThisMonth || 0) > 0
@@ -219,9 +217,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Pet registrations",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend:
         (stats.pets?.addedThisMonth || 0) > 0
@@ -235,9 +233,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
       description: getFilterDescription(
         "Households affected by unemployment",
         selectedBarangay,
-        selectedPurok,
+        null,
         barangays,
-        puroks
+        []
       ),
       trend:
         stats.unemployedHouseholds?.percentage > 0
@@ -267,10 +265,7 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
         role={role}
         selectedBarangay={selectedBarangay}
         setSelectedBarangay={setSelectedBarangay}
-        selectedPurok={selectedPurok}
-        setSelectedPurok={setSelectedPurok}
         barangays={barangays}
-        puroks={puroks}
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -317,14 +312,12 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
                    Voters
                  </div>
                </SelectItem>
-               {!selectedPurok && (
-                 <SelectItem value="distribution">
+               <SelectItem value="distribution">
                    <div className="flex items-center gap-2">
                      <BarChart3 className="h-4 w-4" />
                      Distribution
                    </div>
                  </SelectItem>
-               )}
              </SelectContent>
            </Select>
          </div>
@@ -351,12 +344,10 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
              <Vote className="h-4 w-4" />
              Voters
            </TabsTrigger>
-           {!selectedPurok && (
-             <TabsTrigger value="distribution" className="flex items-center gap-2">
+           <TabsTrigger value="distribution" className="flex items-center gap-2">
                <BarChart3 className="h-4 w-4" />
                Distribution
              </TabsTrigger>
-           )}
          </TabsList>
 
         <TabsContent value="demographics" className="space-y-3 sm:space-y-4">
@@ -575,7 +566,6 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
             <UnemployedHouseholdStats
               role={role}
               selectedBarangay={selectedBarangay}
-              selectedPurok={selectedPurok}
             />
           </div>
         </TabsContent>
@@ -619,8 +609,7 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
           </ChartCard>
         </TabsContent>
 
-        {!selectedPurok && (
-          <TabsContent value="distribution" className="space-y-3 sm:space-y-4">
+        <TabsContent value="distribution" className="space-y-3 sm:space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
               {/* Gender Distribution - More Detailed */}
               <ChartCard
@@ -890,7 +879,6 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
               </ChartCard>
             </div>
           </TabsContent>
-        )}
       </Tabs>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mt-4 sm:mt-6">

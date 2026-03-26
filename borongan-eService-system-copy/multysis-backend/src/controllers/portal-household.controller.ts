@@ -42,6 +42,9 @@ export const registerHousehold = async (
       electricity,
       waterSource,
       toiletFacility,
+      geom,
+      area,
+      householdImagePath,
       families,
     } = req.body;
 
@@ -54,6 +57,9 @@ export const registerHousehold = async (
       electricity: electricity === true || electricity === 'true' || electricity === 'Yes',
       waterSource,
       toiletFacility,
+      geom: geom ?? null,
+      area: area != null ? Number(area) : null,
+      householdImagePath: householdImagePath ?? null,
       families: families ?? [],
     });
 

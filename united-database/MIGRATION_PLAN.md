@@ -374,3 +374,43 @@ united-database/
 | 3B | E-Services backend update (Prisma `@@map`, new `.env`) | **Done** |
 | 4 | Fuzzy matching + integrity validation | **N/A — no prior production data; systems start fresh on unified DB** |
 | 5 | Go-live — copy `env.unified` → `.env`, deploy both backends | **Done** |
+
+---
+
+## v2 Column Renames (Data Migration Notes)
+
+When migrating existing v1 resident data into the v2 schema, apply these transformations to prevent data loss:
+
+### residents table
+
+| v1 Column | v2 Column | Notes |
+|---|---|---|
+| `resident_status` | `status` | Renamed for consistency with other status columns |
+| `suffix` | `extension_name` | Renamed to match civil registry terminology |
+| `birthplace` (single text field) | `birthplace_city`, `birthplace_province`, `birthplace_country` | Split into 3 separate columns in v2; parse the old value and distribute |
+
+**Migration SQL example for column renames:**
+```sql
+-- resident_status → status
+ALTER TABLE residents RENAME COLUMN resident_status TO status;
+
+-- suffix → extension_name
+ALTER TABLE residents RENAME COLUMN suffix TO extension_name;
+
+-- birthplace split (manual parse required — old format: "City, Province, Country")
+ALTER TABLE residents
+  ADD COLUMN birthplace_city    TEXT,
+  ADD COLUMN birthplace_province TEXT,
+  ADD COLUMN birthplace_country  TEXT;
+
+UPDATE residents
+SET
+  birthplace_city     = split_part(birthplace, ', ', 1),
+  birthplace_province = split_part(birthplace, ', ', 2),
+  birthplace_country  = COALESCE(NULLIF(split_part(birthplace, ', ', 3), ''), 'Philippines')
+WHERE birthplace IS NOT NULL;
+
+ALTER TABLE residents DROP COLUMN birthplace;
+```
+
+> **Warning:** The birthplace split assumes the v1 value was stored as `"City, Province, Country"`. Verify the actual format in your production data before running the UPDATE.

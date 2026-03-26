@@ -68,7 +68,20 @@ import api from "@/utils/api";
 import QRCode from "qrcode";
 
 const SERVER_URL =
-  import.meta.env.VITE_SERVER_URL || "localhost:5000";
+  import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
+
+const ESERVICE_SERVER_URL =
+  import.meta.env.VITE_ESERVICE_SERVER_URL || "http://localhost:3000";
+
+// Resolve a stored household image path/filename to a full URL.
+// E-Services uploads are stored as absolute paths like "/uploads/images/..."
+// BIMS uploads are stored as bare filenames like "household-xxx.jpg"
+const resolveHouseholdImageUrl = (image) => {
+  if (!image) return null;
+  if (image.startsWith("http://") || image.startsWith("https://")) return image;
+  if (image.startsWith("/")) return `${ESERVICE_SERVER_URL}${image}`;
+  return `${SERVER_URL}/uploads/households/${image}`;
+};
 
 const HouseholdViewDialog = ({
   household,
@@ -449,7 +462,7 @@ const HouseholdViewDialog = ({
                               onClick={() => household && setSelectedImage(firstImage)}
                             >
                               <img
-                                src={`${SERVER_URL}/uploads/households/${firstImage}`}
+                                src={resolveHouseholdImageUrl(firstImage)}
                                 alt={`${household.house_head || 'Household'} - Household Image`}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                                 onError={(e) => {
@@ -607,7 +620,7 @@ const HouseholdViewDialog = ({
                               onClick={() => household && setSelectedImage(firstImage)}
                             >
                               <img
-                                src={`${SERVER_URL}/uploads/households/${firstImage}`}
+                                src={resolveHouseholdImageUrl(firstImage)}
                                 alt={`${household.house_head || 'Household'} - Household Image`}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                 onError={(e) => {
@@ -792,7 +805,7 @@ const HouseholdViewDialog = ({
                               onClick={() => household && setSelectedImage(firstImage)}
                             >
                               <img
-                                src={`${SERVER_URL}/uploads/households/${firstImage}`}
+                                src={resolveHouseholdImageUrl(firstImage)}
                                 alt={`${household.house_head || 'Household'} - Household Image`}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                 onError={(e) => {
@@ -933,7 +946,7 @@ const HouseholdViewDialog = ({
                               onClick={() => household && setSelectedImage(firstImage)}
                             >
                               <img
-                                src={`${SERVER_URL}/uploads/households/${firstImage}`}
+                                src={resolveHouseholdImageUrl(firstImage)}
                                 alt={`${household.house_head || 'Household'} - Household Image`}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                 onError={(e) => {
@@ -1167,7 +1180,7 @@ const HouseholdViewDialog = ({
                                 onClick={() => setSelectedImage(image)}
                               >
                                 <img
-                                  src={`${SERVER_URL}/uploads/households/${image}`}
+                                  src={resolveHouseholdImageUrl(image)}
                                   alt={`Household image ${index + 1}`}
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                                   onError={(e) => {
@@ -1231,7 +1244,7 @@ const HouseholdViewDialog = ({
             {selectedImage ? (
               <div className="w-full max-h-[90vh] flex items-center justify-center bg-black">
                 <img
-                  src={`${SERVER_URL}/uploads/households/${selectedImage}`}
+                  src={resolveHouseholdImageUrl(selectedImage)}
                   alt={`Household image - ${household?.house_head || 'Unknown household'}`}
                   className="max-w-full max-h-[90vh] object-contain"
                   onError={(e) => {

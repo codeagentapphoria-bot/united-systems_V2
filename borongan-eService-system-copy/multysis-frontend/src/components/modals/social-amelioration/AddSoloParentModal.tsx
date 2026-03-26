@@ -104,7 +104,7 @@ export const AddSoloParentModal: React.FC<AddSoloParentModalProps> = ({
 
   const handleAddNewCitizen = () => {
     handleClose();
-    navigate('/admin/subscribers');
+    navigate('/admin/residents');
   };
 
   // Pre-fill form when citizen is selected

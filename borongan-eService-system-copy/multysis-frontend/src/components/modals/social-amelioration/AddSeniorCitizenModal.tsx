@@ -132,7 +132,7 @@ export const AddSeniorCitizenModal: React.FC<AddSeniorCitizenModalProps> = ({
 
   const handleAddNewCitizen = () => {
     handleClose();
-    navigate('/admin/subscribers');
+    navigate('/admin/residents');
   };
 
   return (

@@ -112,7 +112,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({
 
   const handleAddNewCitizen = () => {
     handleClose();
-    navigate('/admin/subscribers');
+    navigate('/admin/residents');
   };
 
   // Reset form when modal closes

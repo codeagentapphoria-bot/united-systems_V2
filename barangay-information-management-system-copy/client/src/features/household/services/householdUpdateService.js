@@ -20,8 +20,6 @@ class HouseholdUpdateService {
       data.house_number ||
       data.houseNumber ||
       data.street ||
-      data.purok_id ||
-      data.purokId ||
       data.area;
     const isImageUpdate =
       data.household_image_path ||
@@ -189,7 +187,7 @@ class HouseholdUpdateService {
     }
 
     // Transform numeric fields
-    const numericFields = ["purokId", "barangayId", "area"];
+    const numericFields = ["barangayId", "area"];
     numericFields.forEach((field) => {
       if (
         transformed[field] !== undefined &&
@@ -311,8 +309,6 @@ class HouseholdUpdateService {
         newData.house_number ||
         newData.houseNumber ||
         newData.street ||
-        newData.purok_id ||
-        newData.purokId ||
         newData.area;
 
       const isImageUpdate =

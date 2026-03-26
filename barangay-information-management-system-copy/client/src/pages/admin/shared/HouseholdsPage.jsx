@@ -728,7 +728,7 @@ const HouseholdsPage = () => {
         onEditImages={handleEditImages}
         onDelete={handleDeleteConfirm}
         loading={loading || isEnhancedUpdating}
-        hideActions={user?.target_type === "municipality"}
+        hideActions={true}
       />
 
       {/* Edit Household Dialogs */}

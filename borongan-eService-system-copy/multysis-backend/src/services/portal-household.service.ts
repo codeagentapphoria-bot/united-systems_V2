@@ -38,6 +38,9 @@ export interface RegisterHouseholdInput {
   electricity?: boolean;
   waterSource?: string;
   toiletFacility?: string;
+  geom?: { lat: number; lng: number } | null;
+  area?: number | null;
+  householdImagePath?: string | null;
   families?: FamilyInput[];
 }
 
@@ -57,7 +60,10 @@ export async function getMyHousehold(residentId: string) {
       h.electricity,
       h.water_source,
       h.toilet_facility,
+      h.area,
       h.household_image_path,
+      ST_Y(h.geom) AS geom_lat,
+      ST_X(h.geom) AS geom_lng,
       b.barangay_name,
       m.municipality_name,
       COALESCE(
@@ -129,6 +135,9 @@ export async function registerHousehold(
     electricity = false,
     waterSource,
     toiletFacility,
+    geom,
+    area,
+    householdImagePath,
     families = [],
   } = input;
 
@@ -222,12 +231,18 @@ export async function registerHousehold(
 
   // 4. Create household + families + members in a single transaction
   return prisma.$transaction(async (tx) => {
+    // Build geom SQL fragment — ST_MakePoint(lng, lat) per PostGIS convention
+    const geomSql = geom
+      ? Prisma.sql`ST_SetSRID(ST_MakePoint(${geom.lng}, ${geom.lat}), 4326)`
+      : Prisma.sql`NULL::geometry`;
+
     // Create household
     const householdRows = await tx.$queryRaw<any[]>`
       INSERT INTO households (
         house_number, street, barangay_id, house_head,
         housing_type, structure_type, electricity,
-        water_source, toilet_facility
+        water_source, toilet_facility, geom, area,
+        household_image_path
       )
       VALUES (
         ${houseNumber ?? null},
@@ -238,9 +253,16 @@ export async function registerHousehold(
         ${structureType ?? null},
         ${electricity},
         ${waterSource ?? null},
-        ${toiletFacility ?? null}
+        ${toiletFacility ?? null},
+        ${geomSql},
+        ${area ?? null},
+        ${householdImagePath ? JSON.stringify([householdImagePath]) : '[]'}
       )
-      RETURNING *
+      RETURNING
+        id, house_number, street, barangay_id, house_head,
+        housing_type, structure_type, electricity,
+        water_source, toilet_facility, area, household_image_path, created_at,
+        ST_Y(geom) AS geom_lat, ST_X(geom) AS geom_lng
     `;
     const household = householdRows[0];
 

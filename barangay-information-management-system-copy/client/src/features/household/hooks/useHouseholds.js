@@ -59,16 +59,13 @@ export const useHouseholds = () => {
     try {
       // Only add barangayId if user.target_type is 'barangay'
       const queryParams = {
-        ...(user.target_type === "barangay"
-          ? {
-              purokId:
-                filterPurok === "all" ? undefined : filterPurok || undefined,
-              barangayId: user.target_id,
-            }
-          : {
-              barangayId:
-                filterPurok === "all" ? undefined : filterPurok || undefined,
-            }),
+        ...(user.target_type !== "barangay" && {
+            barangayId:
+              filterPurok === "all" ? undefined : filterPurok || undefined,
+          }),
+        ...(user.target_type === "barangay" && {
+            barangayId: user.target_id,
+          }),
         page,
         perPage,
         search: searchTerm,

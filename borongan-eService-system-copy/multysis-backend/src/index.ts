@@ -302,6 +302,7 @@ import adminRoutes from './routes/admin.routes';
 import authRoutes from './routes/auth.routes';
 import portalRegistrationRoutes from './routes/portal-registration.routes';
 import portalHouseholdRoutes from './routes/portal-household.routes';
+import portalClassificationRoutes from './routes/portal-classification.routes';
 import devRoutes from './routes/dev.routes';
 import faqRoutes from './routes/faq.routes';
 import governmentProgramRoutes from './routes/government-program.routes';
@@ -341,6 +342,8 @@ app.use('/api/addresses', apiLimiter, addressRoutes);
 app.use('/api/portal-registration', apiLimiter, portalRegistrationRoutes);
 // Resident portal household self-registration + family management
 app.use('/api/portal/household', apiLimiter, portalHouseholdRoutes);
+// Resident portal BIMS classification display (read-only)
+app.use('/api/portal/classifications', apiLimiter, portalClassificationRoutes);
 app.use('/api/transactions', apiLimiter, transactionRoutes);
 app.use('/api/roles', apiLimiter, roleRoutes);
 app.use('/api/permissions', apiLimiter, permissionRoutes);

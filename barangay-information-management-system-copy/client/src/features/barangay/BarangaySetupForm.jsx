@@ -86,7 +86,6 @@ const BarangaySetupForm = ({
   });
   
   const { handleSubmit, control, setValue, formState: { errors, isSubmitting } } = form;
-  // puroks state removed — puroks table dropped in v2
 
   const handleLogout = () => {
     logout();
@@ -191,8 +190,6 @@ const BarangaySetupForm = ({
     setSelectedLocation(coordinates);
   };
 
-  // handlePurokChange / addPurok / removePurok removed — puroks table dropped in v2
-
   const checkForConflicts = async (barangayName, barangayCode) => {
     try {
       const response = await api.get(`/barangay/${targetId}/conflicts`, {
@@ -266,7 +263,6 @@ const BarangaySetupForm = ({
           },
         });
         
-        // Puroks removed in v2 — no longer created during setup
         let setupOk = false;
         let setupData = null;
         let lastError = null;
@@ -546,8 +542,6 @@ const BarangaySetupForm = ({
                         )}
                       </div>
                     </div>
-
-                    {/* Puroks section removed — puroks table dropped in v2 */}
 
                     <Separator />
 

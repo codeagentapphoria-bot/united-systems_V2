@@ -382,6 +382,19 @@ export const formatResidentResponse = (resident: any) => ({
   picturePath: resident.picturePath,
   // Expose googleLinked flag (without exposing the actual googleId)
   googleLinked: !!(resident.credentials?.googleId),
+  // Beneficiary / classification relations
+  seniorCitizen: resident.seniorCitizenBeneficiary
+    ? { id: resident.seniorCitizenBeneficiary.seniorCitizenId, status: resident.seniorCitizenBeneficiary.status }
+    : null,
+  pwd: resident.pwdBeneficiary
+    ? { id: resident.pwdBeneficiary.pwdId, status: resident.pwdBeneficiary.status }
+    : null,
+  student: resident.studentBeneficiary
+    ? { id: resident.studentBeneficiary.studentId, status: resident.studentBeneficiary.status }
+    : null,
+  soloParent: resident.soloParentBeneficiary
+    ? { id: resident.soloParentBeneficiary.soloParentId, status: resident.soloParentBeneficiary.status }
+    : null,
   createdAt: resident.createdAt,
   updatedAt: resident.updatedAt,
 });

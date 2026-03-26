@@ -61,7 +61,6 @@ const HouseholdsPage = React.lazy(() =>
   import("@/pages/admin/shared/HouseholdsPage")
 );
 const PetsPage = React.lazy(() => import("@/pages/admin/shared/PetsPage"));
-// PuroksPage removed — puroks no longer exist in the system
 const ArchivesPage = React.lazy(() =>
   import("@/pages/admin/barangay/ArchivesPage")
 );
@@ -269,8 +268,6 @@ function AdminRoutesContent() {
                      <Route path="setup" element={<SetupPage role={role} />} />
                      <Route path="households" element={<HouseholdsPage />} />
                      <Route path="pets" element={<PetsPage />} />
-                     {/* PuroksPage removed — puroks no longer exist */}
-                     {/* New: Registration approvals */}
                      <Route path="registrations" element={<RegistrationApprovalsPage />} />
                      {/* Certificate request queue (AC3) — replaces old Requests page */}
                      <Route path="certificates" element={<CertificatesPage />} />
