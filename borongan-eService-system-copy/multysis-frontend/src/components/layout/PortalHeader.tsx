@@ -19,7 +19,6 @@ import {
 // Custom Components
 import { PortalNotificationDropdown } from '@/components/notifications/PortalNotificationDropdown';
 import { PortalLoginSheet } from '@/components/portal/PortalLoginSheet';
-import { PortalSignupSheet } from '@/components/portal/PortalSignupSheet';
 
 // Hooks
 import { useAuth } from '@/context/AuthContext';
@@ -36,11 +35,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
   const { user, logout, isLoading } = useAuth();
   const {
     isLoginOpen,
-    isSignupOpen,
     openLoginSheet,
-    openSignupSheet,
     setLoginSheetOpen,
-    setSignupSheetOpen,
   } = useLoginSheet();
   const { counts } = usePortalNotifications();
   const location = useLocation();
@@ -184,10 +180,12 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
                   Login
                 </Button>
                 <Button
-                  onClick={openSignupSheet}
+                  asChild
                   className="bg-primary-600 hover:bg-primary-700 text-white"
                 >
-                  Sign Up
+                  <Link to="/portal/register">
+                    Register
+                  </Link>
                 </Button>
               </div>
             )}
@@ -235,10 +233,12 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
                   Login
                 </Button>
                 <Button
-                  onClick={() => { openSignupSheet(); setIsMobileMenuOpen(false); }}
+                  asChild
                   className="w-full bg-primary-600 hover:bg-primary-700 text-white"
                 >
-                  Sign Up
+                  <Link to="/portal/register" onClick={() => setIsMobileMenuOpen(false)}>
+                    Register
+                  </Link>
                 </Button>
               </div>
             )}
@@ -248,9 +248,6 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
 
       {/* Login Sheet */}
       <PortalLoginSheet open={isLoginOpen} onOpenChange={setLoginSheetOpen} />
-
-      {/* Signup Sheet */}
-      <PortalSignupSheet open={isSignupOpen} onOpenChange={setSignupSheetOpen} />
     </header>
   );
 };

@@ -223,7 +223,7 @@ export const PortalEGovernment: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {currentItems.map((item, idx) => {
+            {currentItems.map((item) => {
               if (item.type === 'brgy-group') {
                 return (
                   <Card key="brgy-group" className="hover:shadow-lg transition-shadow flex flex-col h-full border-primary-200">

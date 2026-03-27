@@ -1,6 +1,9 @@
 // React imports
 import React from 'react';
 
+// Third-party libraries
+import { Link } from 'react-router-dom';
+
 // UI Components (shadcn/ui)
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +29,7 @@ export const LoginPrompt: React.FC<LoginPromptProps> = ({
     'Track your service applications',
   ],
 }) => {
-  const { openLoginSheet, openSignupSheet } = useLoginSheet();
+  const { openLoginSheet } = useLoginSheet();
   return (
     <div className="flex items-center justify-center min-h-[400px] py-12">
       <Card className="w-full max-w-md">
@@ -60,23 +63,25 @@ export const LoginPrompt: React.FC<LoginPromptProps> = ({
               <span>Login</span>
             </Button>
             <Button
-              onClick={openSignupSheet}
+              asChild
               variant="outline"
               className="flex-1 border-primary-600 text-primary-600 hover:bg-primary-50"
             >
-              <FiUserPlus size={18} className="mr-2" />
-              <span>Sign Up</span>
+              <Link to="/portal/register">
+                <FiUserPlus size={18} className="mr-2" />
+                <span>Register</span>
+              </Link>
             </Button>
           </div>
 
           <p className="text-xs text-center text-heading-400 pt-2">
             Don't have an account?{' '}
-            <button
-              onClick={openSignupSheet}
+            <Link
+              to="/portal/register"
               className="text-primary-600 hover:text-primary-700 font-medium hover:underline"
             >
-              Create one now
-            </button>
+              Register now
+            </Link>
           </p>
         </CardContent>
       </Card>

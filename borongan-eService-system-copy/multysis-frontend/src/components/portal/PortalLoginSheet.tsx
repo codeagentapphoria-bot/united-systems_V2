@@ -56,7 +56,7 @@ export const PortalLoginSheet: React.FC<PortalLoginSheetProps> = ({
 }) => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const { closeLoginSheet, openSignupSheet } = useLoginSheet();
+  const { closeLoginSheet } = useLoginSheet();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -110,9 +110,9 @@ export const PortalLoginSheet: React.FC<PortalLoginSheetProps> = ({
     }
   };
 
-  const handleSwitchToSignup = () => {
+  const handleSwitchToRegister = () => {
     closeLoginSheet();
-    setTimeout(() => openSignupSheet(), 300);
+    navigate('/portal/register');
   };
 
   return (
@@ -224,10 +224,10 @@ export const PortalLoginSheet: React.FC<PortalLoginSheetProps> = ({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleSwitchToSignup}
+                  onClick={handleSwitchToRegister}
                   className="w-full h-12 text-base font-medium border-primary-600 text-primary-600 hover:bg-primary-50"
                 >
-                  <FiUser size={18} className="mr-2" /> Create Account
+                  <FiUser size={18} className="mr-2" /> Register
                 </Button>
 
                 <div className="mt-4 p-3 bg-gray-50 rounded-lg">

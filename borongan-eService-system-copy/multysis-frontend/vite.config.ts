@@ -18,4 +18,7 @@ export default defineConfig({
   optimizeDeps: {
     include: ['socket.io-client'],
   },
+  server: {
+    port: 5174,
+  },
 })

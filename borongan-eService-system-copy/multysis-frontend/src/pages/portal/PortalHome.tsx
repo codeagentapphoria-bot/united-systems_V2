@@ -19,14 +19,14 @@ import { useToast } from '@/hooks/use-toast';
 
 // Utils
 import { cn } from '@/lib/utils';
-import { FiArrowRight, FiCreditCard, FiFileText, FiMessageSquare, FiTool } from 'react-icons/fi';
+import { FiArrowRight, FiCreditCard, FiFileText, FiMessageSquare, FiTool, FiUser, FiShield, FiZap, FiBarChart, FiCheck } from 'react-icons/fi';
 
 // Supabase
 import { supabase } from '@/lib/supabase';
 
 export const PortalHome: React.FC = () => {
   const { user, isLoading } = useAuth();
-  const { openLoginSheet, openSignupSheet } = useLoginSheet();
+  const { openLoginSheet } = useLoginSheet();
   const { toast } = useToast();
   const [_isGoogleAuthLoading, setIsGoogleAuthLoading] = useState(false);
 
@@ -105,11 +105,11 @@ export const PortalHome: React.FC = () => {
     const googleError = urlParams.get('google_error');
     if (googleError) {
       let errorMessage = 'Google login failed. Please try again.';
-      
+
       if (googleError === 'not_registered') {
         errorMessage = 'This Google account is not registered. Please sign up first.';
       }
-      
+
       toast({
         variant: 'destructive',
         title: 'Login Failed',
@@ -158,35 +158,92 @@ export const PortalHome: React.FC = () => {
   return (
     <PortalLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 lg:py-12">
-        {/* Hero Section */}
-        <div className="text-center mb-10 lg:mb-16">
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-heading-700 mb-4 lg:mb-6 leading-tight">
-            Welcome to City of Borongan
-          </h1>
-          <p className="text-base md:text-lg lg:text-xl text-heading-600 mb-6 lg:mb-8 max-w-3xl mx-auto px-2">
-            Your gateway to government services. Access services, pay bills, and stay informed all in one place.
-          </p>
-          {!isLoading && !user && (
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                onClick={openLoginSheet}
-                size="lg"
-                className="bg-primary-600 hover:bg-primary-700 text-white"
-              >
-                Get Started
-                <FiArrowRight className="ml-2" size={20} />
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="lg"
-                className="border-primary-600 text-primary-600 hover:bg-primary-50"
-              >
-                <Link to="/portal/e-government">Explore Services</Link>
-              </Button>
+        {/* Hero Section - Registration Focus */}
+        {!isLoading && !user ? (
+          <div className="bg-primary-700 rounded-2xl p-8 md:p-12 mb-10 lg:mb-16 text-white relative overflow-hidden">
+            {/* Subtle geometric pattern */}
+            <div className="absolute inset-0 opacity-5">
+              <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <defs>
+                  <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+                    <path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" strokeWidth="0.5" />
+                  </pattern>
+                </defs>
+                <rect width="100" height="100" fill="url(#grid)" />
+              </svg>
             </div>
-          )}
-        </div>
+            <div className="relative max-w-3xl mx-auto text-center">
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 lg:mb-6 leading-tight">
+                Register as a Resident of Borongan
+              </h1>
+              <p className="text-lg md:text-xl lg:text-2xl mb-8 opacity-90">
+                Official Municipal Resident Registry
+              </p>
+
+              {/* Benefits - Clean structured cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+                {[
+                  { icon: FiFileText, label: "Official Record", sub: "Verified citizen database" },
+                  { icon: FiShield, label: "Verified Records", sub: "City Hall authenticated" },
+                  { icon: FiZap, label: "Faster Service", sub: "Skip the queue" },
+                  { icon: FiBarChart, label: "Track Online", sub: "Monitor applications" },
+                ].map((item, idx) => (
+                  <div key={idx} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center border border-white/10 hover:bg-white/15 transition-colors">
+                    <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center mx-auto mb-3">
+                      <item.icon size={20} className="text-white" />
+                    </div>
+                    <div className="text-sm font-semibold mb-1">{item.label}</div>
+                    <div className="text-xs text-white/70">{item.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTAs */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-white text-primary-700 hover:bg-gray-100 font-semibold px-8"
+                >
+                  <Link to="/portal/register">
+                    Register Now
+                    <FiArrowRight className="ml-2" size={20} />
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                  className="border-2 border-white text-white bg-primary-700 hover:bg-primary-500/10 font-semibold px-8"
+                >
+                  <Link to="/portal/e-government">
+                    Explore Services
+                  </Link>
+                </Button>
+              </div>
+
+              {/* Trust line */}
+              <div className="flex items-center justify-center gap-2 mt-8 text-sm text-white/70">
+                <FiCheck className="w-4 h-4" />
+                <span>Free registration</span>
+                <span className="mx-2">•</span>
+                <span>City Hall verified</span>
+                <span className="mx-2">•</span>
+                <span>Your data is secured</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Default Hero for logged-in users */
+          <div className="text-center mb-10 lg:mb-16">
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-heading-700 mb-4 lg:mb-6 leading-tight">
+              Welcome to City of Borongan
+            </h1>
+            <p className="text-base md:text-lg lg:text-xl text-heading-600 mb-6 lg:mb-8 max-w-3xl mx-auto px-2">
+              Your gateway to government services. Access services, pay bills, and stay informed all in one place.
+            </p>
+          </div>
+        )}
 
         {/* Services Grid */}
         <div className="mb-10 lg:mb-16">
@@ -272,12 +329,14 @@ export const PortalHome: React.FC = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
-                onClick={openSignupSheet}
+                asChild
                 size="lg"
                 className="bg-white text-primary-600 hover:bg-gray-100"
               >
-                Sign Up Now
-                <FiArrowRight className="ml-2" size={20} />
+                <Link to="/portal/register">
+                  Register
+                  <FiArrowRight className="ml-2" size={20} />
+                </Link>
               </Button>
               <Button
                 onClick={openLoginSheet}
