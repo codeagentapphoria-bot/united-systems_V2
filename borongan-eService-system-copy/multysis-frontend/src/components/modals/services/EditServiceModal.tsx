@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 
 // Third-party libraries
+import CreatableSelect from 'react-select/creatable';
 
 // UI Components (shadcn/ui)
 import { Button } from '@/components/ui/button';
@@ -273,21 +274,25 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                       <FormItem>
                         <CustomFormLabel>Category</CustomFormLabel>
                         <FormControl>
-                          <div className="relative">
-                            <Input
-                              {...field}
-                              list="category-options-edit"
-                              placeholder="Select or type category"
-                              value={field.value || ''}
-                              onChange={(e) => field.onChange(e.target.value)}
-                              className="mt-1"
-                            />
-                            <datalist id="category-options-edit">
-                              {categories.map((cat) => (
-                                <option key={cat} value={cat} />
-                              ))}
-                            </datalist>
-                          </div>
+                          <CreatableSelect
+                            {...field}
+                            value={
+                              field.value
+                                ? { value: field.value, label: field.value }
+                                : null
+                            }
+                            onChange={(option) =>
+                              field.onChange(option?.value || '')
+                            }
+                            options={categories.map((cat) => ({
+                              value: cat,
+                              label: cat,
+                            }))}
+                            placeholder="Select or create category"
+                            className="mt-1"
+                            classNamePrefix="react-select"
+                            isClearable
+                          />
                         </FormControl>
                         <FormDescription className="text-xs text-gray-500 mt-1">
                           Type a new category to create it. It will be saved for future use.
