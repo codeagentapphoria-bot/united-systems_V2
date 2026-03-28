@@ -112,8 +112,6 @@ export const Sidebar = ({ userType, role, onLogout }) => {
       { title: "Households",            icon: Building,      path: "/admin/municipality/households" },
       { title: "Pets",                  icon: Heart,         path: "/admin/municipality/pets" },
       { title: "Barangays",             icon: Building,      path: "/admin/municipality/barangays" },
-      { title: "Registrations",         icon: ClipboardList, path: "/admin/municipality/registrations" },
-      { title: "Bulk ID",               icon: CreditCard,    path: "/admin/municipality/bulk-id" },
       { title: "Certificate Templates", icon: FileBadge2,    path: "/admin/municipality/certificate-templates" },
       { title: "Geographical Map",      icon: Globe,         path: "/admin/municipality/geomap" },
       { title: "Accounts",              icon: Users,         path: "/admin/municipality/accounts" },

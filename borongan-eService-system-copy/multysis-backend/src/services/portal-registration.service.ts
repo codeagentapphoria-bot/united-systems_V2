@@ -17,6 +17,7 @@ import { sendEmailSafely } from './email.service';
 import {
   getResidentApprovalEmail,
   getResidentRejectionEmail,
+  getResidentResubmissionEmail,
 } from './email-templates/resident-notifications';
 
 // =============================================================================
@@ -490,13 +491,14 @@ export const requestResubmission = async (
 ) => {
   const request = await prisma.registrationRequest.findUnique({
     where: { id: requestId },
+    include: { resident: true },
   });
   if (!request) throw new Error('Registration request not found');
   if (!['pending', 'under_review'].includes(request.status)) {
     throw new Error(`Cannot request resubmission from status: ${request.status}`);
   }
 
-  return prisma.registrationRequest.update({
+  const updated = await prisma.registrationRequest.update({
     where: { id: requestId },
     data: {
       status: 'requires_resubmission',
@@ -505,6 +507,62 @@ export const requestResubmission = async (
       reviewedAt: new Date(),
     },
   });
+
+  // Send resubmission email (non-blocking)
+  if (request.resident?.email) {
+    try {
+      const { subject, html, text } = getResidentResubmissionEmail({
+        residentName: `${request.resident.firstName} ${request.resident.lastName}`,
+        email: request.resident.email,
+        adminNotes,
+        statusUrl: process.env.PORTAL_URL
+          ? `${process.env.PORTAL_URL}/portal/register/status?username=${request.resident.username}`
+          : `/portal/register/status?username=${request.resident.username}`,
+      });
+      await sendEmailSafely(request.resident.email, subject, html, text);
+    } catch (err: any) {
+      console.error('Failed to send resubmission email:', err.message);
+    }
+  }
+
+  return updated;
+};
+
+// =============================================================================
+// RESUBMIT DOCUMENTS  (resident re-uploads after resubmission request)
+// =============================================================================
+
+export const resubmitDocuments = async (
+  username: string,
+  selfieUrl: string,
+  idDocumentUrl: string
+) => {
+  const resident = await prisma.resident.findFirst({ where: { username } });
+  if (!resident) throw new Error('Resident not found');
+
+  const request = await prisma.registrationRequest.findFirst({
+    where: { residentFk: resident.id, status: 'requires_resubmission' },
+  });
+  if (!request) throw new Error('No pending resubmission request found');
+
+  await prisma.$transaction([
+    prisma.registrationRequest.update({
+      where: { id: request.id },
+      data: {
+        status: 'pending',
+        selfieUrl,
+        adminNotes: null,
+        reviewedBy: null,
+        reviewedAt: null,
+      },
+    }),
+    prisma.resident.update({
+      where: { id: resident.id },
+      data: { proofOfIdentification: idDocumentUrl },
+    }),
+  ]);
+
+  return { success: true };
 };
 
 // =============================================================================

@@ -451,10 +451,7 @@ const MunicipalitySetupForm = ({
                                 />
                               </FormControl>
                               <FormMessage />
-                              <FormDescription className="text-xs">
-                                This code will be used as prefix for resident IDs (e.g., CODE-2024-0000001). 
-                                Character limit: {field.value?.length || 0}/4
-                              </FormDescription>
+                              
                             </FormItem>
                           )}
                         />

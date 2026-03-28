@@ -18,7 +18,6 @@ import {
   Clock,
   Shield
 } from "lucide-react";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { useToast } from "@/hooks/use-toast";
 import { monitoringService } from "@/services/monitoringService";
 import { systemManagementService } from "@/services/systemManagementService";
@@ -183,40 +182,26 @@ const SystemManagementPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner message="Loading system management data..." />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">System Management</h1>
-          <p className="text-muted-foreground">
-            Monitor server health and manage system exports
+          <h1 className="text-xl font-bold text-gray-800">System Management</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Monitor server health and manage system exports{lastUpdated ? ` · Last updated: ${lastUpdated.toLocaleTimeString()}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {lastUpdated && (
-            <span className="text-sm text-muted-foreground">
-              Last updated: {lastUpdated.toLocaleTimeString()}
-            </span>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="gap-2 shrink-0"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* Overall Health Status */}
@@ -265,7 +250,7 @@ const SystemManagementPage = () => {
                 <Cpu className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{metrics.system.cpu?.usage?.percent || 0}%</div>
+                <div className="text-xl font-bold text-gray-800">{metrics.system.cpu?.usage?.percent || 0}%</div>
                 <p className="text-xs text-muted-foreground">
                   {metrics.system.cpu?.cores || 0} cores
                 </p>
@@ -282,7 +267,7 @@ const SystemManagementPage = () => {
                 <MemoryStick className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{metrics.system.memory?.used?.percent || 0}%</div>
+                <div className="text-xl font-bold text-gray-800">{metrics.system.memory?.used?.percent || 0}%</div>
                 <p className="text-xs text-muted-foreground">
                   {metrics.system.memory?.used?.formatted || 'N/A'} / {metrics.system.memory?.total?.formatted || 'N/A'}
                 </p>
@@ -299,7 +284,7 @@ const SystemManagementPage = () => {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{metrics.system.uptime?.formatted || 'N/A'}</div>
+                <div className="text-xl font-bold text-gray-800">{metrics.system.uptime?.formatted || 'N/A'}</div>
                 <p className="text-xs text-muted-foreground">
                   Server uptime
                 </p>
@@ -313,7 +298,7 @@ const SystemManagementPage = () => {
                   <Database className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-xl font-bold text-gray-800">
                     {metrics.database.connections?.active || 0} / {metrics.database.connections?.max || 0}
                   </div>
                   <p className="text-xs text-muted-foreground">

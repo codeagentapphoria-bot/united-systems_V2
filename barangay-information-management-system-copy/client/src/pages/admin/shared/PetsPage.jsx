@@ -370,27 +370,23 @@ const PetsPage = () => {
   }, [activeTab, selectedPet]);
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Pet Management</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold text-gray-800">Pet Management</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
             Manage pet information and records
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-          <RefreshControls 
-            variant="outline"
-            size="sm"
-          />
-          {/* Add Pet Dialog */}
+        <div className="flex gap-2 shrink-0">
+          <RefreshControls variant="outline" size="sm" />
           {user.target_type === "barangay" && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="hero" className="gap-2 text-xs sm:text-sm">
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                <Button variant="hero" size="sm" className="gap-2">
+                  <Plus className="h-4 w-4" />
                   Add Pet
                 </Button>
               </DialogTrigger>
@@ -720,13 +716,13 @@ const PetsPage = () => {
                     {/* Quick stats grid */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <Card>
-                        <CardHeader className="!pb-1">
+                        <CardHeader className="pb-1">
                           <CardTitle className="text-sm font-medium flex items-center gap-2">
                             <PawPrint className="h-4 w-4 text-primary" />
                             Species
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="!pt-0">
+                        <CardContent className="pt-0">
                           <div className="text-lg font-semibold capitalize">
                             {selectedPet.species}
                           </div>
@@ -734,13 +730,13 @@ const PetsPage = () => {
                       </Card>
 
                       <Card>
-                        <CardHeader className="!pb-1">
+                        <CardHeader className="pb-1">
                           <CardTitle className="text-sm font-medium flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-primary" />
                             Age
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="!pt-0">
+                        <CardContent className="pt-0">
                           <div className="text-lg font-semibold">
                             {calculateAge(selectedPet.birthdate)} years
                           </div>
@@ -748,13 +744,13 @@ const PetsPage = () => {
                       </Card>
 
                       <Card>
-                        <CardHeader className="!pb-1">
+                        <CardHeader className="pb-1">
                           <CardTitle className="text-sm font-medium flex items-center gap-2">
                             <Palette className="h-4 w-4 text-primary" />
                             Color
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="!pt-0">
+                        <CardContent className="pt-0">
                           <div className="text-lg font-semibold capitalize">
                             {selectedPet.color}
                           </div>
@@ -762,13 +758,13 @@ const PetsPage = () => {
                       </Card>
 
                       <Card>
-                        <CardHeader className="!pb-1">
+                        <CardHeader className="pb-1">
                           <CardTitle className="text-sm font-medium flex items-center gap-2">
                             <User className="h-4 w-4 text-primary" />
                             Owner
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="!pt-0">
+                        <CardContent className="pt-0">
                           <div className="text-lg font-semibold">
                             {selectedPet.owner_name ||
                               `ID: ${selectedPet.owner_id}`}
@@ -786,7 +782,7 @@ const PetsPage = () => {
                             Vaccine Summary
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4 !pt-0">
+                        <CardContent className="space-y-4 pt-0">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="text-center">
                               <div className="text-2xl font-bold text-primary">
@@ -894,7 +890,7 @@ const PetsPage = () => {
                             Basic Information
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3 !pt-0">
+                        <CardContent className="space-y-3 pt-0">
                           <div className="flex items-center gap-2">
                             <PawPrint className="h-4 w-4 text-primary" />
                             <span className="font-semibold">Pet Name:</span>
@@ -943,7 +939,7 @@ const PetsPage = () => {
                             Physical Details
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3 !pt-0">
+                        <CardContent className="space-y-3 pt-0">
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-primary" />
                             <span className="font-semibold">Sex:</span>
@@ -1028,7 +1024,7 @@ const PetsPage = () => {
                             Owner Information
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3 !pt-0">
+                        <CardContent className="space-y-3 pt-0">
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-primary" />
                             <span className="font-semibold">Owner Name:</span>
@@ -1053,7 +1049,7 @@ const PetsPage = () => {
                             Address Information
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3 !pt-0">
+                        <CardContent className="space-y-3 pt-0">
                           <div className="flex items-center gap-2">
                             <Building className="h-4 w-4 text-primary" />
                             <span className="font-semibold">House Number:</span>

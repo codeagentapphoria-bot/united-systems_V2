@@ -107,10 +107,9 @@ class Resident {
       values.push(barangayId);
     }
 
-    if (statusFilter) {
-      whereClauses.push(`r.status = $${paramIndex++}`);
-      values.push(statusFilter);
-    }
+    const effectiveStatus = statusFilter || 'active';
+    whereClauses.push(`r.status = $${paramIndex++}`);
+    values.push(effectiveStatus);
 
     if (search) {
       // Use full-text search index instead of ILIKE CONCAT_WS

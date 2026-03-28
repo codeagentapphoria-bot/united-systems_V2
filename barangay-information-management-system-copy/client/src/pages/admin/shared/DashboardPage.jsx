@@ -48,8 +48,6 @@ import FilterControls from "@/features/dashboard/components/FilterControls";
 import StatCard from "@/features/dashboard/components/StatCard";
 import ChartCard from "@/features/dashboard/components/ChartCard";
 import EmptyState from "@/features/dashboard/components/EmptyState";
-import RecentActivities from "@/features/dashboard/components/RecentActivities";
-import QuickActions from "@/features/dashboard/components/QuickActions";
 import DemographicsTab from "@/features/dashboard/components/tabs/DemographicsTab";
 import UnemployedHouseholdStats from "@/features/dashboard/components/UnemployedHouseholdStats";
 
@@ -261,12 +259,14 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
     <div className="space-y-3 sm:space-y-4">
       <DashboardHeader role={role} user={user} onRefresh={loadDashboardData} />
 
-      <FilterControls
-        role={role}
-        selectedBarangay={selectedBarangay}
-        setSelectedBarangay={setSelectedBarangay}
-        barangays={barangays}
-      />
+      {role === "municipality" && (
+        <FilterControls
+          role={role}
+          selectedBarangay={selectedBarangay}
+          setSelectedBarangay={setSelectedBarangay}
+          barangays={barangays}
+        />
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
         {currentStats.map((stat, index) => (
@@ -881,10 +881,6 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
           </TabsContent>
       </Tabs>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mt-4 sm:mt-6">
-        <RecentActivities />
-        <QuickActions role={role} />
-      </div>
     </div>
   );
 };

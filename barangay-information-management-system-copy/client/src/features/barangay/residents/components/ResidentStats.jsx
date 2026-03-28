@@ -97,18 +97,15 @@ const ResidentStats = ({
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {[1, 2].map((i) => (
-          <Card
-            key={i}
-            className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary"
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 !pb-1">
-              <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+          <Card key={i} className="">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-3.5 w-3.5 bg-gray-200 rounded animate-pulse"></div>
             </CardHeader>
-            <CardContent className="sm:pt-0">
-              <div className="h-8 w-16 bg-gray-200 rounded animate-pulse mb-2"></div>
+            <CardContent className="pt-0">
+              <div className="h-6 w-16 bg-gray-200 rounded animate-pulse mb-1"></div>
               <div className="h-3 w-32 bg-gray-200 rounded animate-pulse"></div>
             </CardContent>
           </Card>
@@ -118,62 +115,54 @@ const ResidentStats = ({
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-      <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 !pb-1">
-          <CardTitle className="text-sm font-medium">Total Residents</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Total Residents</CardTitle>
+          <Users className="h-3.5 w-3.5 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="sm:pt-0">
-          <div className="text-2xl font-bold">
+        <CardContent className="pt-0">
+          <div className="text-xl font-bold text-gray-800">
             {stats.totalResidents.toLocaleString()}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Registered in the system
-          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">Registered in the system</p>
         </CardContent>
       </Card>
 
-      <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 !pb-1">
-          <CardTitle className="text-sm font-medium">
-            Gender Distribution
-          </CardTitle>
-          <User className="h-4 w-4 text-muted-foreground" />
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Gender Distribution</CardTitle>
+          <User className="h-3.5 w-3.5 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="sm:pt-0">
-          <div className="text-2xl font-bold">
-            {stats.totalMales.toLocaleString()}M /{" "}
-            {stats.totalFemales.toLocaleString()}F
+        <CardContent className="pt-0">
+          <div className="text-xl font-bold text-gray-800">
+            {stats.totalMales.toLocaleString()}M / {stats.totalFemales.toLocaleString()}F
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Male to female ratio: {stats.genderRatio}
           </p>
         </CardContent>
       </Card>
 
-      {/* Classification Filter Indicator */}
       {filterClassification && filterClassification !== "all" && (
-        <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 !pb-1">
-            <CardTitle className="text-sm font-medium">Filtered By</CardTitle>
-            <div className="h-4 w-4 text-muted-foreground">
-              <Filter className="h-4 w-4" />
-            </div>
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Filtered By</CardTitle>
+            <Filter className="h-3.5 w-3.5 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="sm:pt-0">
-            <div className="flex items-center space-x-2">
+          <CardContent className="pt-0">
+            <div className="flex items-center gap-2">
               <div
-                className="w-4 h-4 rounded-full"
-                style={{ 
-                  backgroundColor: classificationOptions.find(opt => opt.label === filterClassification)?.color || '#4CAF50' 
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{
+                  backgroundColor:
+                    classificationOptions.find((opt) => opt.label === filterClassification)?.color ||
+                    "#4CAF50",
                 }}
               />
-              <div className="text-lg font-bold">
-                {filterClassification}
-              </div>
+              <div className="text-xl font-bold text-gray-800 truncate">{filterClassification}</div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Showing residents with this classification
             </p>
           </CardContent>

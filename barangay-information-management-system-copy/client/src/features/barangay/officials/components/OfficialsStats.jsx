@@ -11,26 +11,26 @@ const OfficialsStats = ({ officials = [] }) => {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-2 gap-6 mb-6">
-      <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Officials</CardTitle>
-          <Crown className="h-4 w-4 text-muted-foreground" />
+    <div className="grid grid-cols-2 gap-3">
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Total Officials</CardTitle>
+          <Crown className="h-3.5 w-3.5 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="sm:pt-0">
-          <div className="text-2xl font-bold">{totalOfficials}</div>
-          <p className="text-xs text-muted-foreground">Registered officials</p>
+        <CardContent className="pt-0">
+          <div className="text-xl font-bold text-gray-800">{totalOfficials}</div>
+          <p className="text-xs text-muted-foreground mt-0.5">Registered officials</p>
         </CardContent>
       </Card>
 
-      <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Positions</CardTitle>
-          <Award className="h-4 w-4 text-muted-foreground" />
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Positions</CardTitle>
+          <Award className="h-3.5 w-3.5 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="sm:pt-0">
-          <div className="text-2xl font-bold">{uniquePositions.length}</div>
-          <p className="text-xs text-muted-foreground">Different positions</p>
+        <CardContent className="pt-0">
+          <div className="text-xl font-bold text-gray-800">{uniquePositions.length}</div>
+          <p className="text-xs text-muted-foreground mt-0.5">Different positions</p>
         </CardContent>
       </Card>
     </div>

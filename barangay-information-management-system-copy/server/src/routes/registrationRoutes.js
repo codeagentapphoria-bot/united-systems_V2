@@ -5,7 +5,7 @@
  * These operate directly on the shared PostgreSQL database, eliminating
  * the cross-system HTTP call from BIMS frontend → E-Services backend.
  *
- * All endpoints require BIMS staff authentication (allUsers middleware).
+ * All endpoints require barangay-level staff authentication.
  *
  * Routes:
  *   GET    /api/portal-registration/requests                    list with filters
@@ -16,8 +16,9 @@
 
 import { Router } from 'express';
 import { pool } from '../config/db.js';
-import { allUsers } from '../middlewares/auth.js';
+import { barangayUsersOnly } from '../middlewares/auth.js';
 import logger from '../utils/logger.js';
+import { sendEmail } from '../utils/email.js';
 
 const router = Router();
 
@@ -64,7 +65,7 @@ async function generateResidentId(client, municipalityId) {
 //   page       — 1-indexed page number (default 1)
 //   limit      — rows per page (default 20)
 // =============================================================================
-router.get('/requests', ...allUsers, async (req, res) => {
+router.get('/requests', ...barangayUsersOnly, async (req, res) => {
   try {
     const {
       status,
@@ -133,12 +134,32 @@ router.get('/requests', ...allUsers, async (req, res) => {
              'username',                r.username,
              'email',                   r.email,
              'contact_number',          r.contact_number,
-             'sex',                     r.sex,
-             'civil_status',            r.civil_status,
-             'birthdate',               r.birthdate,
-             'street_address',          r.street_address,
-             'picture_path',            r.picture_path,
-             'proof_of_identification', r.proof_of_identification,
+             'sex',                      r.sex,
+             'civil_status',             r.civil_status,
+             'birthdate',                r.birthdate,
+             'birth_region',             r.birth_region,
+             'birth_province',           r.birth_province,
+             'birth_municipality',       r.birth_municipality,
+             'citizenship',              r.citizenship,
+             'occupation',               r.occupation,
+             'profession',               r.profession,
+             'employment_status',        r.employment_status,
+             'education_attainment',     r.education_attainment,
+             'monthly_income',           r.monthly_income,
+             'height',                   r.height,
+             'weight',                   r.weight,
+             'is_voter',                 r.is_voter,
+             'is_employed',              r.is_employed,
+             'indigenous_person',        r.indigenous_person,
+             'id_type',                  r.id_type,
+             'id_document_number',       r.id_document_number,
+             'acr_no',                   r.acr_no,
+             'emergency_contact_person', r.emergency_contact_person,
+             'emergency_contact_number', r.emergency_contact_number,
+             'spouse_name',              r.spouse_name,
+             'street_address',           r.street_address,
+             'picture_path',             r.picture_path,
+             'proof_of_identification',  r.proof_of_identification,
              'barangay', CASE WHEN b.id IS NOT NULL THEN
                json_build_object(
                  'id',            b.id,
@@ -177,7 +198,7 @@ router.get('/requests', ...allUsers, async (req, res) => {
 // =============================================================================
 // PATCH /api/portal-registration/requests/:id/under-review
 // =============================================================================
-router.patch('/requests/:id/under-review', ...allUsers, async (req, res) => {
+router.patch('/requests/:id/under-review', ...barangayUsersOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `UPDATE registration_requests
@@ -214,7 +235,7 @@ router.patch('/requests/:id/under-review', ...allUsers, async (req, res) => {
 //   1. Update residents.status = 'rejected'
 //   2. Update registration_requests (status, reviewed_by, reviewed_at, admin_notes)
 // =============================================================================
-router.post('/requests/:id/review', ...allUsers, async (req, res) => {
+router.post('/requests/:id/review', ...barangayUsersOnly, async (req, res) => {
   const { action, adminNotes } = req.body;
 
   if (!['approve', 'reject'].includes(action)) {
@@ -337,7 +358,7 @@ router.post('/requests/:id/review', ...allUsers, async (req, res) => {
 //
 // Body: { adminNotes: string }  — message shown to applicant explaining what to resubmit
 // =============================================================================
-router.post('/requests/:id/request-docs', ...allUsers, async (req, res) => {
+router.post('/requests/:id/request-docs', ...barangayUsersOnly, async (req, res) => {
   try {
     const { adminNotes } = req.body;
 
@@ -348,14 +369,17 @@ router.post('/requests/:id/request-docs', ...allUsers, async (req, res) => {
       });
     }
 
+    const reviewedBy = req.user?.id ? parseInt(req.user.id) : null;
+
     const { rows } = await pool.query(
       `UPDATE registration_requests
-          SET status     = 'requires_resubmission',
+          SET status      = 'requires_resubmission',
               admin_notes = $1,
+              reviewed_by = $2,
               updated_at  = now()
-        WHERE id = $2
-        RETURNING id, status`,
-      [adminNotes.trim(), req.params.id]
+        WHERE id = $3
+        RETURNING id, status, resident_fk`,
+      [adminNotes.trim(), reviewedBy, req.params.id]
     );
 
     if (rows.length === 0) {
@@ -363,6 +387,41 @@ router.post('/requests/:id/request-docs', ...allUsers, async (req, res) => {
     }
 
     res.json({ status: 'success', data: rows[0] });
+
+    // Send resubmission email (non-blocking — after response sent)
+    try {
+      const { rows: residentRows } = await pool.query(
+        `SELECT first_name, last_name, email, username FROM residents WHERE id = $1`,
+        [rows[0].resident_fk]
+      );
+      const resident = residentRows[0];
+      if (resident?.email) {
+        const portalUrl = process.env.PORTAL_URL || 'http://localhost:5174';
+        const statusUrl = `${portalUrl}/portal/register/status?username=${encodeURIComponent(resident.username)}`;
+        await sendEmail({
+          to: resident.email,
+          subject: 'Action Required — Additional Documents Needed',
+          html: `
+            <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+              <h2 style="color:#b45309">Additional Documents Required</h2>
+              <p>Dear ${resident.first_name} ${resident.last_name},</p>
+              <p>Your registration application requires additional documents or corrections before it can be processed.</p>
+              <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:12px 16px;margin:16px 0">
+                <strong>Message from the reviewer:</strong>
+                <p style="margin:8px 0 0">${adminNotes.trim()}</p>
+              </div>
+              <p>Please visit the link below to re-upload your documents:</p>
+              <p><a href="${statusUrl}" style="color:#2563eb">${statusUrl}</a></p>
+              <p style="color:#6b7280;font-size:0.875em">If you did not submit a registration, you can ignore this email.</p>
+            </div>
+          `,
+          text: `Dear ${resident.first_name} ${resident.last_name},\n\nYour registration requires additional documents.\n\nReviewer message: ${adminNotes.trim()}\n\nVisit: ${statusUrl}`,
+        });
+        logger.info(`Resubmission email sent to ${resident.email}`);
+      }
+    } catch (emailErr) {
+      logger.error('registrationRoutes.requestDocs email:', emailErr.message);
+    }
   } catch (err) {
     logger.error('registrationRoutes.requestDocs:', err);
     res.status(500).json({ status: 'error', message: 'Internal server error' });

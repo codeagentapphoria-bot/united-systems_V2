@@ -1,27 +1,20 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 
 const DashboardHeader = ({ role, user, onRefresh }) => {
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+    <div className="flex items-start justify-between gap-4 flex-wrap">
       <div>
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Analytics Dashboard</h1>
-        <p className="text-xs sm:text-sm text-muted-foreground">
+        <h1 className="text-xl font-bold text-gray-800">Analytics Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
           Comprehensive insights for {role} management
         </p>
       </div>
-      <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-        <Badge variant="outline" className="text-xs sm:text-sm">
-          {user.role === "admin" ? "Administrator" : "Staff Member"}
-        </Badge>
-        <Button variant="outline" size="sm" onClick={onRefresh} className="text-xs sm:text-sm">
-          <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-          <span className="hidden sm:inline">Refresh</span>
-          <span className="sm:hidden">↻</span>
-        </Button>
-      </div>
+      <Button variant="outline" size="sm" onClick={onRefresh} className="gap-2 shrink-0">
+        <RefreshCw className="h-4 w-4" />
+        Refresh
+      </Button>
     </div>
   );
 };

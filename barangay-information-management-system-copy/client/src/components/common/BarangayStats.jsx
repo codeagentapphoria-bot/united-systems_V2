@@ -90,7 +90,7 @@ export function BarangayStats() {
             return (
               <div
                 key={stat.label}
-                className="bg-gradient-card rounded-xl p-6 text-center shadow-soft hover-lift animate-slide-up border-l-4 border-l-primary"
+                className="bg-gradient-card rounded-xl p-6 text-center shadow-soft hover-lift animate-slide-up"
                 style={{ animationDelay: `${index * 0.2}s` }}
               >
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-xl mb-4">

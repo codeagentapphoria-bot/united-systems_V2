@@ -308,126 +308,83 @@ const GeoMapPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-3 sm:p-6">
-        <div className="max-w-7xl mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                <Map className="h-4 w-4 sm:h-5 sm:w-5" />
-                {getMapTitle()}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <LoadingSpinner 
-                message="Loading map data..." 
-                variant="default"
-                size="default"
-              />
-            </CardContent>
-          </Card>
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">{getMapTitle()}</h1>
         </div>
+        <Card>
+          <CardContent>
+            <LoadingSpinner message="Loading map data..." variant="default" size="default" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-50 p-3 sm:p-6">
-        <div className="max-w-7xl mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                <Map className="h-4 w-4 sm:h-5 sm:w-5" />
-                {getMapTitle()}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center h-64 sm:h-96">
-                <div className="text-center">
-                  <div className="text-red-600 mb-4">
-                    <Info className="h-8 w-8 sm:h-12 sm:w-12 mx-auto" />
-                  </div>
-                  <h3 className="text-base sm:text-lg font-semibold mb-2">
-                    Error Loading Map
-                  </h3>
-                  <p className="text-gray-600 mb-4 text-sm sm:text-base">{error}</p>
-                  <Button onClick={fetchGeoJSONData} className="gap-2 text-sm sm:text-base">
-                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                    Retry
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">{getMapTitle()}</h1>
         </div>
+        <Card>
+          <CardContent>
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <Info className="h-10 w-10 mx-auto text-red-500 mb-3" />
+                <h3 className="text-sm font-semibold text-gray-800 mb-1">Error Loading Map</h3>
+                <p className="text-sm text-gray-500 mb-4">{error}</p>
+                <Button size="sm" onClick={fetchGeoJSONData} className="gap-2">
+                  <Loader2 className="h-4 w-4" />
+                  Retry
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-3 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+    <div className="space-y-5">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900">
-              {getMapTitle()}
-            </h1>
-            <p className="text-slate-600 mt-1 text-sm sm:text-base">{getMapDescription()}</p>
+            <h1 className="text-xl font-bold text-gray-800">{getMapTitle()}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{getMapDescription()}</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Badge variant="outline" className="text-xs self-center">
+              {geojsonData?.features?.length || 0} {isBarangayUser ? "Barangays" : "Areas"}
+            </Badge>
+            <Badge variant="outline" className="text-xs self-center">
+              <Home className="h-3 w-3 mr-1" />
+              {householdLocations.length} Households
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowHouseholds(!showHouseholds)}
+              className="gap-2"
+            >
+              <Home className="h-4 w-4" />
+              {showHouseholds ? "Hide" : "Show"} Households
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { fetchGeoJSONData(); fetchHouseholdLocations(); }}
+              className="gap-2"
+            >
+              <Layers className="h-4 w-4" />
+              Refresh
+            </Button>
           </div>
         </div>
 
         {/* Map Container */}
         <Card className="overflow-hidden">
-          <CardHeader className="p-3 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                {isBarangayUser ? (
-                  <Building className="h-4 w-4 sm:h-5 sm:w-5" />
-                ) : (
-                  <Map className="h-4 w-4 sm:h-5 sm:w-5" />
-                )}
-                {isBarangayUser ? "Your Barangay Area" : "Municipality Map"}
-              </CardTitle>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {geojsonData?.features?.length || 0}{" "}
-                    {isBarangayUser ? "Barangays" : "Areas"}
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    <Home className="h-3 w-3 mr-1" />
-                    {householdLocations.length} Households
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowHouseholds(!showHouseholds)}
-                    className="gap-2 text-xs sm:text-sm flex-1 sm:flex-none"
-                  >
-                    <Home className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">{showHouseholds ? "Hide" : "Show"} Households</span>
-                    <span className="sm:hidden">{showHouseholds ? "Hide" : "Show"}</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      fetchGeoJSONData();
-                      fetchHouseholdLocations();
-                    }}
-                    className="gap-2 text-xs sm:text-sm"
-                  >
-                    <Layers className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Refresh</span>
-                    <span className="sm:hidden">↻</span>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardHeader>
           <CardContent className="p-0">
             <div className="h-[400px] sm:h-[500px] lg:h-[600px] w-full">
               <MapContainer
@@ -584,27 +541,22 @@ const GeoMapPage = () => {
 
         {/* Map Legend */}
         <Card>
-          <CardHeader className="p-3 sm:p-6">
-            <CardTitle className="text-base sm:text-lg">Map Legend</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-gray-800">Map Legend</CardTitle>
           </CardHeader>
-          <CardContent className="p-3 sm:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <CardContent className="pt-0">
+            <div className="flex flex-wrap gap-4">
               {getLegendItems().map((item, index) => (
-                <div key={index} className="flex items-center gap-2 sm:gap-3">
+                <div key={index} className="flex items-center gap-2">
                   {item.icon ? (
-                    <span className="text-base sm:text-lg">{item.icon}</span>
+                    <span className="text-sm">{item.icon}</span>
                   ) : (
                     <div
-                      className={`w-3 h-3 sm:w-4 sm:h-4 border-2 border-${item.color} ${
-                        item.opacity ? `opacity-${item.opacity}` : ""
-                      }`}
-                      style={{
-                        backgroundColor: item.color,
-                        opacity: item.opacity || 1,
-                      }}
-                    ></div>
+                      className="w-3 h-3 border-2 rounded-sm shrink-0"
+                      style={{ backgroundColor: item.color, opacity: item.opacity || 1 }}
+                    />
                   )}
-                  <span className="text-xs sm:text-sm">{item.label}</span>
+                  <span className="text-xs text-gray-600">{item.label}</span>
                 </div>
               ))}
             </div>
@@ -638,7 +590,6 @@ const GeoMapPage = () => {
           loading={loadingHouseholdDetails}
           hideActions={true}
         />
-      </div>
     </div>
   );
 };

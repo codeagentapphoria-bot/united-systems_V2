@@ -114,7 +114,7 @@ SELECT
 FROM residents r
 LEFT JOIN barangays b ON r.barangay_id = b.id
 LEFT JOIN municipalities m ON b.municipality_id = m.id
-WHERE r.id = $1;
+WHERE r.resident_id = $1;
 `;
 
 // =============================================================================

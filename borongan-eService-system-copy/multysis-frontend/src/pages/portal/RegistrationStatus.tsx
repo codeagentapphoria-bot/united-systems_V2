@@ -63,6 +63,10 @@ export const RegistrationStatus: React.FC = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [statusData, setStatusData] = useState<any>(null);
+  const [showResubmitForm, setShowResubmitForm] = useState(false);
+  const [resubmitting, setResubmitting] = useState(false);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [idFile, setIdFile] = useState<File | null>(null);
 
   const form = useForm({ resolver: zodResolver(schema), defaultValues: { username: '' } });
 
@@ -89,6 +93,42 @@ export const RegistrationStatus: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleResubmit = async () => {
+    if (!selfieFile || !idFile) {
+      toast({ variant: 'destructive', title: 'Missing files', description: 'Please upload both documents.' });
+      return;
+    }
+    setResubmitting(true);
+    try {
+      const [selfieUrl, idDocumentUrl] = await Promise.all([
+        fileToBase64(selfieFile),
+        fileToBase64(idFile),
+      ]);
+      await api.post('/portal-registration/resubmit', {
+        username: statusData.username,
+        selfieUrl,
+        idDocumentUrl,
+      });
+      toast({ title: 'Resubmission sent', description: 'Your documents have been re-submitted for review.' });
+      setShowResubmitForm(false);
+      setSelfieFile(null);
+      setIdFile(null);
+      await handleCheck({ username: statusData.username });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Failed', description: err.response?.data?.message || 'Failed to submit.' });
+    } finally {
+      setResubmitting(false);
     }
   };
 
@@ -149,6 +189,36 @@ export const RegistrationStatus: React.FC = () => {
                 <div className="bg-gray-50 border rounded p-3">
                   <p className="text-xs font-medium text-gray-500 mb-1">Admin Notes</p>
                   <p className="text-sm text-gray-700">{statusData.adminNotes}</p>
+                </div>
+              )}
+
+              {statusData.registrationStatus === 'requires_resubmission' && (
+                <div className="space-y-3">
+                  {!showResubmitForm ? (
+                    <Button variant="outline" className="w-full" onClick={() => setShowResubmitForm(true)}>
+                      Re-upload Documents
+                    </Button>
+                  ) : (
+                    <div className="space-y-3 border rounded p-4">
+                      <p className="text-sm font-medium text-gray-700">Upload Required Documents</p>
+                      <div className="space-y-1">
+                        <label className="text-xs text-gray-500">Selfie with Government ID</label>
+                        <input type="file" accept="image/*" onChange={e => setSelfieFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-gray-500">Government ID Document</label>
+                        <input type="file" accept="image/*" onChange={e => setIdFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button className="flex-1" onClick={handleResubmit} disabled={resubmitting}>
+                          {resubmitting ? 'Submitting...' : 'Submit'}
+                        </Button>
+                        <Button variant="outline" onClick={() => setShowResubmitForm(false)} disabled={resubmitting}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

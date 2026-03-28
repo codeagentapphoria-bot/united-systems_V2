@@ -14,6 +14,7 @@ import {
   getRegistrationStatusController,
   listRegistrationRequestsController,
   markUnderReviewController,
+  resubmitHandler,
   requestResubmissionController,
   reviewRegistrationController,
   submitRegistrationController,
@@ -38,6 +39,9 @@ router.post('/register', registrationLimiter, submitRegistrationController);
 
 // Check registration status by username
 router.get('/status/:username', getRegistrationStatusController);
+
+// Resident re-uploads documents after resubmission request
+router.post('/resubmit', resubmitHandler);
 
 // =============================================================================
 // BIMS ADMIN (verifyAdmin — eservice_users admin token)

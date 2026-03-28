@@ -111,6 +111,41 @@ const classificationTypes = [
     color: "#E91E63",
     details: [{ key: "remarks", label: "Remarks", type: "text" }],
   },
+  {
+    name: "4Ps Beneficiary",
+    description: "Beneficiaries of the Pantawid Pamilyang Pilipino Program",
+    color: "#8BC34A",
+    details: [{ key: "remarks", label: "Remarks", type: "text" }],
+  },
+  {
+    name: "Tricycle Driver",
+    description: "Individuals operating tricycles for public transport",
+    color: "#FF9800",
+    details: [
+      { key: "status", label: "Status", type: "select", options: ["Owner", "Rental"] },
+      { key: "plateNumber", label: "Plate Number", type: "text" },
+      { key: "remarks", label: "Remarks", type: "text" },
+    ],
+  },
+  {
+    name: "College Student",
+    description: "Students enrolled in college or university",
+    color: "#03A9F4",
+    details: [
+      { key: "collegeLevel", label: "College Level", type: "text" },
+      { key: "course", label: "Course", type: "text" },
+      { key: "remarks", label: "Remarks", type: "text" },
+    ],
+  },
+  {
+    name: "Voter",
+    description: "Registered voters in the barangay",
+    color: "#673AB7",
+    details: [
+      { key: "typeOfVoter", label: "Type of Voter", type: "select", options: ["Regular", "SK"] },
+      { key: "remarks", label: "Remarks", type: "text" },
+    ],
+  },
 ];
 
 const seedClassificationTypes = async () => {

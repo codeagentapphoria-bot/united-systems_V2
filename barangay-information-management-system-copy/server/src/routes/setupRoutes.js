@@ -278,14 +278,52 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
       });
     }
 
-    // Convert a DB-stored path to a URL Puppeteer can load.
+    // Fetch emergency contacts: the house head of each resident's household,
+    // provided the house head is not the resident themselves.
+    // Covers residents who are house head, family head, or family member.
+    const emergencyContactMap = {};
+    if (result.rows.length > 0) {
+      const residentDbIds = result.rows.map((r) => r.id);
+      const ecResult = await pool.query(
+        `WITH resident_households AS (
+           SELECT house_head  AS resident_id, id AS household_id FROM households
+           UNION ALL
+           SELECT f.family_head,               f.household_id   FROM families f
+           UNION ALL
+           SELECT fm.family_member,            f.household_id
+           FROM family_members fm
+           JOIN families f ON f.id = fm.family_id
+         )
+         SELECT DISTINCT ON (rh.resident_id)
+           rh.resident_id,
+           CONCAT_WS(' ', hh.first_name, hh.middle_name, hh.last_name, hh.extension_name) AS emergency_name,
+           COALESCE(hh.contact_number, 'N/A') AS emergency_contact
+         FROM resident_households rh
+         JOIN households h   ON h.id       = rh.household_id
+         JOIN residents   hh ON hh.id      = h.house_head
+         WHERE rh.resident_id = ANY($1)
+           AND h.house_head  != rh.resident_id`,
+        [residentDbIds]
+      );
+      ecResult.rows.forEach((ec) => {
+        emergencyContactMap[ec.resident_id] = {
+          name:    (ec.emergency_name || "N/A").toUpperCase(),
+          contact: ec.emergency_contact || "N/A",
+        };
+      });
+    }
+
+    // Convert a DB-stored path to an HTTP URL Puppeteer can load.
     // Absolute HTTP URLs (e.g. from eService uploads) are used as-is.
-    // Relative BIMS paths (e.g. "uploads/foo.jpg") become file:// URLs.
+    // Relative BIMS paths (e.g. "uploads/foo.jpg") are served by Express at /uploads,
+    // so we use http://localhost:PORT/ — file:// URLs are blocked by Puppeteer's
+    // about:blank origin when using setContent().
+    const PORT = process.env.PORT || 5000;
     function toFileUrl(relPath) {
       if (!relPath) return null;
       if (relPath.startsWith("http://") || relPath.startsWith("https://")) return relPath;
-      const normalized = relPath.replace(/\\/g, "/");
-      return `file://${path.join(SERVER_ROOT, normalized)}`;
+      const normalized = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
+      return `http://localhost:${PORT}/${normalized}`;
     }
 
     function formatDateLong(dateStr) {
@@ -322,6 +360,7 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
     const cardsHtml = result.rows.map((r) => {
       const qrDataUrl = qrMap[r.id];
       const pb = punongMap[r.barangay_id];
+      const ec = emergencyContactMap[r.id] || { name: "N/A", contact: "N/A" };
       const pbName = pb
         ? `${pb.first_name}${pb.middle_name ? " " + pb.middle_name : ""} ${pb.last_name}`.toUpperCase()
         : "HON. [PUNONG BARANGAY]";
@@ -356,7 +395,7 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
 
     <!-- FRONT — mirrors id-card-front in ResidentIDCard.jsx exactly -->
     <div class="id-card-front" style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:space-between;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.2);border:1px solid hsl(220,90%,56%);padding:16px;overflow:hidden;background:transparent;width:${W}px;height:${H}px;min-width:${W}px;max-width:${W}px;min-height:${H}px;max-height:${H}px;flex-shrink:0;">
-      ${bgFront ? `<img src="${bgFront}" alt="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;" onerror="this.style.display='none'">` : ""}
+      ${bgFront ? `<img src="${bgFront}" alt="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;opacity:0.25;filter:blur(4px);transform:scale(1.05);" onerror="this.style.display='none'">` : ""}
 
       <!-- Header row: muni logo | barangay+muni names | brgy logo -->
       <div style="position:relative;z-index:10;display:flex;width:100%;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -398,15 +437,15 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
 
     <!-- BACK — mirrors id-card-back in ResidentIDCard.jsx exactly -->
     <div class="id-card-back" style="position:relative;display:flex;flex-direction:column;justify-content:space-between;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.2);border:1px solid hsl(220,90%,56%);padding:16px;overflow:hidden;background:transparent;width:${W}px;height:${H}px;min-width:${W}px;max-width:${W}px;min-height:${H}px;max-height:${H}px;flex-shrink:0;">
-      ${bgBack ? `<img src="${bgBack}" alt="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;" onerror="this.style.display='none'">` : ""}
+      ${bgBack ? `<img src="${bgBack}" alt="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;opacity:0.25;filter:blur(4px);transform:scale(1.05);" onerror="this.style.display='none'">` : ""}
 
       <!-- font-bold italic text-[8px] -->
       <div style="font-weight:700;font-style:italic;font-size:8px;margin-bottom:4px;text-align:center;">NOTIFY INCASE OF EMERGENCY:</div>
 
-      <!-- border-1 border-primary rounded-lg p-1 mb-2 -->
-      <div style="position:relative;z-index:10;border:1px solid hsl(220,90%,56%);border-radius:8px;padding:4px;margin-bottom:8px;">
-        <div style="font-size:8px;">Name: <span style="font-weight:600;">N/A</span></div>
-        <div style="font-size:8px;">Contact No.: <span style="font-weight:600;">N/A</span></div>
+      <!-- border-1 border-primary rounded-lg p-1 mb-2 (border-1 is not a valid Tailwind class so no visible border in modal) -->
+      <div style="position:relative;z-index:10;border-radius:8px;padding:4px;margin-bottom:8px;">
+        <div style="font-size:8px;">Name: <span style="font-weight:600;">${esc(ec.name)}</span></div>
+        <div style="font-size:8px;">Contact No.: <span style="font-weight:600;">${esc(ec.contact)}</span></div>
       </div>
 
       <!-- LGU name: text-[8px] font-semibold text-center mb-2 -->

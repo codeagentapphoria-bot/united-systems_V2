@@ -128,18 +128,15 @@ const HouseholdStats = ({
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {[1, 2, 3].map((i) => (
-          <Card
-            key={i}
-            className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary"
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 !pb-1">
-              <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+          <Card key={i} className="">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-3.5 w-3.5 bg-gray-200 rounded animate-pulse"></div>
             </CardHeader>
-            <CardContent className="!pt-0">
-              <div className="h-8 w-16 bg-gray-200 rounded animate-pulse mb-2"></div>
+            <CardContent className="pt-0">
+              <div className="h-6 w-16 bg-gray-200 rounded animate-pulse mb-1"></div>
               <div className="h-3 w-32 bg-gray-200 rounded animate-pulse"></div>
             </CardContent>
           </Card>
@@ -149,45 +146,41 @@ const HouseholdStats = ({
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-      <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 !pb-1">
-          <CardTitle className="text-sm font-medium">
-            Total Households
-          </CardTitle>
-          <Home className="h-4 w-4 text-muted-foreground" />
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Total Households</CardTitle>
+          <Home className="h-3.5 w-3.5 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="!pt-0">
-          <div className="text-2xl font-bold">
+        <CardContent className="pt-0">
+          <div className="text-xl font-bold text-gray-800">
             {stats.totalHouseholds.toLocaleString()}
           </div>
-          <p className="text-xs text-muted-foreground">Registered households</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Registered households</p>
         </CardContent>
       </Card>
 
-      <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 !pb-1">
-          <CardTitle className="text-sm font-medium">Total Families</CardTitle>
-          <Heart className="h-4 w-4 text-muted-foreground" />
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Total Families</CardTitle>
+          <Heart className="h-3.5 w-3.5 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="!pt-0">
-          <div className="text-2xl font-bold">
+        <CardContent className="pt-0">
+          <div className="text-xl font-bold text-gray-800">
             {stats.totalFamilies.toLocaleString()}
           </div>
-          <p className="text-xs text-muted-foreground">Family units</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Family units</p>
         </CardContent>
       </Card>
 
-      <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 !pb-1">
-          <CardTitle className="text-sm font-medium">
-            Avg Family Members
-          </CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Avg Family Members</CardTitle>
+          <Users className="h-3.5 w-3.5 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="!pt-0">
-          <div className="text-2xl font-bold">{stats.averageFamilySize}</div>
-          <p className="text-xs text-muted-foreground">Members per family</p>
+        <CardContent className="pt-0">
+          <div className="text-xl font-bold text-gray-800">{stats.averageFamilySize}</div>
+          <p className="text-xs text-muted-foreground mt-0.5">Members per family</p>
         </CardContent>
       </Card>
     </div>

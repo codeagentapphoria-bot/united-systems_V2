@@ -36,6 +36,9 @@ const ResidentClassificationsForm = ({
   loading = false,
   classificationOptions = [],
   municipalityId,
+  showResidentInfo = true,
+  showActions = true,
+  formId,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { classificationTypes, loading: typesLoading } = useClassificationTypes(municipalityId);
@@ -86,7 +89,7 @@ const ResidentClassificationsForm = ({
 
   // Populate form with resident data
   useEffect(() => {
-    if (resident && resident.classifications) {
+    if (resident && resident.classifications && resident.classifications.length > 0) {
       logger.debug(
         "ResidentClassificationsForm - Resident classifications:",
         resident.classifications
@@ -164,7 +167,7 @@ const ResidentClassificationsForm = ({
     logger.debug("Data", data);
     setIsSubmitting(true);
     try {
-      // Transform data for API to match edit resident info format
+      // Transform data: keep details as a keyed object so labels can be shown in the UI
       const transformedData = {
         classifications: data.classifications.map((classification) => {
           const details = data.classificationDetails[classification] || {};
@@ -172,17 +175,9 @@ const ResidentClassificationsForm = ({
             (opt) => opt.key === classification
           );
 
-          // Convert details object to pipe-separated string
-          let detailsString = "";
-          if (option && option.details && Object.keys(details).length > 0) {
-            detailsString = option.details
-              .map((detail) => details[detail.key] || "")
-              .join(" | ");
-          }
-
           return {
             type: option ? option.label : classification,
-            details: detailsString,
+            details: Object.keys(details).length > 0 ? details : null,
           };
         }),
       };
@@ -251,11 +246,13 @@ const ResidentClassificationsForm = ({
             <SelectValue placeholder={`Select ${detail.label.toLowerCase()}`} />
           </SelectTrigger>
           <SelectContent>
-            {detail.options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
+            {detail.options.map((option) => {
+              const val = typeof option === "string" ? option : option.value;
+              const lbl = typeof option === "string" ? option : option.label;
+              return (
+                <SelectItem key={val} value={val}>{lbl}</SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       );
@@ -273,26 +270,28 @@ const ResidentClassificationsForm = ({
   };
 
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-      {/* Resident Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Resident Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm text-muted-foreground">Name</Label>
-              <p className="font-medium">
-                {resident?.first_name} {resident?.middle_name ? resident.middle_name : ""} {resident?.last_name}{resident?.suffix ? ` ${resident.suffix}` : ""}
-              </p>
+    <form id={formId} onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+      {/* Resident Info Card — hidden when parent modal already shows the name */}
+      {showResidentInfo && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Resident Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm text-muted-foreground">Name</Label>
+                <p className="font-medium">
+                  {resident?.first_name} {resident?.middle_name ? resident.middle_name : ""} {resident?.last_name}{resident?.suffix ? ` ${resident.suffix}` : ""}
+                </p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Classifications Card */}
       <Card>
@@ -414,19 +413,21 @@ const ResidentClassificationsForm = ({
       </Card>
 
       {/* Action Buttons */}
-      <div className="flex justify-end gap-2 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" variant="hero" disabled={isSubmitting || loading}>
-          {isSubmitting ? "Saving..." : "Save Changes"}
-        </Button>
-      </div>
+      {showActions && (
+        <div className="flex justify-end gap-2 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" variant="hero" disabled={isSubmitting || loading}>
+            {isSubmitting ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
+      )}
     </form>
   );
 };

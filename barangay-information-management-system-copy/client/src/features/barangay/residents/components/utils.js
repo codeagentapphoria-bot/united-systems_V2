@@ -36,7 +36,7 @@ export const formatLabel = (str) => {
 };
 
 // Helper to get detail label from classificationOptions
-export const getDetailLabel = (type, key, classificationOptions) => {
+export const getDetailLabel = (type, key, classificationOptions = []) => {
   const opt = classificationOptions.find(
     (o) =>
       formatLabel(o.label) === formatLabel(type) ||

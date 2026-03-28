@@ -11,7 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Eye, Edit, Trash2, Calendar, Phone, Mail } from "lucide-react";
 import { format } from "date-fns";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
+const SERVER_URL   = import.meta.env.VITE_SERVER_URL        || "http://localhost:5000";
+const ESERVICE_URL = import.meta.env.VITE_ESERVICE_SERVER_URL || "http://localhost:3000";
+const toAbsUrl = (p) => {
+  if (!p) return null;
+  if (p.startsWith("http://") || p.startsWith("https://")) return p;
+  const clean = p.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (clean.startsWith("uploads/images/")) return `${ESERVICE_URL}/${clean}`;
+  return `${SERVER_URL}/${clean}`;
+};
 
 const OfficialsTable = ({
   officials,
@@ -21,34 +29,6 @@ const OfficialsTable = ({
   onEdit,
   onDelete,
 }) => {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-32">
-        <LoadingSpinner 
-          message="Loading officials..." 
-          variant="default"
-          size="default"
-        />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-32">
-        <div className="text-destructive">{error}</div>
-      </div>
-    );
-  }
-
-  if (officials.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-32">
-        <div className="text-muted-foreground">No officials found</div>
-      </div>
-    );
-  }
-
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     try {
@@ -76,12 +56,30 @@ const OfficialsTable = ({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {officials.map((official) => (
+        {loading ? (
+          <TableRow>
+            <TableCell colSpan={5} className="py-16 text-center text-gray-400 text-sm">
+              Loading…
+            </TableCell>
+          </TableRow>
+        ) : error ? (
+          <TableRow>
+            <TableCell colSpan={5} className="py-16 text-center text-red-500 text-sm">
+              {error}
+            </TableCell>
+          </TableRow>
+        ) : officials.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={5} className="py-16 text-center text-gray-400 text-sm">
+              No officials found.
+            </TableCell>
+          </TableRow>
+        ) : officials.map((official) => (
           <TableRow key={official.official_id}>
             <TableCell>
               <div className="flex items-center space-x-3">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={official.picture_path} />
+                  <AvatarImage src={toAbsUrl(official.picture_path)} />
                   <AvatarFallback>
                     {getInitials(official.first_name, official.last_name)}
                   </AvatarFallback>
@@ -143,6 +141,7 @@ const OfficialsTable = ({
           </TableRow>
         ))}
       </TableBody>
+
     </Table>
   );
 };

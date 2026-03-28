@@ -13,6 +13,7 @@ import {
   getRegistrationStatus,
   listRegistrationRequests,
   markUnderReview,
+  resubmitDocuments,
   requestResubmission,
   reviewRegistrationRequest,
   submitRegistration,
@@ -204,6 +205,28 @@ export const requestResubmissionController = async (
     res.status(200).json({ status: 'success', data: result });
   } catch (error: any) {
     res.status(400).json({ status: 'error', message: error.message });
+  }
+};
+
+// =============================================================================
+// PUBLIC: Resident re-uploads documents after resubmission request
+// POST /api/portal-registration/resubmit
+// Body: { username, selfieUrl, idDocumentUrl }
+// =============================================================================
+export const resubmitHandler = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { username, selfieUrl, idDocumentUrl } = req.body;
+    if (!username || !selfieUrl || !idDocumentUrl) {
+      res.status(400).json({ status: 'error', message: 'username, selfieUrl, and idDocumentUrl are required' });
+      return;
+    }
+    await resubmitDocuments(username, selfieUrl, idDocumentUrl);
+    res.json({ status: 'success', message: 'Resubmission received. Your application is under review again.' });
+  } catch (err: any) {
+    res.status(400).json({ status: 'error', message: err.message });
   }
 };
 

@@ -115,6 +115,14 @@ const ResidentViewDialog = ({
   const [petsLoading, setPetsLoading] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
 
+  const resolvePicture = (path) => {
+    if (!path) return null;
+    const normalized = path.replace(/\\/g, "/");
+    if (normalized.startsWith("http://") || normalized.startsWith("https://")) return normalized;
+    const base = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
+    return `${base}/${normalized}`;
+  };
+
   const fetchPets = async () => {
     if (!viewResident?.id) return;
 
@@ -162,7 +170,7 @@ const ResidentViewDialog = ({
             </div>
           ) : (
             viewResident && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <Tabs
                   value={activeTab}
                   onValueChange={setActiveTab}
@@ -186,29 +194,27 @@ const ResidentViewDialog = ({
 
                   {/* Desktop Tabs */}
                   <div className="hidden sm:block">
-                    <TabsList className="flex flex-wrap gap-1 sm:gap-2 mb-4">
-                      <TabsTrigger value="info" className="text-xs sm:text-sm">Resident Info</TabsTrigger>
-                      <TabsTrigger value="classifications" className="text-xs sm:text-sm">
-                        Classifications
-                      </TabsTrigger>
-                      <TabsTrigger value="households" className="text-xs sm:text-sm">Households</TabsTrigger>
-                      <TabsTrigger value="residentid" className="text-xs sm:text-sm">Resident ID</TabsTrigger>
-                      <TabsTrigger value="pets" className="text-xs sm:text-sm">Pets</TabsTrigger>
+                    <TabsList className="flex flex-wrap gap-1 mb-4">
+                      <TabsTrigger value="info">Resident Info</TabsTrigger>
+                      <TabsTrigger value="classifications">Classifications</TabsTrigger>
+                      <TabsTrigger value="households">Households</TabsTrigger>
+                      <TabsTrigger value="residentid">Resident ID</TabsTrigger>
+                      <TabsTrigger value="pets">Pets</TabsTrigger>
                     </TabsList>
                   </div>
                   <TabsContent value="info">
-                    <div className="space-y-6">
+                    <div className="space-y-5">
                       {/* Header with main info and resident picture */}
-                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-6">
+                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-5">
                         {/* Resident Picture */}
                         <div className="flex-shrink-0">
                           {viewResident.picture_path ? (
                             <div
-                              className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg overflow-hidden border-4 border-primary bg-white shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200 relative group"
+                              className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 relative group"
                               onClick={() => viewResident && setImageModalOpen(true)}
                             >
                               <img
-                                src={`${import.meta.env.VITE_SERVER_URL || "localhost:5000"}/${viewResident.picture_path.replace(/\\/g, "/")}`}
+                                src={resolvePicture(viewResident.picture_path)}
                                 alt={`${formatLabel(viewResident.first_name)} ${formatLabel(viewResident.last_name)}`}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                                 onError={(e) => {
@@ -225,7 +231,7 @@ const ResidentViewDialog = ({
                               </div>
                             </div>
                           ) : (
-                            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg border-4 border-muted bg-muted/20 flex items-center justify-center shadow-lg">
+                            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg border border-gray-200 bg-muted/20 flex items-center justify-center shadow-sm">
                               <div className="text-center">
                                 <User className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground/50 mx-auto mb-2" />
                                 <p className="text-xs text-muted-foreground">No photo</p>
@@ -236,7 +242,7 @@ const ResidentViewDialog = ({
 
                         {/* Resident Info */}
                         <div className="flex-1 text-center sm:text-left">
-                          <div className="text-lg sm:text-xl lg:text-2xl font-bold mb-2">
+                          <div className="text-xl font-bold text-gray-800 mb-1">
                             {`${formatLabel(viewResident.first_name)} ${viewResident.middle_name
                               ? formatLabel(viewResident.middle_name)
                               : ""
@@ -244,16 +250,22 @@ const ResidentViewDialog = ({
                               }`}
                           </div>
                           <div className="text-muted-foreground text-sm flex items-center gap-2 mb-1">
-                            <Mail className="h-4 w-4 text-primary" />
+                            <Mail className="h-4 w-4 text-primary shrink-0" />
                             {viewResident.email || (
                               <span className="italic text-xs">No email</span>
                             )}
                           </div>
-                          <div className="text-muted-foreground text-sm flex items-center gap-2 mb-3">
-                            <Phone className="h-4 w-4 text-primary" />
+                          <div className="text-muted-foreground text-sm flex items-center gap-2 mb-1">
+                            <Phone className="h-4 w-4 text-primary shrink-0" />
                             {viewResident.contact_number || (
                               <span className="italic text-xs">No contact</span>
                             )}
+                          </div>
+                          <div className="text-muted-foreground text-sm flex items-center gap-2 mb-3">
+                            <MapPin className="h-4 w-4 text-primary shrink-0" />
+                            <span>
+                              {[viewResident.house_number, viewResident.street, viewResident.barangay_name, viewResident.municipality_name].filter(Boolean).map(formatLabel).join(", ") || <span className="italic text-xs">No address</span>}
+                            </span>
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <Badge
@@ -271,183 +283,63 @@ const ResidentViewDialog = ({
                         </div>
                       </div>
 
-                      {/* Quick stats grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                        <Card>
-                          <CardHeader className="!pb-1">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                              <User className="h-4 w-4 text-primary" />
-                              Sex
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="!pt-0">
-                            <div className="text-lg font-semibold">
-                              {formatLabel(viewResident.sex) || "Not specified"}
+                      {/* All details in one card */}
+                      <Card>
+                        <CardContent className="pt-5">
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Sex</p>
+                              <p className="text-sm font-medium text-gray-800">{formatLabel(viewResident.sex) || "—"}</p>
                             </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader className="!pb-1">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                              <BadgeCheck className="h-4 w-4 text-primary" />
-                              Civil Status
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="!pt-0">
-                            <div className="text-lg font-semibold">
-                              {formatLabel(viewResident.civil_status) ||
-                                "Not specified"}
+                            <div>
+                              <p className="text-xs text-muted-foreground">Civil Status</p>
+                              <p className="text-sm font-medium text-gray-800">{formatLabel(viewResident.civil_status) || "—"}</p>
                             </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader className="!pb-1">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                              <Briefcase className="h-4 w-4 text-primary" />
-                              Occupation
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="!pt-0">
-                            <div className="text-lg font-semibold">
-                              {formatLabel(viewResident.occupation) ||
-                                "Not specified"}
+                            <div>
+                              <p className="text-xs text-muted-foreground">Occupation</p>
+                              <p className="text-sm font-medium text-gray-800">{formatLabel(viewResident.occupation) || "—"}</p>
                             </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader className="!pb-1">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                              <Zap className="h-4 w-4 text-primary" />
-                              Monthly Income
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="!pt-0">
-                            <div className="text-lg font-semibold">
-                              {viewResident.monthly_income ? (
-                                `₱${parseFloat(viewResident.monthly_income).toLocaleString()}/mo`
-                              ) : (
-                                "Not specified"
-                              )}
+                            <div>
+                              <p className="text-xs text-muted-foreground">Monthly Income</p>
+                              <p className="text-sm font-medium text-gray-800">
+                                {viewResident.monthly_income ? `₱${parseFloat(viewResident.monthly_income).toLocaleString()}/mo` : "—"}
+                              </p>
                             </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-
-                      {/* Detailed Information */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                              <Info className="h-5 w-5 text-primary" />
-                              Personal Information
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-3 !pt-0">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-primary" />
-                              <span className="font-semibold">Birthdate:</span>
-                              <span className="ml-1">
-                                {formatDateLong(viewResident.birthdate)}
-                              </span>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Birthdate</p>
+                              <p className="text-sm font-medium text-gray-800">{formatDateLong(viewResident.birthdate) || "—"}</p>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <MapPin className="h-4 w-4 text-primary" />
-                              <span className="font-semibold">Birthplace:</span>
-                              <span className="ml-1 capitalize">
-                                {[
-                                  viewResident.birth_region,
-                                  viewResident.birth_province,
-                                  viewResident.birth_municipality
-                                ].filter(Boolean).join(", ") || "-"}
-                              </span>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Birthplace</p>
+                              <p className="text-sm font-medium text-gray-800 capitalize">
+                                {[viewResident.birth_region, viewResident.birth_province, viewResident.birth_municipality].filter(Boolean).join(", ") || "—"}
+                              </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Info className="h-4 w-4 text-primary" />
-                              <span className="font-semibold">Education:</span>
-                              <span className="ml-1 capitalize">
-                                {formatLabel(viewResident.education_attainment) ||
-                                  "-"}
-                              </span>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Education</p>
+                              <p className="text-sm font-medium text-gray-800 capitalize">{formatLabel(viewResident.education_attainment) || "—"}</p>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Info className="h-4 w-4 text-primary" />
-                              <span className="font-semibold">Employment:</span>
-                              <span className="ml-1 capitalize">
-                                {formatLabel(viewResident.employment_status) ||
-                                  "-"}
-                              </span>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Employment</p>
+                              <p className="text-sm font-medium text-gray-800 capitalize">{formatLabel(viewResident.employment_status) || "—"}</p>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Zap className="h-4 w-4 text-primary" />
-                              <span className="font-semibold">Monthly Income:</span>
-                              <span className="ml-1">
-                                {viewResident.monthly_income ? (
-                                  `₱${parseFloat(viewResident.monthly_income).toLocaleString()}/mo`
-                                ) : (
-                                  "-"
-                                )}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                              <Home className="h-5 w-5 text-primary" />
-                              Contact Information
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-3 !pt-0">
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-4 w-4 text-primary" />
-                              <span className="font-semibold">Contact:</span>
-                              <span className="ml-1">
-                                {viewResident.contact_number || "-"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-4 w-4 text-primary" />
-                              <span className="font-semibold">Email:</span>
-                              <span className="ml-1">
-                                {viewResident.email || "-"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <MapPin className="h-4 w-4 text-primary" />
-                              <span className="font-semibold">Address:</span>
-                              <span className="ml-1">
-                                {[
-                                   viewResident.house_number,
-                                   viewResident.street,
-                                   viewResident.barangay_name,
-                                   viewResident.municipality_name,
-                                 ]
-                                  .filter(Boolean)
-                                  .map(formatLabel)
-                                  .join(", ") || "-"}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
                   </TabsContent>
                   <TabsContent value="classifications">
                     <div className="space-y-4">
                       {/* Compact header with resident picture */}
-                      <div className="flex items-center gap-4 mb-4 p-4 bg-muted/20 rounded-lg">
+                      <div className="flex items-center gap-3 mb-4">
                         <div className="flex-shrink-0">
                           {viewResident.picture_path ? (
                             <div
-                              className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary bg-white cursor-pointer hover:border-primary/80 transition-all duration-200 relative group"
+                              className="w-16 h-16 rounded-full overflow-hidden border border-gray-200 bg-white shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 relative group"
                               onClick={() => viewResident && setImageModalOpen(true)}
                             >
                               <img
-                                src={`${import.meta.env.VITE_SERVER_URL || "localhost:5000"}/${viewResident.picture_path.replace(/\\/g, "/")}`}
+                                src={resolvePicture(viewResident.picture_path)}
                                 alt={`${formatLabel(viewResident.first_name)} ${formatLabel(viewResident.last_name)}`}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                 onError={(e) => {
@@ -464,16 +356,28 @@ const ResidentViewDialog = ({
                               </div>
                             </div>
                           ) : (
-                            <div className="w-16 h-16 rounded-full border-2 border-muted bg-muted/20 flex items-center justify-center">
+                            <div className="w-16 h-16 rounded-full border border-gray-200 bg-muted/20 flex items-center justify-center">
                               <User className="h-8 w-8 text-muted-foreground/50" />
                             </div>
                           )}
                         </div>
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold">
-                            {`${formatLabel(viewResident.first_name)} ${formatLabel(viewResident.last_name)}`}
-                          </h3>
-                          <p className="text-sm text-muted-foreground">Classifications</p>
+                        <div className="flex-1 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-800">
+                              {`${formatLabel(viewResident.first_name)} ${formatLabel(viewResident.last_name)}`}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">Classifications</p>
+                          </div>
+                          {!hideActions && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onEditClassifications && onEditClassifications(viewResident)}
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              Edit
+                            </Button>
+                          )}
                         </div>
                       </div>
 
@@ -482,21 +386,20 @@ const ResidentViewDialog = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {viewResident.classifications.map((c, idx) => {
                             let detailsArr = [];
-                            if (
-                              typeof c.classification_details === "string" &&
-                              c.classification_details !== "[]"
-                            ) {
-                              detailsArr = c.classification_details
-                                .split("|")
-                                .map((s) => s.trim());
+                            const cd = c.classification_details;
+                            if (typeof cd === "string" && cd !== "[]" && cd !== "") {
+                              // Pipe-separated string: "Land Owner | Rice"
+                              detailsArr = cd.split("|").map((s) => s.trim()).filter(Boolean);
+                            } else if (Array.isArray(cd) && cd.length > 0) {
+                              // JSON array (legacy format): ["Land Owner", "Rice"]
+                              detailsArr = cd.map(String).filter(Boolean);
                             } else if (
-                              typeof c.classification_details === "object" &&
-                              c.classification_details !== null &&
-                              !Array.isArray(c.classification_details)
+                              cd !== null &&
+                              typeof cd === "object" &&
+                              !Array.isArray(cd)
                             ) {
-                              detailsArr = Object.entries(
-                                c.classification_details
-                              ).map(([k, v]) => ({ key: k, value: v }));
+                              // Plain object: { status: "Land Owner", type: "Rice" }
+                              detailsArr = Object.entries(cd).map(([k, v]) => ({ key: k, value: v }));
                             }
                             const opt = classificationOptions.find(
                               (o) =>
@@ -511,36 +414,30 @@ const ResidentViewDialog = ({
                                 : [];
                             return (
                               <Card key={idx}>
-                                <CardHeader className="!pb-1">
+                                <CardHeader className="pb-1">
                                   <CardTitle className="flex items-center gap-2">
                                     <BadgeCheck className="h-5 w-5 text-primary" />
                                     {formatLabel(c.classification_type)}
                                   </CardTitle>
                                 </CardHeader>
-                                <CardContent className="!pt-0">
+                                <CardContent className="pt-0">
                                   {detailsArr.length > 0 ? (
                                     <ul className="list-disc pl-6 text-sm text-muted-foreground space-y-1">
-                                      {typeof c.classification_details ===
-                                        "string" &&
-                                        c.classification_details !== "[]"
+                                      {/* String / array formats: positional labels */}
+                                      {!detailsArr[0]?.key
                                         ? detailsArr.map((val, i) => (
-                                          <li key={i}>
+                                          <li key={`${idx}-${i}`}>
                                             <span className="font-semibold">
-                                              {detailLabels[i] ||
-                                                `Detail ${i + 1}`}
-                                              :
+                                              {detailLabels[i] || `Detail ${i + 1}`}:
                                             </span>{" "}
-                                            {formatLabel(val)}
+                                            {formatLabel(String(val))}
                                           </li>
                                         ))
-                                        : detailsArr.map(({ key, value }, i) => (
-                                          <li key={key}>
+                                        /* Object format: key-value labels */
+                                        : detailsArr.map(({ key, value }) => (
+                                          <li key={`${idx}-${key}`}>
                                             <span className="font-semibold">
-                                              {getDetailLabel(
-                                                c.classification_type,
-                                                key
-                                              )}
-                                              :
+                                              {getDetailLabel(c.classification_type, key, classificationOptions)}:
                                             </span>{" "}
                                             {formatLabel(String(value))}
                                           </li>
@@ -567,15 +464,15 @@ const ResidentViewDialog = ({
                   <TabsContent value="households">
                     <div className="space-y-4">
                       {/* Compact header with resident picture */}
-                      <div className="flex items-center gap-4 mb-4 p-4 bg-muted/20 rounded-lg">
+                      <div className="flex items-center gap-3 mb-4">
                         <div className="flex-shrink-0">
                           {viewResident.picture_path ? (
                             <div
-                              className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary bg-white cursor-pointer hover:border-primary/80 transition-all duration-200 relative group"
+                              className="w-16 h-16 rounded-full overflow-hidden border border-gray-200 bg-white shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 relative group"
                               onClick={() => viewResident && setImageModalOpen(true)}
                             >
                               <img
-                                src={`${import.meta.env.VITE_SERVER_URL || "localhost:5000"}/${viewResident.picture_path.replace(/\\/g, "/")}`}
+                                src={resolvePicture(viewResident.picture_path)}
                                 alt={`${formatLabel(viewResident.first_name)} ${formatLabel(viewResident.last_name)}`}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                                 onError={(e) => {
@@ -592,238 +489,125 @@ const ResidentViewDialog = ({
                               </div>
                             </div>
                           ) : (
-                            <div className="w-16 h-16 rounded-full border-2 border-muted bg-muted/20 flex items-center justify-center">
+                            <div className="w-16 h-16 rounded-full border border-gray-200 bg-muted/20 flex items-center justify-center">
                               <User className="h-8 w-8 text-muted-foreground/50" />
                             </div>
                           )}
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold">
+                          <h3 className="text-sm font-semibold text-gray-800">
                             {`${formatLabel(viewResident.first_name)} ${formatLabel(viewResident.last_name)}`}
                           </h3>
-                          <p className="text-sm text-muted-foreground">Household Information</p>
+                          <div className="text-muted-foreground text-sm flex items-center gap-2 mt-0.5">
+                            <Mail className="h-3.5 w-3.5 text-primary shrink-0" />
+                            {viewResident.email || <span className="italic text-xs">No email</span>}
+                          </div>
+                          <div className="text-muted-foreground text-sm flex items-center gap-2 mt-0.5">
+                            <Phone className="h-3.5 w-3.5 text-primary shrink-0" />
+                            {viewResident.contact_number || <span className="italic text-xs">No contact</span>}
+                          </div>
+                          <div className="text-muted-foreground text-sm flex items-center gap-2 mt-0.5">
+                            <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span>
+                              {[viewResident.house_number, viewResident.street, viewResident.barangay_name, viewResident.municipality_name].filter(Boolean).map(formatLabel).join(", ") || <span className="italic text-xs">No address</span>}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
                       {householdInfo ? (
                         <>
-                          {/* Household Details */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Card>
-                              <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                  <Info className="h-5 w-5 text-primary" />
-                                  Basic Information
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-3 !pt-0">
-                                <div className="flex items-center gap-2">
-                                  <User className="h-4 w-4 text-primary" />
-                                  <span className="font-semibold">
-                                    House Head:
-                                  </span>
-                                  <span className="ml-1">
-                                    {formatLabel(householdInfo.house_head) || "-"}
-                                  </span>
+                          {/* Household details — single card */}
+                          <Card>
+                            <CardContent className="pt-5">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">House Head</p>
+                                  <p className="text-sm font-medium text-gray-800">{formatLabel(householdInfo.house_head) || "—"}</p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <Home className="h-4 w-4 text-primary" />
-                                  <span className="font-semibold">
-                                    House Number:
-                                  </span>
-                                  <span className="ml-1">
-                                    {householdInfo.house_number || "-"}
-                                  </span>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">House Number</p>
+                                  <p className="text-sm font-medium text-gray-800">{householdInfo.house_number || "—"}</p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="h-4 w-4 text-primary" />
-                                  <span className="font-semibold">Street:</span>
-                                  <span className="ml-1">
-                                    {householdInfo.street || "-"}
-                                  </span>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Street</p>
+                                  <p className="text-sm font-medium text-gray-800">{householdInfo.street || "—"}</p>
                                 </div>
-                                {/* purok_name removed — puroks table dropped in v2 */}
-                                <div className="flex items-center gap-2">
-                                  <Home className="h-4 w-4 text-primary" />
-                                  <span className="font-semibold">Barangay:</span>
-                                  <span className="ml-1">
-                                    {householdInfo.barangay_name || "-"}
-                                  </span>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Barangay</p>
+                                  <p className="text-sm font-medium text-gray-800">{householdInfo.barangay_name || "—"}</p>
                                 </div>
                                 {householdInfo.area && (
-                                  <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-primary" />
-                                    <span className="font-semibold">Area:</span>
-                                    <span className="ml-1">
-                                      {householdInfo.area} sqm
-                                    </span>
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Area</p>
+                                    <p className="text-sm font-medium text-gray-800">{householdInfo.area} sqm</p>
                                   </div>
                                 )}
-                              </CardContent>
-                            </Card>
-
-                            <Card>
-                              <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                  <Settings className="h-5 w-5 text-primary" />
-                                  Housing Details
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-3 !pt-0">
-                                <div className="flex items-center gap-2">
-                                  <Home className="h-4 w-4 text-primary" />
-                                  <span className="font-semibold">
-                                    Housing Type:
-                                  </span>
-                                  <span className="ml-1">
-                                    {formatLabel(householdInfo.housing_type) ||
-                                      "-"}
-                                  </span>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Housing Type</p>
+                                  <p className="text-sm font-medium text-gray-800">{formatLabel(householdInfo.housing_type) || "—"}</p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <Home className="h-4 w-4 text-primary" />
-                                  <span className="font-semibold">
-                                    Structure Type:
-                                  </span>
-                                  <span className="ml-1">
-                                    {formatLabel(householdInfo.structure_type) ||
-                                      "-"}
-                                  </span>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Structure Type</p>
+                                  <p className="text-sm font-medium text-gray-800">{formatLabel(householdInfo.structure_type) || "—"}</p>
                                 </div>
-                              </CardContent>
-                            </Card>
-
-                            <Card className="md:col-span-2">
-                              <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                  <Zap className="h-5 w-5 text-primary" />
-                                  Utilities
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="!pt-0">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  <div className="flex items-center gap-2">
-                                    <Zap className="h-4 w-4 text-primary" />
-                                    <span className="font-semibold">
-                                      Electricity:
-                                    </span>
-                                    <Badge
-                                      variant={
-                                        householdInfo.electricity === "Yes"
-                                          ? "default"
-                                          : "secondary"
-                                      }
-                                      className="ml-1"
-                                    >
-                                      {formatLabel(householdInfo.electricity) ||
-                                        "-"}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Phone className="h-4 w-4 text-primary" />
-                                    <span className="font-semibold">
-                                      Water Source:
-                                    </span>
-                                    <span className="ml-1">
-                                      {householdInfo.water_source || "-"}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Home className="h-4 w-4 text-primary" />
-                                    <span className="font-semibold">
-                                      Toilet Facility:
-                                    </span>
-                                    <span className="ml-1">
-                                      {householdInfo.toilet_facility || "-"}
-                                    </span>
-                                  </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Electricity</p>
+                                  <p className="text-sm font-medium text-gray-800">{formatLabel(householdInfo.electricity) || "—"}</p>
                                 </div>
-                              </CardContent>
-                            </Card>
-                          </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Water Source</p>
+                                  <p className="text-sm font-medium text-gray-800">{householdInfo.water_source || "—"}</p>
+                                </div>
+                                <div className="md:col-span-2">
+                                  <p className="text-xs text-muted-foreground">Toilet Facility</p>
+                                  <p className="text-sm font-medium text-gray-800">{householdInfo.toilet_facility || "—"}</p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
 
                           {/* Family Groups */}
-                          <div className="space-y-4 mt-6">
-                            <h4 className="text-md font-semibold flex items-center gap-2">
-                              <Users className="h-5 w-5 text-primary" /> Family
-                              Groups
-                            </h4>
-                            {householdInfo.families &&
-                              householdInfo.families.length > 0 ? (
-                              <div className="space-y-4">
-                                {householdInfo.families.map((family, index) => (
-                                  <Card key={family.family_id || index}>
-                                    <CardHeader>
-                                      <CardTitle className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                          <Users className="h-5 w-5 text-primary" />
-                                          {family.family_group}
-                                        </div>
-                                        <Badge variant="outline">
-                                          Family {index + 1}
-                                        </Badge>
-                                      </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4 !pt-0">
+                          {householdInfo.families && householdInfo.families.length > 0 && (
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-gray-800">Family Groups</h4>
+                              {householdInfo.families.map((family, index) => (
+                                <Card key={family.family_id || index}>
+                                  <CardContent className="pt-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <p className="text-sm font-semibold text-gray-800">{family.family_group}</p>
+                                      <Badge variant="outline" className="text-xs">Family {index + 1}</Badge>
+                                    </div>
+                                    <div className="mb-3">
+                                      <p className="text-xs text-muted-foreground">Family Head</p>
+                                      <p className="text-sm font-medium text-gray-800">{family.family_head || "—"}</p>
+                                    </div>
+                                    {family.members && family.members.length > 0 && (
                                       <div>
-                                        <Label className="text-sm font-medium text-muted-foreground">
-                                          Family Head
-                                        </Label>
-                                        <p className="text-lg font-medium">
-                                          {family.family_head || "N/A"}
-                                        </p>
-                                      </div>
-                                      {family.members &&
-                                        family.members.length > 0 && (
-                                          <div>
-                                            <Label className="text-sm font-medium text-muted-foreground mb-2 block">
-                                              Family Members (
-                                              {family.members.length})
-                                            </Label>
-                                            <div className="space-y-2">
-                                              {family.members.map(
-                                                (member, memberIndex) => (
-                                                  <div
-                                                    key={
-                                                      member.fm_id || memberIndex
-                                                    }
-                                                    className="flex items-center justify-between p-2 bg-muted/30 rounded border"
-                                                  >
-                                                    <div>
-                                                      <p className="font-medium">
-                                                        {member.fm_member}
-                                                      </p>
-                                                      {member.fm_relationship_to_fm_head && (
-                                                        <p className="text-sm text-muted-foreground">
-                                                          {
-                                                            member.fm_relationship_to_fm_head
-                                                          }
-                                                        </p>
-                                                      )}
-                                                    </div>
-                                                    <Badge
-                                                      variant="secondary"
-                                                      className="text-xs"
-                                                    >
-                                                      Member {memberIndex + 1}
-                                                    </Badge>
-                                                  </div>
-                                                )
-                                              )}
+                                        <p className="text-xs text-muted-foreground mb-2">Family Members ({family.members.length})</p>
+                                        <div className="space-y-1.5">
+                                          {family.members.map((member, memberIndex) => (
+                                            <div
+                                              key={member.fm_id || memberIndex}
+                                              className="flex items-center justify-between px-3 py-2 bg-muted/30 rounded text-sm"
+                                            >
+                                              <div>
+                                                <p className="font-medium text-gray-800">{member.fm_member}</p>
+                                                {member.fm_relationship_to_fm_head && (
+                                                  <p className="text-xs text-muted-foreground">{member.fm_relationship_to_fm_head}</p>
+                                                )}
+                                              </div>
+                                              <Badge variant="secondary" className="text-xs">Member {memberIndex + 1}</Badge>
                                             </div>
-                                          </div>
-                                        )}
-                                    </CardContent>
-                                  </Card>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-center py-8 text-muted-foreground">
-                                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                <p>No family groups found</p>
-                              </div>
-                            )}
-                          </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          )}
                         </>
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
@@ -898,7 +682,7 @@ const ResidentViewDialog = ({
             {viewResident?.picture_path ? (
               <div className="w-full max-h-[90vh] flex items-center justify-center bg-black">
                 <img
-                  src={`${import.meta.env.VITE_SERVER_URL || "http://localhost:5000"}/${viewResident.picture_path.replace(/\\/g, "/")}`}
+                  src={resolvePicture(viewResident.picture_path)}
                   alt={`${formatLabel(viewResident?.first_name || '')} ${formatLabel(viewResident?.last_name || '')}`}
                   className="max-w-full max-h-[90vh] object-contain"
                   onError={(e) => {

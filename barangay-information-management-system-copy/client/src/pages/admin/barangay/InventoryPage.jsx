@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import RefreshControls from "@/components/common/RefreshControls";
 import { useUnifiedAutoRefresh } from "@/hooks/useUnifiedAutoRefresh";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Plus } from "lucide-react";
+import { Plus, Package } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { inventoryService } from "@/services/inventoryService";
@@ -16,7 +16,6 @@ import {
   InventoryViewDialog,
   DeleteConfirmationDialog,
   InventoryFilters,
-  InventoryStats
 } from "@/features/inventory";
 
 const InventoryPage = () => {
@@ -213,21 +212,19 @@ const InventoryPage = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Inventory Management</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold text-gray-800">Inventory Management</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
             Manage barangay supplies, equipment, and assets
           </p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button
-            onClick={() => setIsAddDialogOpen(true)}
-            className="flex items-center gap-2 text-xs sm:text-sm w-full sm:w-auto"
-          >
-            <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+        <div className="flex gap-2 shrink-0">
+          <RefreshControls variant="outline" size="sm" />
+          <Button size="sm" onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
             Add Item
           </Button>
         </div>
@@ -241,23 +238,9 @@ const InventoryPage = () => {
         setItemTypeFilter={setItemTypeFilter}
       />
 
-      {/* Stats Cards */}
-      <InventoryStats inventories={inventories} />
-
       {/* Inventory Table */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Inventory Items
-            {total > 0 && (
-              <span className="text-sm font-normal text-muted-foreground">
-                ({total} items)
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <InventoryTable
             inventories={inventories}
             loading={loading}

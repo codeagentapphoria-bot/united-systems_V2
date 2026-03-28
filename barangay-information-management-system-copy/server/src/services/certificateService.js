@@ -7,17 +7,35 @@
  * Placeholders use {{ token }} syntax. At generation time, tokens are resolved
  * against live database data:
  *
- *   resident.*     → residents table
- *   barangay.*     → barangays table
- *   municipality.* → municipalities table
- *   officials.*    → officials table (captain, kagawad1–7, secretary, treasurer)
- *   request.*      → requests table (walk-in) or transactions table (portal)
+ *   resident.*          → residents table
+ *   barangay.*          → barangays table
+ *   municipality.*      → municipalities table
+ *   officials.*         → officials table (captain, kagawad1–7, secretary, treasurer)
+ *   request.*           → requests table (walk-in) or transactions table (portal)
+ *
+ * Image tokens (resolve to full <img> tags, or empty <div> if no file is set):
+ *   {{ barangay.logoImg }}       — barangays.barangay_logo_path
+ *   {{ barangay.backgroundImg }} — barangays.certificate_background_path (full-page fixed bg)
+ *   {{ municipality.logoImg }}   — municipalities.municipality_logo_path
  *
  * PDF generation uses Puppeteer (headless Chrome). If Puppeteer is not installed,
  * the service returns the rendered HTML and logs a warning.
  */
 
 import { pool } from '../config/db.js';
+
+/**
+ * Convert a relative upload path to an HTTP URL served by Express.
+ * The uploads folder is exposed at /uploads by app.js.
+ * Using HTTP (not file://) works both in browser iframes and Puppeteer.
+ */
+function toUploadUrl(relPath) {
+  if (!relPath) return null;
+  if (relPath.startsWith('http://') || relPath.startsWith('https://')) return relPath;
+  const normalized = relPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  const port = process.env.PORT || 5000;
+  return `http://localhost:${port}/${normalized}`;
+}
 
 // =============================================================================
 // TEMPLATE CRUD
@@ -141,7 +159,7 @@ export async function resolvePlaceholders(html, context) {
        FROM residents r
        LEFT JOIN barangays b ON b.id = r.barangay_id
        LEFT JOIN municipalities m ON m.id = b.municipality_id
-       WHERE r.id = $1`,
+       WHERE r.id = $1 AND r.status = 'active'`,
       [residentId]
     );
     if (rows.length > 0) {
@@ -183,6 +201,20 @@ export async function resolvePlaceholders(html, context) {
       const b = rows[0];
       data['barangay.name'] = b.barangay_name || '';
       data['barangay.code'] = b.barangay_code || '';
+
+      // Logo — resolves to <img> tag or empty placeholder <div>
+      const brgyLogoUrl = toUploadUrl(b.barangay_logo_path);
+      data['barangay.logoImg'] = brgyLogoUrl
+        ? `<img src="${brgyLogoUrl}" style="height:80px;width:80px;object-fit:contain;" alt="Barangay Logo">`
+        : '<div style="height:80px;width:80px;"></div>';
+
+      // Certificate background — blurred, semi-transparent, full-page fixed layer
+      const bgUrl = toUploadUrl(b.certificate_background_path);
+      data['barangay.backgroundImg'] = bgUrl
+        ? `<div style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;overflow:hidden;">
+             <img src="${bgUrl}" style="width:100%;height:100%;object-fit:cover;opacity:0.25;filter:blur(4px);transform:scale(1.05);" alt="">
+           </div>`
+        : '';
     }
   }
 
@@ -200,6 +232,12 @@ export async function resolvePlaceholders(html, context) {
       data['municipality.code']     = m.municipality_code || '';
       data['municipality.province'] = m.province || '';
       data['municipality.region']   = m.region || '';
+
+      // Municipality logo
+      const muniLogoUrl = toUploadUrl(m.municipality_logo_path);
+      data['municipality.logoImg'] = muniLogoUrl
+        ? `<img src="${muniLogoUrl}" style="height:80px;width:80px;object-fit:contain;" alt="Municipality Logo">`
+        : '<div style="height:80px;width:80px;"></div>';
     }
   }
 
@@ -208,9 +246,15 @@ export async function resolvePlaceholders(html, context) {
   // ---------------------------------------------------------------------------
   if (effectiveBrgyId && html.includes('{{ officials.')) {
     const { rows } = await pool.query(
-      `SELECT position, full_name FROM officials
-       WHERE barangay_id = $1 AND term_status = 'active'
-       ORDER BY position ASC`,
+      `SELECT o.position,
+              CONCAT(r.first_name, ' ', COALESCE(r.middle_name || ' ', ''), r.last_name,
+                     CASE WHEN r.extension_name IS NOT NULL AND r.extension_name <> ''
+                          THEN ' ' || r.extension_name ELSE '' END) AS full_name
+       FROM officials o
+       JOIN residents r ON r.id = o.resident_id
+       WHERE o.barangay_id = $1
+         AND (o.term_end IS NULL OR o.term_end >= CURRENT_DATE)
+       ORDER BY o.position ASC`,
       [effectiveBrgyId]
     );
 
@@ -218,13 +262,13 @@ export async function resolvePlaceholders(html, context) {
     const kagawads = [];
     for (const o of rows) {
       const pos = (o.position || '').toLowerCase();
-      if (pos === 'captain' || pos === 'punong barangay') {
+      if (pos.includes('captain') || pos.includes('punong barangay')) {
         officialsByPosition['officials.captain'] = o.full_name;
       } else if (pos.includes('kagawad') || pos.includes('councilor')) {
         kagawads.push(o.full_name);
-      } else if (pos === 'secretary') {
+      } else if (pos.includes('secretary')) {
         officialsByPosition['officials.secretary'] = o.full_name;
-      } else if (pos === 'treasurer') {
+      } else if (pos.includes('treasurer')) {
         officialsByPosition['officials.treasurer'] = o.full_name;
       }
     }

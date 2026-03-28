@@ -578,30 +578,24 @@ const AccountsPage = () => {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900">
-            Accounts Management
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+          <h1 className="text-xl font-bold text-gray-800">Accounts Management</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
             Manage user accounts, roles, and permissions
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-          <RefreshControls 
-            variant="outline"
-            size="sm"
-          />
+        <div className="flex gap-2 shrink-0">
+          <RefreshControls variant="outline" size="sm" />
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="flex items-center gap-2 text-xs sm:text-sm w-full sm:w-auto">
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">Add Account</span>
-              <span className="sm:hidden">Add</span>
-            </Button>
-          </DialogTrigger>
+              <Button size="sm" className="gap-2">
+                <Plus className="h-4 w-4" />
+                Add Account
+              </Button>
+            </DialogTrigger>
           <DialogContent className="w-[95vw] max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -850,43 +844,34 @@ const AccountsPage = () => {
       </div>
 
       {/* Filters */}
-      <Card>
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search accounts..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select value={filterRole} onValueChange={setFilterRole}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="staff">Staff</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search accounts…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-9 pl-9"
+          />
+        </div>
+        <Select value={filterRole} onValueChange={setFilterRole}>
+          <SelectTrigger className="h-9 w-36">
+            <SelectValue placeholder="Filter by role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Roles</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="staff">Staff</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-gray-400 ml-auto">
+          {filteredAccounts.length} account{filteredAccounts.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
       {/* Accounts Table */}
       <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-            <Users className="h-4 w-4 sm:h-5 sm:w-5" />
-            User Accounts ({filteredAccounts.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -966,43 +951,29 @@ const AccountsPage = () => {
             </TableBody>
           </Table>
 
-          {/* Pagination Controls */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0 mt-4 px-6 pb-6">
-            <div className="text-xs sm:text-sm text-muted-foreground">
-              Page {page} of {totalPages} ({filteredAccounts.length} accounts)
+          {/* Pagination */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-4 py-3 border-t">
+            <div className="text-sm text-gray-500">
+              Page {page} of {totalPages || 1}
             </div>
-            <div className="flex flex-row sm:flex-row gap-2 items-center w-full sm:w-auto">
-              <div className="flex gap-2 items-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrev}
-                  disabled={page === 1}
-                  className="text-xs sm:text-sm"
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleNext}
-                  disabled={page === totalPages || totalPages === 0}
-                  className="text-xs sm:text-sm"
-                >
-                  Next
-                </Button>
-              </div>
-              <select
-                className="w-full sm:w-24 border rounded px-2 py-1 text-xs sm:text-sm"
-                value={perPage}
-                onChange={(e) => setPerPage(Number(e.target.value))}
-              >
-                <option value={5}>5 / page</option>
-                <option value={10}>10 / page</option>
-                <option value={20}>20 / page</option>
-                <option value={50}>50 / page</option>
-              </select>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handlePrev} disabled={page === 1}>
+                Previous
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleNext} disabled={page === totalPages || totalPages === 0}>
+                Next
+              </Button>
             </div>
+            <select
+              className="w-24 border rounded px-2 py-1 text-sm"
+              value={perPage}
+              onChange={(e) => setPerPage(Number(e.target.value))}
+            >
+              <option value={5}>5 / page</option>
+              <option value={10}>10 / page</option>
+              <option value={20}>20 / page</option>
+              <option value={50}>50 / page</option>
+            </select>
           </div>
         </CardContent>
       </Card>

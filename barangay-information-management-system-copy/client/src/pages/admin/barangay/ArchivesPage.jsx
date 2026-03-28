@@ -3,14 +3,8 @@ import { Button } from "@/components/ui/button";
 import RefreshControls from "@/components/common/RefreshControls";
 import { useUnifiedAutoRefresh } from "@/hooks/useUnifiedAutoRefresh";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Plus, Search, Archive } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { archivesService } from "@/services/archivesService";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,7 +14,6 @@ import {
   ArchivesFilters,
   ArchivesViewDialog,
   DeleteConfirmationDialog,
-  ArchivesStats,
 } from "@/features/archives";
 
 const ArchivesPage = () => {
@@ -208,25 +201,21 @@ const ArchivesPage = () => {
   const handleNext = () => page < totalPages && setPage(page + 1);
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Archives Management</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold text-gray-800">Archives Management</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
             Manage and organize your barangay documents and records
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-          <RefreshControls 
-            variant="outline"
-            size="sm"
-          />
-          <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2 text-xs sm:text-sm w-full sm:w-auto">
-          <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-          <span className="hidden sm:inline">Add Archive</span>
-          <span className="sm:hidden">Add</span>
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <RefreshControls variant="outline" size="sm" />
+          <Button size="sm" onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Archive
+          </Button>
         </div>
       </div>
 
@@ -239,21 +228,9 @@ const ArchivesPage = () => {
         documentTypes={documentTypes}
       />
 
-      {/* Stats Cards */}
-      <ArchivesStats archives={archives} />
-
       {/* Archives Table */}
       <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-            <Archive className="h-4 w-4 sm:h-5 sm:w-5" />
-            Archives ({total})
-          </CardTitle>
-          <CardDescription className="text-xs sm:text-sm">
-            Showing {((page - 1) * perPage) + 1} to {Math.min(page * perPage, total)} of {total} archives
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <ArchivesTable
             archives={archives}
             loading={loading}
@@ -266,8 +243,6 @@ const ArchivesPage = () => {
             handleNext={handleNext}
             setPerPage={setPerPage}
           />
-
-
         </CardContent>
       </Card>
 

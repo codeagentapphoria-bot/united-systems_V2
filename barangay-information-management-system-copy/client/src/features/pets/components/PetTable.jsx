@@ -1,12 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -15,9 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, Edit, Trash, PawPrint } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 const PetTable = ({
   pets = [],
@@ -75,12 +67,7 @@ const PetTable = ({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Pets List</CardTitle>
-        <CardDescription>Total pets: {pets.length}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {/* Table */}
+      <CardContent className="p-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -100,18 +87,14 @@ const PetTable = ({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
-                  <LoadingSpinner 
-                    message="Loading pets..." 
-                    variant="default"
-                    size="sm"
-                  />
+                <TableCell colSpan={8} className="py-16 text-center text-gray-400 text-sm">
+                  Loading…
                 </TableCell>
               </TableRow>
             ) : pets.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
-                  <span className="text-muted-foreground">No pets found</span>
+                <TableCell colSpan={8} className="py-16 text-center text-gray-500 text-sm">
+                  No pets found.
                 </TableCell>
               </TableRow>
             ) : (
@@ -138,34 +121,32 @@ const PetTable = ({
             )}
           </TableBody>
         </Table>
-      </CardContent>
 
-      {/* Pagination Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0 mt-4 px-6 pb-6">
-        <div className="text-xs sm:text-sm">
-          Page {page} of {totalPages}
-        </div>
-        <div className="flex flex-row sm:flex-row gap-2 items-center w-full sm:w-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrev}
-            disabled={page === 1}
-            className="text-xs sm:text-sm"
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNext}
-            disabled={page === totalPages || totalPages === 0}
-            className="text-xs sm:text-sm"
-          >
-            Next
-          </Button>
+        {/* Pagination */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-4 py-3 border-t">
+          <div className="text-sm text-gray-500">
+            Page {page} of {totalPages || 1}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrev}
+              disabled={page === 1}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNext}
+              disabled={page === totalPages || totalPages === 0}
+            >
+              Next
+            </Button>
+          </div>
           <select
-            className="w-full sm:w-24 border rounded px-2 py-1 text-xs sm:text-sm"
+            className="w-24 border rounded px-2 py-1 text-sm"
             value={perPage}
             onChange={(e) => setPerPage(Number(e.target.value))}
           >
@@ -175,7 +156,7 @@ const PetTable = ({
             <option value={50}>50 / page</option>
           </select>
         </div>
-      </div>
+      </CardContent>
     </Card>
   );
 };

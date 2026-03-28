@@ -1,11 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import api from "@/utils/api";
-import { Check, Clipboard } from "lucide-react";
+import { Check, Clipboard, Plus, Key } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -120,111 +129,177 @@ const OpenAPIPage = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <span className="sr-only" aria-live="polite">{liveMessage}</span>
-      <h1 className="text-2xl font-semibold">Open API</h1>
-      <p className="text-sm text-muted-foreground">Generate and manage API keys for external developers. Keys grant read-only access to residents, households, families, barangays, and statistics scoped to your municipality.</p>
 
-      <Card className="p-4">
-        <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-4">
-          <div className="md:col-span-2">
-            <Label htmlFor="name">Key name</Label>
-            <Input id="name" required value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} placeholder="e.g. Partner A Integration" />
-          </div>
-          <div>
-            <Label htmlFor="rl">Rate limit (per minute)</Label>
-            <Input id="rl" type="number" min={1} value={form.rateLimitPerMinute} onChange={(e) => setForm((s) => ({ ...s, rateLimitPerMinute: e.target.value }))} />
-          </div>
-          <div>
-            <Label htmlFor="exp">Expires at (optional)</Label>
-            <Input id="exp" type="datetime-local" value={form.expiresAt} onChange={(e) => setForm((s) => ({ ...s, expiresAt: e.target.value }))} />
-          </div>
-          <div className="md:col-span-4 flex gap-2">
-            <Button type="submit" disabled={loading}>Create API Key</Button>
-            {createdKey?.key && (
-              <Button type="button" variant="secondary" onClick={() => navigator.clipboard.writeText(createdKey.key)}>Copy New Key</Button>
-            )}
-          </div>
-        </form>
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold text-gray-800">Open API</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Generate and manage API keys for external developers. Keys grant read-only access to
+          residents, households, families, barangays, and statistics scoped to your municipality.
+        </p>
+      </div>
+
+      {/* Create Key Form */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Create New API Key
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-4">
+            <div className="md:col-span-2 space-y-1.5">
+              <Label htmlFor="name">Key name</Label>
+              <Input
+                id="name"
+                required
+                value={form.name}
+                onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
+                placeholder="e.g. Partner A Integration"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rl">Rate limit (per minute)</Label>
+              <Input
+                id="rl"
+                type="number"
+                min={1}
+                value={form.rateLimitPerMinute}
+                onChange={(e) => setForm((s) => ({ ...s, rateLimitPerMinute: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="exp">Expires at <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input
+                id="exp"
+                type="datetime-local"
+                value={form.expiresAt}
+                onChange={(e) => setForm((s) => ({ ...s, expiresAt: e.target.value }))}
+              />
+            </div>
+            <div className="md:col-span-4 flex gap-2">
+              <Button type="submit" size="sm" disabled={loading} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Create API Key
+              </Button>
+              {createdKey?.key && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="gap-2"
+                  onClick={() => navigator.clipboard.writeText(createdKey.key)}
+                >
+                  <Clipboard className="h-4 w-4" />
+                  Copy New Key
+                </Button>
+              )}
+            </div>
+          </form>
+        </CardContent>
       </Card>
 
-      <Card className="p-4">
-        <h2 className="text-lg font-medium mb-3">Existing Keys</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="py-2 pr-4">Name</th>
-                <th className="py-2 pr-4">API Key</th>
-                <th className="py-2 pr-4">Rate</th>
-                <th className="py-2 pr-4">Expires</th>
-                <th className="py-2 pr-4">Revoked</th>
-                <th className="py-2 pr-4">Last used</th>
-                <th className="py-2 pr-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map((k) => (
-                <tr key={k.id} className="border-b">
-                  <td className="py-2 pr-4">{k.name}</td>
-                  <td className="py-2 pr-4 font-mono break-all">
-                    {k.key || "—"}
-                  </td>
-                  <td className="py-2 pr-4">{k.rateLimitPerMinute}/min</td>
-                  <td className="py-2 pr-4">{k.expiresAt ? new Date(k.expiresAt).toLocaleString() : "—"}</td>
-                  <td className="py-2 pr-4">{k.revoked ? "Yes" : "No"}</td>
-                  <td className="py-2 pr-4">{k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "—"}</td>
-                  <td className="py-2 pr-4 flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={!k.key || k.revoked || loading}
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(k.key);
-                          setCopiedForId(k.id);
-                          setLiveMessage(`API key for ${k.name} copied to clipboard`);
-                          toast({ title: "✅ API key copied to clipboard", duration: 2500 });
-                          setTimeout(() => setCopiedForId(null), 1800);
-                        } catch (e) {
-                          setLiveMessage("Failed to copy — please try again.");
-                          toast({ title: "Failed to copy — please try again.", description: e.message, variant: "destructive" });
-                        }
-                      }}
-                    >
-                      {copiedForId === k.id ? (
-                        <span className="inline-flex items-center gap-1"><Check className="h-4 w-4" />Copied</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1"><Clipboard className="h-4 w-4" />Copy</span>
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={k.revoked || loading}
-                      onClick={() => setConfirm({ open: true, mode: "revoke", key: k })}
-                    >
-                      Revoke
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => setConfirm({ open: true, mode: "delete", key: k })}
-                      disabled={loading}
-                    >
-                      Delete
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {keys.length === 0 && (
-                <tr>
-                  <td className="py-3 text-muted-foreground" colSpan={6}>No API keys yet.</td>
-                </tr>
+      {/* Existing Keys */}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>API Key</TableHead>
+                <TableHead>Rate</TableHead>
+                <TableHead>Expires</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Last Used</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {keys.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-16 text-center text-gray-400 text-sm">
+                    No API keys yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                keys.map((k) => (
+                  <TableRow key={k.id}>
+                    <TableCell className="font-medium text-sm">{k.name}</TableCell>
+                    <TableCell className="font-mono text-xs text-gray-500 max-w-[160px] truncate">
+                      {k.key || "—"}
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-500 whitespace-nowrap">
+                      {k.rateLimitPerMinute}/min
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-500 whitespace-nowrap">
+                      {k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={k.revoked
+                        ? "bg-red-100 text-red-700 text-xs"
+                        : "bg-green-100 text-green-700 text-xs"
+                      }>
+                        {k.revoked ? "Revoked" : "Active"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-500 whitespace-nowrap">
+                      {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!k.key || k.revoked || loading}
+                          className="gap-1 text-xs"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(k.key);
+                              setCopiedForId(k.id);
+                              setLiveMessage(`API key for ${k.name} copied to clipboard`);
+                              toast({ title: "API key copied to clipboard", duration: 2500 });
+                              setTimeout(() => setCopiedForId(null), 1800);
+                            } catch (e) {
+                              setLiveMessage("Failed to copy — please try again.");
+                              toast({ title: "Failed to copy", description: e.message, variant: "destructive" });
+                            }
+                          }}
+                        >
+                          {copiedForId === k.id ? (
+                            <><Check className="h-3 w-3" />Copied</>
+                          ) : (
+                            <><Clipboard className="h-3 w-3" />Copy</>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={k.revoked || loading}
+                          className="text-xs"
+                          onClick={() => setConfirm({ open: true, mode: "revoke", key: k })}
+                        >
+                          Revoke
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => setConfirm({ open: true, mode: "delete", key: k })}
+                          disabled={loading}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </CardContent>
       </Card>
 
       <AlertDialog open={confirm.open} onOpenChange={(open) => setConfirm((s) => ({ ...s, open }))}>

@@ -50,6 +50,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api/auth.service';
+import { PortalHeader } from '@/components/layout/PortalHeader';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -64,6 +65,11 @@ const HOUSING_TYPES   = ['Permanent', 'Semi-permanent', 'Makeshift', 'Informal S
 const STRUCTURE_TYPES = ['Concrete', 'Hollow Blocks', 'Wood', 'Bamboo', 'Mixed'];
 const WATER_SOURCES   = ['Faucet / NAWASA', 'Deep Well', 'Spring', 'Communal Water', 'Bought from vendor'];
 const TOILET_TYPES    = ['Flush toilet (water-sealed)', 'Pit privy', 'Communal toilet', 'None'];
+
+const HOUSEHOLD_STEPS = [
+  { num: 1, title: 'Household Information', desc: 'Address and housing details' },
+  { num: 2, title: 'Family Members',        desc: 'Add members to your household' },
+];
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -117,30 +123,6 @@ function groupByFamily(members: PendingMember[]): Record<string, PendingMember[]
     return acc;
   }, {});
 }
-
-// ---------------------------------------------------------------------------
-// Step indicator component
-// ---------------------------------------------------------------------------
-const StepIndicator: React.FC<{ current: number; total: number }> = ({ current, total }) => (
-  <div className="flex items-center gap-2 mb-6">
-    {Array.from({ length: total }, (_, i) => i + 1).map((n) => (
-      <React.Fragment key={n}>
-        <div
-          className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold border-2
-            ${n === current
-              ? 'bg-primary border-primary text-primary-foreground'
-              : n < current
-                ? 'bg-primary/20 border-primary/40 text-primary'
-                : 'bg-muted border-muted-foreground/30 text-muted-foreground'
-            }`}
-        >
-          {n}
-        </div>
-        {n < total && <div className="flex-1 h-px bg-muted-foreground/20" />}
-      </React.Fragment>
-    ))}
-  </div>
-);
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -348,21 +330,29 @@ export const PortalMyHousehold: React.FC = () => {
   // -------------------------------------------------------------------------
   if (!isActive) {
     return (
-      <div className="max-w-2xl mx-auto py-8 px-4">
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="pt-6">
-            <p className="text-yellow-800">
-              Your account must be active to register a household. Please wait for your
-              registration to be approved.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex flex-col bg-neutral-50">
+        <PortalHeader />
+        <div className="max-w-2xl mx-auto py-8 px-4 w-full">
+          <Card className="border-yellow-200 bg-yellow-50">
+            <CardContent className="pt-6">
+              <p className="text-yellow-800">
+                Your account must be active to register a household. Please wait for your
+                registration to be approved.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   if (isLoading) {
-    return <div className="text-center py-12 text-gray-400">Loading household...</div>;
+    return (
+      <div className="min-h-screen flex flex-col bg-neutral-50">
+        <PortalHeader />
+        <div className="text-center py-12 text-gray-400">Loading household...</div>
+      </div>
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -371,9 +361,76 @@ export const PortalMyHousehold: React.FC = () => {
   if (household) {
     const isHead = household.house_head === residentId;
 
+    const memberCount = household.families?.reduce(
+      (acc: number, f: any) => acc + (f.members?.length ?? 0), 0
+    ) ?? 0;
+
     return (
-      <div className="max-w-2xl mx-auto py-8 px-4 space-y-6">
-        <h1 className="text-xl font-bold text-gray-800">My Household</h1>
+      <div className="min-h-screen flex flex-col bg-neutral-50">
+        <PortalHeader />
+        <div className="flex flex-1 overflow-hidden">
+
+          {/* LEFT SIDEBAR */}
+          <aside className="hidden md:flex w-72 lg:w-80 flex-col flex-shrink-0 bg-gradient-to-br from-primary-700 to-primary-900 text-white p-8 overflow-y-auto">
+            <div className="mb-8">
+              <img src="/logo-white.svg" alt="LGU" className="h-10 w-auto mb-4" onError={(e) => { (e.target as HTMLImageElement).src = '/logo-colored.svg'; }} />
+              <h1 className="text-xl font-bold leading-tight">My Household</h1>
+              <p className="text-primary-200 text-sm mt-1">Manage your household information and members.</p>
+            </div>
+
+            <div className="space-y-4 flex-1">
+              {/* Address summary */}
+              <div className="bg-white/10 rounded-xl p-4 space-y-2 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-300">Address</p>
+                {household.house_number && <p>{household.house_number} {household.street}</p>}
+                {!household.house_number && household.street && <p>{household.street}</p>}
+                <p>{household.barangay_name}</p>
+                <p className="text-primary-200">{household.municipality_name}</p>
+              </div>
+
+              {/* Stats */}
+              <div className="bg-white/10 rounded-xl p-4 space-y-2 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-300">Household</p>
+                <div className="flex justify-between">
+                  <span className="text-primary-200">Members</span>
+                  <span className="font-bold">{memberCount}</span>
+                </div>
+                {household.housing_type && (
+                  <div className="flex justify-between">
+                    <span className="text-primary-200">Type</span>
+                    <span>{household.housing_type}</span>
+                  </div>
+                )}
+                {household.area != null && (
+                  <div className="flex justify-between">
+                    <span className="text-primary-200">Area</span>
+                    <span>{household.area} sqm</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-8 bg-white/10 rounded-xl p-4 text-xs text-primary-200 leading-relaxed">
+              <p className="font-semibold text-white mb-1">💡 Tip</p>
+              <p>As house head, you can add or remove members at any time using the button on the right.</p>
+            </div>
+          </aside>
+
+          {/* RIGHT CONTENT */}
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+              {/* Mobile header */}
+              <div className="md:hidden">
+                <div className="flex items-center gap-3 mb-1">
+                  <img src="/logo-colored.svg" alt="LGU" className="h-8 w-auto" />
+                  <h1 className="font-bold text-gray-800">My Household</h1>
+                </div>
+              </div>
+
+              <div className="pb-4 border-b">
+                <h2 className="text-xl font-bold text-gray-800">My Household</h2>
+                <p className="text-sm text-gray-500">{household.barangay_name}, {household.municipality_name}</p>
+              </div>
 
         {/* Household Information */}
         <Card>
@@ -570,6 +627,9 @@ export const PortalMyHousehold: React.FC = () => {
             )}
           </CardContent>
         </Card>
+            </div>
+          </main>
+        </div>
       </div>
     );
   }
@@ -577,25 +637,87 @@ export const PortalMyHousehold: React.FC = () => {
   // -------------------------------------------------------------------------
   // Render: registration form (step 1 or step 2)
   // -------------------------------------------------------------------------
-  return (
-    <div className="max-w-2xl mx-auto py-8 px-4 space-y-6">
-      <h1 className="text-xl font-bold text-gray-800">Register My Household</h1>
+  const currentHouseholdStep = HOUSEHOLD_STEPS[step - 1];
 
-      <StepIndicator current={step} total={2} />
+  return (
+    <div className="min-h-screen flex flex-col bg-neutral-50">
+      <PortalHeader />
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* LEFT SIDEBAR */}
+        <aside className="hidden md:flex w-72 lg:w-80 flex-col flex-shrink-0 bg-gradient-to-br from-primary-700 to-primary-900 text-white p-8 overflow-y-auto">
+          <div className="mb-8">
+            <img src="/logo-white.svg" alt="LGU" className="h-10 w-auto mb-4" onError={(e) => { (e.target as HTMLImageElement).src = '/logo-colored.svg'; }} />
+            <h1 className="text-xl font-bold leading-tight">Household Registration</h1>
+            <p className="text-primary-200 text-sm mt-1">Complete both steps to register your household.</p>
+          </div>
+
+          {/* Step list */}
+          <nav className="space-y-2 flex-1">
+            {HOUSEHOLD_STEPS.map(s => {
+              const isDone    = step > s.num;
+              const isCurrent = step === s.num;
+              return (
+                <div
+                  key={s.num}
+                  className={`flex items-start gap-3 rounded-xl px-4 py-3 transition-colors ${
+                    isCurrent ? 'bg-white/20' : isDone ? 'opacity-70' : 'opacity-40'
+                  }`}
+                >
+                  <div className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                    isDone    ? 'bg-green-400 text-green-900' :
+                    isCurrent ? 'bg-white text-primary-700'  :
+                                'bg-white/20 text-white'
+                  }`}>
+                    {isDone ? '✓' : s.num}
+                  </div>
+                  <div>
+                    <p className={`text-sm font-semibold ${isCurrent ? 'text-white' : 'text-primary-100'}`}>{s.title}</p>
+                    <p className="text-xs text-primary-300">{s.desc}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </nav>
+
+          {/* Bottom tip */}
+          <div className="mt-8 bg-white/10 rounded-xl p-4 text-xs text-primary-200 leading-relaxed">
+            <p className="font-semibold text-white mb-1">💡 What happens next?</p>
+            <p>Your household will be linked to your barangay record and visible to the barangay administrator.</p>
+          </div>
+        </aside>
+
+        {/* RIGHT CONTENT */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-6 py-8">
+
+            {/* Mobile step header */}
+            <div className="md:hidden mb-6">
+              <div className="flex items-center gap-3 mb-3">
+                <img src="/logo-colored.svg" alt="LGU" className="h-8 w-auto" />
+                <div>
+                  <h1 className="font-bold text-gray-800">Household Registration</h1>
+                  <p className="text-xs text-gray-500">Step {step} of 2 — {currentHouseholdStep.title}</p>
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                {HOUSEHOLD_STEPS.map(s => (
+                  <div key={s.num} className={`flex-1 h-1 rounded-full ${step >= s.num ? 'bg-primary-600' : 'bg-gray-200'}`} />
+                ))}
+              </div>
+            </div>
+
+            {/* Step heading */}
+            <div className="mb-6 pb-4 border-b">
+              <h2 className="text-xl font-bold text-gray-800">{currentHouseholdStep.title}</h2>
+              <p className="text-sm text-gray-500">{currentHouseholdStep.desc}</p>
+            </div>
 
       {/* ------------------------------------------------------------------ */}
       {/* STEP 1: Household Information                                        */}
       {/* ------------------------------------------------------------------ */}
       {step === 1 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Step 1 — Household Information</CardTitle>
-            <CardDescription>
-              Provide details about your home. All fields are optional except those you know.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...infoForm}>
+        <Form {...infoForm}>
               <form
                 className="space-y-4"
                 onSubmit={infoForm.handleSubmit(handleStep1Submit)}
@@ -802,9 +924,7 @@ export const PortalMyHousehold: React.FC = () => {
                   Next: Add Family Members
                 </Button>
               </form>
-            </Form>
-          </CardContent>
-        </Card>
+        </Form>
       )}
 
       {/* ------------------------------------------------------------------ */}
@@ -992,6 +1112,9 @@ export const PortalMyHousehold: React.FC = () => {
           </div>
         </div>
       )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 };

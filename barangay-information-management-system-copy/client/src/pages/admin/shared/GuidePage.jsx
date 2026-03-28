@@ -400,22 +400,20 @@ const GuidePage = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-xl font-bold text-gray-800">
             {currentGuide.overview.title}
           </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+          <p className="text-sm text-gray-500 mt-0.5">
             {currentGuide.overview.description}
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="text-sm">
-            {isMunicipality ? 'Municipality' : 'Barangay'} Admin
-          </Badge>
-        </div>
+        <Badge variant="outline" className="text-xs shrink-0">
+          {isMunicipality ? 'Municipality' : 'Barangay'} Admin
+        </Badge>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -439,7 +437,7 @@ const GuidePage = () => {
                     <CardTitle className="text-lg">{section.title}</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="!pt-0">
+                <CardContent className="pt-0">
                   <p className="text-gray-600 dark:text-gray-400">
                     {section.content}
                   </p>
@@ -455,7 +453,7 @@ const GuidePage = () => {
                 <span>System Information</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 !pt-0">
+            <CardContent className="space-y-4 pt-0">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">
@@ -614,7 +612,7 @@ const GuidePage = () => {
                     <CardTitle className="text-lg">{practice.title}</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="!pt-0">
+                <CardContent className="pt-0">
                   <p className="text-gray-600 dark:text-gray-400">
                     {practice.description}
                   </p>
@@ -630,7 +628,7 @@ const GuidePage = () => {
                 <span>Training Resources</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 !pt-0">
+            <CardContent className="space-y-4 pt-0">
               <div className="flex items-center space-x-3">
                 <Info className="h-5 w-5 text-blue-600" />
                 <div>

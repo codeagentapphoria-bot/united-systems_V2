@@ -607,59 +607,46 @@ const HouseholdsPage = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+    <div className="space-y-5">
       {/* Cache refresh handler for households page */}
       <CacheRefreshHandler page="households" />
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Household Management</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold text-gray-800">Household Management</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
             Manage household information and family groups
+            {lastUpdateTime && (
+              <span className="ml-2 text-gray-400">
+                · Last updated: {new Date(lastUpdateTime).toLocaleTimeString()}
+              </span>
+            )}
           </p>
-          {lastUpdateTime && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Last updated: {new Date(lastUpdateTime).toLocaleString()}
-            </p>
-          )}
         </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-          <RefreshControls 
-            variant="outline"
-            size="sm"
-          />
-          {/* Export Button */}
-                      <Button
-              variant="outline"
-              onClick={() => setIsExportDialogOpen(true)}
-              disabled={exportLoading}
-              className="flex items-center gap-2 text-xs sm:text-sm"
-            >
-              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-              {exportLoading ? (
-                <LoadingSpinner message="Exporting..." variant="default" size="sm" compact={true} />
-              ) : (
-                "Export"
-              )}
-            </Button>
-
-          {/* Import Button */}
+        <div className="flex gap-2 shrink-0">
+          <RefreshControls variant="outline" size="sm" />
           {user.target_type === "barangay" && (
             <Button
               variant="outline"
+              size="sm"
+              className="gap-2"
               onClick={() => setIsImportDialogOpen(true)}
               disabled={importLoading}
-              className="flex items-center gap-2 text-xs sm:text-sm"
             >
-              <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
-              {importLoading ? (
-                <LoadingSpinner message="Importing..." variant="default" size="sm" compact={true} />
-              ) : (
-                "Import"
-              )}
+              <Upload className="h-4 w-4" />
+              {importLoading ? "Importing…" : "Import"}
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setIsExportDialogOpen(true)}
+            disabled={exportLoading}
+          >
+            <Download className="h-4 w-4" />
+            {exportLoading ? "Exporting…" : "Export"}
+          </Button>
         </div>
       </div>
 

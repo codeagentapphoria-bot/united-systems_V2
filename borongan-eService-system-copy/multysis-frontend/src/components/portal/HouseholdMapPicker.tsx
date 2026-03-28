@@ -223,8 +223,9 @@ const HouseholdMapPicker: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Map */}
-      <div className="h-72 rounded-md overflow-hidden border">
+      {/* Map — isolation:isolate creates a stacking context so Leaflet's internal
+           z-indexes don't bleed above page-level modals/dialogs */}
+      <div className="h-72 rounded-md overflow-hidden border" style={{ isolation: 'isolate' }}>
         <MapContainer
           center={mapCenter}
           zoom={15}

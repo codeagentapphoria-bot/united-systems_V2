@@ -425,7 +425,19 @@ router.get('/queue', ...allUsers, async (req, res) => {
       pool.query(
         `${cte}
          SELECT * FROM u ${filterCond}
-         ORDER BY created_at DESC
+         ORDER BY
+           CASE lower(u.status_col)
+             WHEN 'pending'     THEN 1
+             WHEN 'approved'    THEN 2
+             WHEN 'processing'  THEN 3
+             WHEN 'for_release' THEN 4
+             WHEN 'rejected'    THEN 5
+             WHEN 'completed'   THEN 6
+             WHEN 'released'    THEN 7
+             WHEN 'cancelled'   THEN 8
+             ELSE 9
+           END,
+           created_at DESC
          LIMIT $${filterParams.length + 1} OFFSET $${filterParams.length + 2}`,
         [...filterParams, limit, offset]
       ),

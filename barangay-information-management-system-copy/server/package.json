@@ -9,12 +9,15 @@
     "dev": "nodemon server.js",
     "db:migrate": "node src/scripts/unifiedMigration.js",
     "db:seed": "node src/scripts/seedDatabase.js",
+    "db:seed:classifications": "node src/scripts/seed_classification_types.js",
+    "db:seed:certificates": "node src/scripts/seed_certificate_templates.js",
     "db:convert-geojson": "node src/scripts/convertGeoJSONToSQL.js",
     "db:import-gis": "node src/scripts/importGISData.js",
     "db:optimize": "node src/scripts/optimizeDatabase.js",
     "redis:test": "node src/scripts/testRedis.js",
     "redis:test-simple": "node src/scripts/simpleRedisTest.js",
-    "db:migrate:add-live-in": "node src/scripts/migrations/2025-10-20-add-live-in-civil-status.js"
+    "db:migrate:add-live-in": "node src/scripts/migrations/2025-10-20-add-live-in-civil-status.js",
+    "db:migrate:add-requests-full-name": "node src/scripts/migrations/2026-03-28-add-requests-full-name.js"
   },
   "type": "module",
   "keywords": [],

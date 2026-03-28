@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Calendar, User } from "lucide-react";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 const ArchivesTable = ({
   archives = [],
@@ -26,29 +25,17 @@ const ArchivesTable = ({
 }) => {
   const getDocumentTypeBadgeVariant = (documentType) => {
     switch ((documentType || "").toLowerCase()) {
-      case "ordinances":
-        return "default";
-      case "resolutions":
-        return "secondary";
-      case "minutes":
-        return "outline";
-      case "certificates":
-        return "default";
-
-      case "letters":
-        return "outline";
-      case "forms":
-        return "default";
-      case "policies":
-        return "secondary";
-      case "lupons":
-        return "outline";
-      case "deaths":
-        return "destructive";
-      case "others":
-        return "destructive";
-      default:
-        return "secondary";
+      case "ordinances": return "default";
+      case "resolutions": return "secondary";
+      case "minutes": return "outline";
+      case "certificates": return "default";
+      case "letters": return "outline";
+      case "forms": return "default";
+      case "policies": return "secondary";
+      case "lupons": return "outline";
+      case "deaths": return "destructive";
+      case "others": return "destructive";
+      default: return "secondary";
     }
   };
 
@@ -56,32 +43,6 @@ const ArchivesTable = ({
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString();
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <LoadingSpinner 
-          message="Loading archives..." 
-          variant="default"
-          size="lg"
-        />
-      </div>
-    );
-  }
-
-  if (archives.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-muted-foreground mb-2">
-          No archives found
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          Start by adding your first archive document.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -96,7 +57,19 @@ const ArchivesTable = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {archives.map((archive) => (
+          {loading ? (
+            <TableRow>
+              <TableCell colSpan={5} className="py-16 text-center text-gray-400 text-sm">
+                Loading…
+              </TableCell>
+            </TableRow>
+          ) : archives.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="py-16 text-center text-gray-400 text-sm">
+                No archives found.
+              </TableCell>
+            </TableRow>
+          ) : archives.map((archive) => (
             <TableRow
               key={archive.archive_id}
               className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -104,9 +77,7 @@ const ArchivesTable = ({
             >
               <TableCell>
                 <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
-                    <FileText className="h-8 w-8 text-muted-foreground" />
-                  </div>
+                  <FileText className="h-8 w-8 text-muted-foreground flex-shrink-0" />
                   <div>
                     <div className="font-medium">{archive.title}</div>
                     <div className="text-sm text-muted-foreground">
@@ -143,40 +114,30 @@ const ArchivesTable = ({
           ))}
         </TableBody>
       </Table>
-      
-      {/* Pagination Controls */}
-      <div className="flex justify-between items-center mt-4">
-        <div className="text-sm text-muted-foreground">
-          Page {page} of {totalPages} ({total} total documents)
+
+      {/* Pagination */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-4 py-3 border-t">
+        <div className="text-sm text-gray-500">
+          Page {page} of {totalPages || 1}
         </div>
-        <div className="flex gap-2 items-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrev}
-            disabled={page === 1}
-          >
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handlePrev} disabled={page === 1}>
             Previous
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNext}
-            disabled={page === totalPages || totalPages === 0}
-          >
+          <Button variant="outline" size="sm" onClick={handleNext} disabled={page === totalPages || totalPages === 0}>
             Next
           </Button>
-          <select
-            className="w-24 border rounded px-2 py-1 text-sm"
-            value={perPage}
-            onChange={(e) => setPerPage(Number(e.target.value))}
-          >
-            <option value={5}>5 / page</option>
-            <option value={10}>10 / page</option>
-            <option value={20}>20 / page</option>
-            <option value={50}>50 / page</option>
-          </select>
         </div>
+        <select
+          className="w-24 border rounded px-2 py-1 text-sm"
+          value={perPage}
+          onChange={(e) => setPerPage(Number(e.target.value))}
+        >
+          <option value={5}>5 / page</option>
+          <option value={10}>10 / page</option>
+          <option value={20}>20 / page</option>
+          <option value={50}>50 / page</option>
+        </select>
       </div>
     </>
   );

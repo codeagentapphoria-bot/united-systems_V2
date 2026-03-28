@@ -46,7 +46,7 @@ class Statistics {
           SELECT r.*, EXTRACT(YEAR FROM AGE(NOW(), r.birthdate))::int AS age
           FROM residents r
       `;
-      const whereClauses = [];
+      const whereClauses = ["r.status = 'active'"];
 
       if (barangayId) {
         whereClauses.push(`r.barangay_id = $${paramIndex++}`);
@@ -82,7 +82,7 @@ class Statistics {
 
       // Use the same approach as total population for consistency
         query = `SELECT COALESCE(sex, 'unknown') as sex, COUNT(*) AS count FROM residents r`;
-        const whereClauses = [];
+        const whereClauses = ["r.status = 'active'"];
 
         if (barangayId) {
           whereClauses.push(`r.barangay_id = $${paramIndex++}`);
@@ -114,7 +114,7 @@ class Statistics {
 
       // Standard approach for non-purok filtering
         query = `SELECT civil_status, COUNT(*) AS count FROM residents r`;
-        const whereClauses = [];
+        const whereClauses = ["r.status = 'active'"];
 
         if (barangayId) {
           whereClauses.push(`r.barangay_id = $${paramIndex++}`);
@@ -146,7 +146,7 @@ class Statistics {
 
       // Standard approach for non-purok filtering
         query = `SELECT education_attainment, COUNT(*) AS count FROM residents r`;
-        const whereClauses = [];
+        const whereClauses = ["r.status = 'active'"];
 
         if (barangayId) {
           whereClauses.push(`r.barangay_id = $${paramIndex++}`);
@@ -178,7 +178,7 @@ class Statistics {
 
       // Standard approach for non-purok filtering
         query = `SELECT employment_status, COUNT(*) AS count FROM residents r`;
-        const whereClauses = [];
+        const whereClauses = ["r.status = 'active'"];
 
         if (barangayId) {
           whereClauses.push(`r.barangay_id = $${paramIndex++}`);
@@ -257,7 +257,7 @@ class Statistics {
           COUNT(*) FILTER (WHERE sex = 'female') AS total_female,
           COUNT(*) AS total_population
           FROM residents r`;
-        const whereClauses = [];
+        const whereClauses = ["r.status = 'active'"];
 
         if (barangayId) {
           whereClauses.push(`r.barangay_id = $${paramIndex++}`);
@@ -290,6 +290,7 @@ class Statistics {
         const monthWhereClauses = [
           `r.created_at >= DATE_TRUNC('month', CURRENT_DATE)`,
           `r.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`,
+          `r.status = 'active'`,
         ];
 
         if (barangayId) {
@@ -333,6 +334,7 @@ class Statistics {
             ) AS added_this_month
           FROM residents r
           JOIN barangays b ON b.id = r.barangay_id
+          WHERE r.status = 'active'
           GROUP BY b.id, b.barangay_name
           ORDER BY b.barangay_name
         `;
@@ -364,16 +366,12 @@ class Statistics {
       const values = [];
       let paramIndex = 1;
 
-      // Standard approach for non-purok filtering
-        // Join with classification_types to filter out deleted/inactive types
+      // Query classifications directly without requiring classification_types table to be seeded
         query = `
-          SELECT ct.name AS classification_type, COUNT(*) AS count
+          SELECT rc.classification_type, COUNT(*) AS count
           FROM resident_classifications rc
           JOIN residents r ON rc.resident_id = r.id
           JOIN barangays b ON r.barangay_id = b.id
-          JOIN classification_types ct ON ct.name = rc.classification_type
-            AND ct.municipality_id = b.municipality_id
-            AND ct.is_active = true
         `;
         const whereClauses = [];
 
@@ -384,12 +382,13 @@ class Statistics {
 
         // Exclude voters from general classifications
         whereClauses.push("rc.classification_type != 'voter'");
+        whereClauses.push("r.status = 'active'");
 
         if (whereClauses.length > 0) {
           query += " WHERE " + whereClauses.join(" AND ");
         }
 
-        query += " GROUP BY ct.name ORDER BY ct.name";
+        query += " GROUP BY rc.classification_type ORDER BY rc.classification_type";
 
       const result = await client.query(query, values);
       return result.rows;
@@ -429,6 +428,8 @@ class Statistics {
           whereClauses.push(`r.barangay_id = $${paramIndex++}`);
           values.push(barangayId);
         }
+
+        whereClauses.push("r.status = 'active'");
 
         if (whereClauses.length > 0) {
           query += " WHERE " + whereClauses.join(" AND ");
@@ -512,7 +513,8 @@ class Statistics {
         const residentsQuery = `
           SELECT COUNT(DISTINCT r.id) AS total_residents
           FROM residents r
-          WHERE r.id IN (
+          WHERE r.status = 'active'
+          AND r.id IN (
             SELECT h.house_head FROM households h ${brgyFilter}
             UNION
             SELECT fm.family_member
@@ -626,7 +628,7 @@ class Statistics {
         const whereClauses = [];
 
         // Always join with residents to get owner info
-        joins.push(`JOIN residents r ON p.owner_id = r.id`);
+        joins.push(`JOIN residents r ON p.owner_id = r.id AND r.status = 'active'`);
 
         if (barangayId) {
           whereClauses.push(`r.barangay_id = $${paramIndex++}`);
@@ -654,7 +656,7 @@ class Statistics {
         ];
 
         // Always join with residents to get owner info
-        monthJoins.push(`JOIN residents r ON p.owner_id = r.id`);
+        monthJoins.push(`JOIN residents r ON p.owner_id = r.id AND r.status = 'active'`);
 
         if (barangayId) {
           monthWhereClauses.push(`r.barangay_id = $${monthParamIndex++}`);
@@ -682,7 +684,7 @@ class Statistics {
               AND p.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
             ) AS added_this_month
           FROM pets p
-          JOIN residents r ON p.owner_id = r.id
+          JOIN residents r ON p.owner_id = r.id AND r.status = 'active'
           JOIN barangays b ON b.id = r.barangay_id
           GROUP BY b.id, b.barangay_name
           ORDER BY b.barangay_name
@@ -726,6 +728,7 @@ class Statistics {
           ) AS added_this_month
         FROM residents r
         JOIN barangays b ON b.id = r.barangay_id
+        WHERE r.status = 'active'
         GROUP BY b.id, b.barangay_name
         ORDER BY b.barangay_name
       `;

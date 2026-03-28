@@ -36,7 +36,7 @@ const InventoryStats = ({ inventories = [] }) => {
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6">
-      <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary">
+      <Card className="hover:shadow-lg transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Items</CardTitle>
           <Package className="h-4 w-4 text-muted-foreground" />
@@ -49,7 +49,7 @@ const InventoryStats = ({ inventories = [] }) => {
         </CardContent>
       </Card>
 
-      <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary">
+      <Card className="hover:shadow-lg transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Quantity</CardTitle>
           <BarChart3 className="h-4 w-4 text-muted-foreground" />

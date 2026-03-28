@@ -240,62 +240,6 @@ const ResidentIDCard = ({
           }
         `
       }} />
-             <div className="flex flex-row gap-2 mb-4 no-print">
-         <Button
-           variant="outline"
-           onClick={handlePrint}
-           disabled={printLoading || downloadImageLoading || downloadPDFLoading}
-           className="flex items-center gap-2 text-xs sm:text-sm"
-         >
-           {printLoading ? (
-             <>
-               <span className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></span>
-               <span className="hidden sm:inline">Processing...</span>
-             </>
-           ) : (
-             <>
-               <Printer className="h-4 w-4" />
-               <span className="hidden sm:inline">Print</span>
-             </>
-           )}
-         </Button>
-         <Button
-           variant="outline"
-           onClick={handleDownloadImage}
-           disabled={printLoading || downloadImageLoading || downloadPDFLoading}
-           className="flex items-center gap-2 text-xs sm:text-sm"
-         >
-           {downloadImageLoading ? (
-             <>
-               <span className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></span>
-               <span className="hidden sm:inline">Processing...</span>
-             </>
-           ) : (
-             <>
-               <Download className="h-4 w-4" />
-               <span className="hidden sm:inline">Download Image</span>
-             </>
-           )}
-         </Button>
-         <Button
-           variant="outline"
-           onClick={handleDownloadPDF}
-           disabled={printLoading || downloadImageLoading || downloadPDFLoading}
-           className="flex items-center gap-2 text-xs sm:text-sm"
-         >
-           {downloadPDFLoading ? (
-             <>
-               <span className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></span>
-               <span className="hidden sm:inline">Processing...</span>
-             </>
-           ) : (
-             <>
-               <FileText className="h-4 w-4" />
-               <span className="hidden sm:inline">Download PDF</span>
-             </>
-           )}
-         </Button>
-       </div>
 
       <div
         id="resident-id-printable"
@@ -330,6 +274,9 @@ const ResidentIDCard = ({
               className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
               style={{
                 zIndex: 0,
+                opacity: 0.25,
+                filter: 'blur(4px)',
+                transform: 'scale(1.05)',
                 imageRendering: 'crisp-edges',
                 WebkitImageRendering: 'crisp-edges',
                 MozImageRendering: 'crisp-edges',
@@ -480,6 +427,9 @@ const ResidentIDCard = ({
               className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
               style={{
                 zIndex: 0,
+                opacity: 0.25,
+                filter: 'blur(4px)',
+                transform: 'scale(1.05)',
                 imageRendering: 'crisp-edges',
                 WebkitImageRendering: 'crisp-edges',
                 MozImageRendering: 'crisp-edges',

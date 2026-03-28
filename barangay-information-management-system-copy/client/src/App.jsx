@@ -97,9 +97,6 @@ const SystemManagementPage = React.lazy(() =>
 const RegistrationApprovalsPage = React.lazy(() =>
   import("@/pages/admin/shared/RegistrationApprovalsPage")
 );
-const BulkIDPage = React.lazy(() =>
-  import("@/pages/admin/municipality/BulkIDPage")
-);
 const GeoSetupPage = React.lazy(() =>
   import("@/pages/admin/municipality/GeoSetupPage")
 );
@@ -220,9 +217,8 @@ function AdminRoutesContent() {
                      <Route path="households" element={<HouseholdsPage />} />
                      <Route path="pets" element={<PetsPage />} />
                      <Route path="barangays" element={<BarangaysPage />} />
-                     {/* New: Registration approvals + bulk ID */}
-                     <Route path="registrations" element={<RegistrationApprovalsPage />} />
-                     <Route path="bulk-id" element={<BulkIDPage />} />
+                     {/* Registration approvals are barangay-only */}
+                     <Route path="bulk-id" element={<Navigate to="/admin/municipality/settings" replace />} />
                      {/* New: Certificate template management (AC4) */}
                      <Route path="certificate-templates" element={<CertificateTemplatesPage />} />
                      <Route path="certificate-templates/:id" element={<TemplateEditorPage />} />

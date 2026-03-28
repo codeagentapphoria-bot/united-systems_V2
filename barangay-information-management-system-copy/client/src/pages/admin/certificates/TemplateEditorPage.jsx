@@ -7,13 +7,6 @@
  * Routes:
  *   /admin/municipality/certificate-templates/new   → create new template
  *   /admin/municipality/certificate-templates/:id   → edit existing template
- *
- * Features:
- *   - Form fields: name, certificate type, description
- *   - Large textarea HTML editor (monospace)
- *   - Placeholder reference panel (click to insert token at cursor)
- *   - HTML preview in modal (shows raw HTML, placeholders unresolved)
- *   - Save (POST) or update (PUT)
  */
 
 import React, { useState, useRef, useEffect } from "react";
@@ -26,12 +19,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ChevronLeft, Eye, Save } from "lucide-react";
 
 // ── Certificate type options ──────────────────────────────────────────────────
 const CERTIFICATE_TYPES = [
@@ -51,25 +53,29 @@ const PLACEHOLDER_GROUPS = [
   {
     group: "Resident",
     tokens: [
-      { token: "resident.firstName",    desc: "First name" },
-      { token: "resident.middleName",   desc: "Middle name" },
-      { token: "resident.lastName",     desc: "Last name" },
-      { token: "resident.fullName",     desc: "Full name (auto-joined)" },
-      { token: "resident.birthdate",    desc: "Date of birth (long)" },
-      { token: "resident.age",          desc: "Age (computed)" },
-      { token: "resident.sex",          desc: "Sex" },
-      { token: "resident.civilStatus",  desc: "Civil status" },
-      { token: "resident.address",      desc: "Street + barangay" },
-      { token: "resident.residentId",   desc: "Resident ID (RES-YYYY-NNNNNNN)" },
-      { token: "resident.nationality",  desc: "Nationality" },
-      { token: "resident.occupation",   desc: "Occupation" },
+      { token: "resident.firstName",   desc: "First name" },
+      { token: "resident.middleName",  desc: "Middle name" },
+      { token: "resident.lastName",    desc: "Last name" },
+      { token: "resident.fullName",    desc: "Full name (auto-joined)" },
+      { token: "resident.birthdate",   desc: "Date of birth (long)" },
+      { token: "resident.age",         desc: "Age (computed)" },
+      { token: "resident.sex",         desc: "Sex" },
+      { token: "resident.civilStatus", desc: "Civil status" },
+      { token: "resident.address",     desc: "Street + barangay" },
+      { token: "resident.residentId",  desc: "Resident ID (RES-YYYY-NNNNNNN)" },
+      { token: "resident.nationality", desc: "Nationality" },
+      { token: "resident.religion",    desc: "Religion" },
+      { token: "resident.occupation",  desc: "Occupation" },
+      { token: "resident.extensionName", desc: "Extension name (Jr., Sr., III…)" },
     ],
   },
   {
     group: "Barangay",
     tokens: [
-      { token: "barangay.name", desc: "Barangay name" },
-      { token: "barangay.code", desc: "Barangay PSGC code" },
+      { token: "barangay.name",          desc: "Barangay name" },
+      { token: "barangay.code",          desc: "Barangay PSGC code" },
+      { token: "barangay.logoImg",       desc: "Barangay logo <img> tag (80×80px)" },
+      { token: "barangay.backgroundImg", desc: "Full-page background image layer (blurred, fixed)" },
     ],
   },
   {
@@ -78,6 +84,7 @@ const PLACEHOLDER_GROUPS = [
       { token: "municipality.name",     desc: "Municipality / city name" },
       { token: "municipality.province", desc: "Province" },
       { token: "municipality.region",   desc: "Region" },
+      { token: "municipality.logoImg",  desc: "Municipality logo <img> tag (80×80px)" },
     ],
   },
   {
@@ -106,92 +113,144 @@ const PLACEHOLDER_GROUPS = [
   },
 ];
 
-// ── Default template for new certificates ────────────────────────────────────
+// ── Default template ──────────────────────────────────────────────────────────
 const DEFAULT_HTML = `<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
+  <title>Barangay Clearance</title>
   <style>
+    @media print {
+      @page {
+        size: Letter;
+        margin: 0;
+      }
+      * {
+        -webkit-print-color-adjust: exact !important;
+        color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Times New Roman', serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 1in;
       font-size: 12pt;
-      margin: 40px 60px;
-      color: #000;
     }
-    .header { text-align: center; margin-bottom: 24px; }
-    .header p { margin: 2px 0; }
-    .doc-title {
-      font-size: 15pt;
+
+    .logo-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 100px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .header p {
+      margin: 3px 0;
+      font-style: italic;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 16pt;
       font-weight: bold;
-      text-transform: uppercase;
+      margin: 40px 0;
+      text-decoration: underline;
       letter-spacing: 1px;
-      margin: 8px 0 4px;
     }
-    .body-text {
-      text-indent: 2em;
-      line-height: 1.9;
-      margin: 16px 0;
+
+    .body {
       text-align: justify;
+      margin: 40px 0;
+      line-height: 1.8;
     }
-    .signature-block { margin-top: 64px; }
-    .sig-line {
-      display: inline-block;
-      min-width: 220px;
-      border-top: 1px solid #000;
-      text-align: center;
-      padding-top: 4px;
+
+    .body p {
+      text-indent: 40px;
+      margin: 0 0 16px 0;
+    }
+
+    .bottom {
+      margin-top: 60px;
+      display: flex;
+      flex-direction: column;
+      min-height: 300px;
+    }
+
+    .date-line {
+      text-align: left;
+      margin-bottom: 20px;
+    }
+
+    .signature-line {
+      text-align: right;
+      margin-top: auto;
+    }
+
+    .signature-name {
       font-weight: bold;
-      text-transform: uppercase;
+      text-decoration: underline;
+      margin-bottom: 5px;
     }
-    .sig-title { font-size: 10pt; color: #444; }
-    .footer {
-      margin-top: 40px;
-      font-size: 9pt;
-      color: #666;
-      text-align: center;
+
+    .signature-title {
+      margin-bottom: 3px;
     }
   </style>
 </head>
 <body>
 
+  {{ barangay.backgroundImg }}
+
   <div class="header">
-    <p>Republic of the Philippines</p>
-    <p>Province of {{ municipality.province }}</p>
-    <p><strong>{{ municipality.name }}</strong></p>
-    <p>Barangay {{ barangay.name }}</p>
-    <p class="doc-title">Barangay Clearance</p>
-    <p style="font-size:10pt; color:#555;">No. ___________</p>
+    <div class="logo-row">
+      {{ municipality.logoImg }}
+      <div style="text-align: center;">
+        <p>Republic of the Philippines</p>
+        <p>Province of {{ municipality.province }}</p>
+        <p>Municipality of {{ municipality.name }}</p>
+        <p>BARANGAY {{ barangay.name }}</p>
+      </div>
+      {{ barangay.logoImg }}
+    </div>
   </div>
 
-  <p><strong>TO WHOM IT MAY CONCERN:</strong></p>
+  <div class="title">BARANGAY CLEARANCE</div>
 
-  <p class="body-text">
-    This is to certify that <strong>{{ resident.fullName }}</strong>,
-    {{ resident.age }} years old, {{ resident.civilStatus }},
-    a resident of {{ resident.address }}, {{ municipality.name }},
-    Province of {{ municipality.province }}, is personally known to this
-    office and is a person of good moral character and has no pending
-    criminal record in this barangay.
-  </p>
-
-  <p class="body-text">
-    This certification is issued upon the request of the above-named person
-    for <strong>{{ request.purpose }}</strong> and for whatever legal purpose
-    it may serve.
-  </p>
-
-  <p class="body-text">
-    Issued this <strong>{{ request.date }}</strong> at Barangay
-    {{ barangay.name }}, {{ municipality.name }}.
-  </p>
-
-  <div class="signature-block">
-    <p class="sig-line">{{ officials.captain }}</p>
-    <p class="sig-title">Punong Barangay</p>
+  <div class="body">
+    <p>
+      This is to certify that <strong>{{ resident.fullName }}</strong>,
+      {{ resident.civilStatus }}, {{ resident.sex }}, born on {{ resident.birthdate }},
+      and a resident of <strong>{{ resident.address }}</strong>,
+      Barangay <strong>{{ barangay.name }}</strong>,
+      Municipality of <strong>{{ municipality.name }}</strong>,
+      Province of <strong>{{ municipality.province }}</strong>,
+      is known to be a person of good standing and without any derogatory record
+      filed in this barangay.
+    </p>
+    <p>
+      This clearance is issued upon the request of the above-named individual for
+      <strong><span style="text-transform: uppercase;">{{ request.purpose }}</span></strong>.
+    </p>
   </div>
 
-  <div class="footer">
-    <p>Reference No.: {{ request.referenceNumber }}</p>
+  <div class="bottom">
+    <div class="date-line">
+      Issued this {{ request.date }} at Barangay {{ barangay.name }},
+      {{ municipality.name }} for whatever legal purpose this may serve.
+    </div>
+    <div class="signature-line">
+      <div class="signature-name">{{ officials.captain }}</div>
+      <div class="signature-title">Punong Barangay</div>
+    </div>
   </div>
 
 </body>
@@ -218,13 +277,10 @@ export default function TemplateEditorPage() {
   });
 
   // ── Load template for editing ────────────────────────────────────────────
-  // onSuccess/onError removed from useQuery in react-query v5 — use useEffect instead.
   const { data: templateData, isLoading: isLoadingTemplate, isError: isTemplateError } = useQuery({
     queryKey: ["certificate-template", id],
     queryFn: () =>
-      apiClient
-        .get(`/certificates/templates/${id}`)
-        .then((r) => r.data.data),
+      apiClient.get(`/certificates/templates/${id}`).then((r) => r.data.data),
     enabled: !isNew,
     retry: false,
   });
@@ -294,9 +350,8 @@ export default function TemplateEditorPage() {
     if (!el) return;
     const start    = el.selectionStart;
     const end      = el.selectionEnd;
-    const current  = form.htmlContent;
     const inserted = `{{ ${token} }}`;
-    const next     = current.slice(0, start) + inserted + current.slice(end);
+    const next     = form.htmlContent.slice(0, start) + inserted + form.htmlContent.slice(end);
     setForm((f) => ({ ...f, htmlContent: next }));
     requestAnimationFrame(() => {
       el.selectionStart = start + inserted.length;
@@ -305,7 +360,6 @@ export default function TemplateEditorPage() {
     });
   };
 
-  // ── Loading state (edit mode) ─────────────────────────────────────────────
   if (!isNew && isLoadingTemplate) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
@@ -318,197 +372,206 @@ export default function TemplateEditorPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-[1400px]">
+    <div className="space-y-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-500 hover:text-gray-700 -ml-2 mb-1 gap-1"
             onClick={() => navigate("/admin/municipality/certificate-templates")}
-            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-1"
           >
-            ← Certificate Templates
-          </button>
+            <ChevronLeft className="h-4 w-4" /> Certificate Templates
+          </Button>
           <h1 className="text-xl font-bold text-gray-800">
             {isNew ? "New Certificate Template" : "Edit Template"}
           </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {isNew
+              ? "Create an HTML template for generating barangay certificates."
+              : `Editing: ${form.name || "…"}`}
+          </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <Button
             variant="outline"
+            className="gap-2"
             onClick={() => setPreviewOpen(true)}
             disabled={!form.htmlContent.trim()}
           >
-            Preview HTML
+            <Eye className="h-4 w-4" /> Preview
           </Button>
           <Button
+            className="gap-2"
             onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isLoading || !canSave}
+            disabled={saveMutation.isPending || !canSave}
           >
-            {saveMutation.isLoading
-              ? "Saving…"
-              : isNew
-              ? "Create Template"
-              : "Save Changes"}
+            <Save className="h-4 w-4" />
+            {saveMutation.isPending ? "Saving…" : isNew ? "Create Template" : "Save Changes"}
           </Button>
         </div>
       </div>
 
-      {/* Two-column layout: editor (left) + reference panel (right) */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      {/* Two-column layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
 
-        {/* ── Left: metadata + HTML editor ─────────────────────────────── */}
+        {/* ── Left: metadata + HTML editor ──────────────────────────────── */}
         <div className="xl:col-span-2 space-y-4">
 
-          {/* Metadata fields */}
-          <div className="bg-white border rounded-xl p-4 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="tpl-name">Template Name *</Label>
-                <Input
-                  id="tpl-name"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Barangay Clearance 2025"
-                />
+          {/* Metadata */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-gray-700">Template Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="tpl-name">
+                    Template Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="tpl-name"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Barangay Clearance 2025"
+                  />
+                </div>
+
+                {isNew ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tpl-type">
+                      Certificate Type <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={form.certificateType}
+                      onValueChange={(v) => setForm((f) => ({ ...f, certificateType: v }))}
+                    >
+                      <SelectTrigger id="tpl-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CERTIFICATE_TYPES.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-400">
+                      Only one active template per type is allowed per municipality.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label>Certificate Type</Label>
+                    <div className="h-10 flex items-center border rounded-md px-3 bg-gray-50 text-sm text-gray-600">
+                      {CERTIFICATE_TYPES.find((t) => t.value === form.certificateType)?.label || form.certificateType}
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      Certificate type cannot be changed after creation.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {isNew && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="tpl-type">Certificate Type *</Label>
-                  <select
-                    id="tpl-type"
-                    value={form.certificateType}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, certificateType: e.target.value }))
-                    }
-                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    {CERTIFICATE_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-400">
-                    Only one active template per type is allowed per municipality.
-                  </p>
-                </div>
-              )}
-
-              {!isNew && (
-                <div className="space-y-1.5">
-                  <Label>Certificate Type</Label>
-                  <p className="text-sm text-gray-600 h-10 flex items-center border rounded-md px-3 bg-gray-50">
-                    {CERTIFICATE_TYPES.find((t) => t.value === form.certificateType)?.label ||
-                      form.certificateType}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    Certificate type cannot be changed after creation.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="tpl-desc">Description (optional)</Label>
-              <Input
-                id="tpl-desc"
-                value={form.description}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, description: e.target.value }))
-                }
-                placeholder="Brief notes about this template version"
-              />
-            </div>
-          </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tpl-desc">Description <span className="text-gray-400 font-normal">(optional)</span></Label>
+                <Input
+                  id="tpl-desc"
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Brief notes about this template version"
+                />
+              </div>
+            </CardContent>
+          </Card>
 
           {/* HTML editor */}
-          <div className="bg-white border rounded-xl p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="tpl-html">HTML Content *</Label>
-              <span className="text-xs text-gray-400">
-                {form.htmlContent.length.toLocaleString()} chars
-              </span>
-            </div>
-            <p className="text-xs text-gray-500">
-              Write your certificate as HTML.
-              Use{" "}
-              <code className="bg-gray-100 px-1 rounded font-mono">
-                {"{{ token }}"}
-              </code>{" "}
-              placeholders — click any token in the reference panel to insert it
-              at the cursor position.
-            </p>
-            <Textarea
-              id="tpl-html"
-              ref={textareaRef}
-              value={form.htmlContent}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, htmlContent: e.target.value }))
-              }
-              className="font-mono text-xs min-h-[520px] resize-y leading-relaxed"
-              spellCheck={false}
-            />
-          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm text-gray-700">
+                  HTML Content <span className="text-red-500">*</span>
+                </CardTitle>
+                <span className="text-xs text-gray-400">
+                  {form.htmlContent.length.toLocaleString()} chars
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Write your certificate as HTML. Use{" "}
+                <code className="bg-gray-100 px-1 rounded font-mono">{"{{ token }}"}</code>{" "}
+                placeholders — click any token in the reference panel to insert it at the cursor.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                id="tpl-html"
+                ref={textareaRef}
+                value={form.htmlContent}
+                onChange={(e) => setForm((f) => ({ ...f, htmlContent: e.target.value }))}
+                className="font-mono text-xs min-h-[520px] resize-y leading-relaxed"
+                spellCheck={false}
+              />
+            </CardContent>
+          </Card>
         </div>
 
-        {/* ── Right: placeholder reference panel ───────────────────────── */}
+        {/* ── Right: placeholder reference panel ────────────────────────── */}
         <div className="xl:col-span-1">
-          <div className="bg-white border rounded-xl p-4 sticky top-4">
-            <p className="font-semibold text-gray-700 text-sm mb-1">
-              Placeholder Reference
-            </p>
-            <p className="text-xs text-gray-500 mb-3">
-              Click a token to insert it at the cursor position in the HTML
-              editor.
-            </p>
-
-            <div className="space-y-5 max-h-[680px] overflow-y-auto pr-1">
-              {PLACEHOLDER_GROUPS.map((group) => (
-                <div key={group.group}>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                    {group.group}
-                  </p>
-                  <div className="space-y-0.5">
-                    {group.tokens.map((t) => (
-                      <button
-                        key={t.token}
-                        type="button"
-                        onClick={() => insertToken(t.token)}
-                        className="w-full text-left flex items-start gap-2 p-1.5 rounded hover:bg-blue-50 transition-colors group"
-                        title={`Insert {{ ${t.token} }}`}
-                      >
-                        <code className="text-xs bg-gray-100 group-hover:bg-blue-100 px-1.5 py-0.5 rounded text-blue-700 font-mono shrink-0 leading-tight">
-                          {`{{ ${t.token} }}`}
-                        </code>
-                        <span className="text-xs text-gray-500 leading-tight mt-0.5">
-                          {t.desc}
-                        </span>
-                      </button>
-                    ))}
+          <Card className="sticky top-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-gray-700">Placeholder Reference</CardTitle>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Click a token to insert it at the cursor position in the HTML editor.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-5 max-h-[640px] overflow-y-auto pr-1">
+                {PLACEHOLDER_GROUPS.map((group) => (
+                  <div key={group.group}>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                      {group.group}
+                    </p>
+                    <div className="space-y-0.5">
+                      {group.tokens.map((t) => (
+                        <button
+                          key={t.token}
+                          type="button"
+                          onClick={() => insertToken(t.token)}
+                          className="w-full text-left flex items-start gap-2 p-1.5 rounded hover:bg-blue-50 transition-colors group"
+                          title={`Insert {{ ${t.token} }}`}
+                        >
+                          <code className="text-xs bg-gray-100 group-hover:bg-blue-100 px-1.5 py-0.5 rounded text-blue-700 font-mono shrink-0 leading-tight">
+                            {`{{ ${t.token} }}`}
+                          </code>
+                          <span className="text-xs text-gray-500 leading-tight mt-0.5">
+                            {t.desc}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      {/* ── HTML Preview modal ──────────────────────────────────────────────── */}
+      {/* HTML Preview dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl" style={{ height: "85vh", display: "flex", flexDirection: "column" }}>
+        <DialogContent
+          className="max-w-4xl"
+          style={{ height: "85vh", display: "flex", flexDirection: "column" }}
+        >
           <DialogHeader>
             <DialogTitle>HTML Preview</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-gray-500 shrink-0">
             Showing the raw HTML template.{" "}
-            <code className="bg-gray-100 px-1 rounded font-mono">
-              {"{{ placeholders }}"}
-            </code>{" "}
-            will be replaced with real data when a certificate is actually
-            generated.
+            <code className="bg-gray-100 px-1 rounded font-mono">{"{{ placeholders }}"}</code>{" "}
+            will be replaced with real data when a certificate is generated.
           </p>
           <iframe
             srcDoc={form.htmlContent}

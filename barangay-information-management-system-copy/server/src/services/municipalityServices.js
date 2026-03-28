@@ -226,7 +226,7 @@ class Municipality {
       const XLSX = await import("xlsx");
 
       // Build the WHERE clause based on filters
-      let whereConditions = ["b.municipality_id = $1"];
+      let whereConditions = ["b.municipality_id = $1", "r.status = 'active'"];
       let queryParams = [municipalityId];
       let paramIndex = 2;
 
@@ -430,7 +430,7 @@ class Municipality {
       const XLSX = await import("xlsx");
 
       // Build the WHERE clause based on filters
-      let whereConditions = ["b.municipality_id = $1"];
+      let whereConditions = ["b.municipality_id = $1", "r.status = 'active'"];
       let queryParams = [municipalityId];
       let paramIndex = 2;
 

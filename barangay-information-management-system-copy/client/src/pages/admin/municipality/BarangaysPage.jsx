@@ -78,7 +78,6 @@ import { barangaySchema } from "@/utils/barangaySchema";
 import { sendSetupEmail } from "@/features/municipality/barangays/sendSetupEmail";
 import { buildSetupLink } from "@/features/municipality/barangays/buildSetupLink";
 import { mockBarangays } from "@/features/municipality/barangays/mockBarangays";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
 import RefreshControls from "@/components/common/RefreshControls";
 import { useCrudRefresh } from "@/hooks/useCrudRefresh";
 import { useUnifiedAutoRefresh } from "@/hooks/useUnifiedAutoRefresh";
@@ -552,7 +551,6 @@ const BarangaysPage = () => {
     currentPage * itemsPerPage
   );
 
-  // Fetch stats on demand (when user clicks "Load Stats")
   const fetchBarangayStats = async (barangayId) => {
     setBarangayStats(prev => ({ ...prev, [barangayId]: { loading: true } }));
     try {
@@ -578,57 +576,16 @@ const BarangaysPage = () => {
     }
   };
 
-  /*
-  // Old automatic stats fetch - disabled to prevent rate limiting
+  // Auto-fetch stats sequentially when barangays load
   useEffect(() => {
-    const fetchStats = async () => {
-      const statsPromises = barangays.map(async (barangay) => {
-        try {
-          const [householdStats, populationStats, familyStats, petStats] =
-            await Promise.all([
-              api.get("/statistics/total-households", {
-                params: { barangayId: barangay.id },
-              }),
-              api.get("/statistics/total-population", {
-                params: { barangayId: barangay.id },
-              }),
-              api.get("/statistics/total-families", {
-                params: { barangayId: barangay.id },
-              }),
-              api.get("/statistics/total-registered-pets", {
-                params: { barangayId: barangay.id },
-              }),
-            ]);
-          return {
-            barangayId: barangay.id,
-            households: householdStats.data.data?.total_households || 0,
-            residents:
-              parseInt(populationStats.data.data?.total_population) || 0,
-            families: familyStats.data.data?.total_families || 0,
-            pets: petStats.data.data?.total_pets || 0,
-            addedThisMonth: householdStats.data.data?.added_this_month || 0,
-          };
-        } catch (err) {
-          return {
-            barangayId: barangay.id,
-            households: 0,
-            residents: 0,
-            families: 0,
-            pets: 0,
-            addedThisMonth: 0,
-          };
-        }
-      });
-      const statsResults = await Promise.all(statsPromises);
-      const statsMap = {};
-      statsResults.forEach((stat) => {
-        statsMap[stat.barangayId] = stat;
-      });
-      setBarangayStats(statsMap);
+    if (!barangays.length) return;
+    const fetchAllStats = async () => {
+      for (const barangay of barangays) {
+        await fetchBarangayStats(barangay.id);
+      }
     };
-    if (barangays.length) fetchStats();
+    fetchAllStats();
   }, [barangays]);
-  */
 
   // Aggregate stats
   const totalHouseholds = Object.values(barangayStats).reduce(
@@ -678,155 +635,104 @@ const BarangaysPage = () => {
     setOpenDistribution((prev) => !prev);
   };
 
-  if (!isBarangayLoaded) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-7xl mx-auto">
-          <LoadingSpinner
-            message="Loading barangay data..."
-            variant="default"
-            size="lg"
-          />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
-              Barangays Management
-            </h1>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1">
-              Manage and track all barangays
-            </p>
+      <div className="space-y-5">
+        {!isBarangayLoaded && (
+          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+            Loading barangay data…
           </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            <RefreshControls 
-              variant="outline"
-              size="sm"
+        )}
+        {isBarangayLoaded && (<>
+        {/* Header Section */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Barangays Management</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Manage and track all barangays</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <RefreshControls variant="outline" size="sm" />
+          </div>
+        </div>
+
+        {/* Filters and Controls */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search barangays…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-9 pl-9"
             />
           </div>
-        </div>
-
-        {/* Enhanced Filters and Controls */}
-        <div className="space-y-4">
-          {/* Search and View Controls */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search barangays..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-[140px] text-xs sm:text-sm">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-full sm:w-[140px] text-xs sm:text-sm">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name">Name</SelectItem>
-                  <SelectItem value="households">Households</SelectItem>
-                  <SelectItem value="residents">Residents</SelectItem>
-                  <SelectItem value="pets">Pets</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                className="text-xs sm:text-sm"
-              >
-                {sortOrder === "asc" ? (
-                  <SortAsc className="h-3 w-3 sm:h-4 sm:w-4" />
-                ) : (
-                  <SortDesc className="h-3 w-3 sm:h-4 sm:w-4" />
-                )}
-              </Button>
-              <div className="flex border rounded-md">
-                <Button
-                  variant={viewMode === "grid" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
-                  className="text-xs sm:text-sm rounded-r-none"
-                >
-                  <Grid3X3 className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "table" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("table")}
-                  className="text-xs sm:text-sm rounded-l-none"
-                >
-                  <List className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Summary Stats */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-            <div className="flex items-center gap-2">
-              <span className="inline-block bg-blue-100 text-blue-800 text-xs sm:text-sm font-semibold px-3 py-1 rounded-full">
-                {filteredAndSortedBarangays.length} Barangay{filteredAndSortedBarangays.length !== 1 ? "s" : ""}
-              </span>
-              <span className="text-gray-500 text-xs sm:text-sm">
-                {filterStatus !== "all" && `(${filterStatus})`}
-              </span>
-            </div>
-            <div className="flex flex-row gap-2 sm:gap-4 text-xs sm:text-sm">
-              <span className="text-gray-600">
-                Total Households:{" "}
-                <span className="font-semibold">{totalHouseholds}</span>
-              </span>
-              <span className="text-gray-600">
-                Total Residents:{" "}
-                <span className="font-semibold">{totalResidents}</span>
-              </span>
-              <span className="text-gray-600">
-                New This Month:{" "}
-                <span className="font-semibold">{totalAddedThisMonth}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Compact Distribution Section */}
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Distribution Overview</h3>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="h-9 w-36">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="h-9 w-36">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="households">Households</SelectItem>
+              <SelectItem value="residents">Residents</SelectItem>
+              <SelectItem value="pets">Pets</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             size="sm"
-            onClick={handleAccordionToggle}
-            className="text-xs sm:text-sm"
+            onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
           >
+            {sortOrder === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+          </Button>
+          <div className="flex border rounded-md">
+            <Button
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("grid")}
+              className="rounded-r-none"
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className="rounded-l-none"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+          <span className="text-sm text-gray-400 ml-auto">
+            {filteredAndSortedBarangays.length} barangay{filteredAndSortedBarangays.length !== 1 ? "s" : ""}
+            {filterStatus !== "all" && ` · ${filterStatus}`}
+          </span>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+          <span>Total Households: <span className="font-semibold text-gray-800">{totalHouseholds}</span></span>
+          <span>Total Residents: <span className="font-semibold text-gray-800">{totalResidents}</span></span>
+          <span>New This Month: <span className="font-semibold text-gray-800">{totalAddedThisMonth}</span></span>
+        </div>
+
+        {/* Distribution Overview */}
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-semibold text-gray-800">Distribution Overview</h3>
+          <Button variant="outline" size="sm" onClick={handleAccordionToggle} className="gap-1">
             {openDistribution ? (
-              <>
-                <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                Hide Details
-              </>
+              <><ChevronUp className="h-4 w-4" />Hide</>
             ) : (
-              <>
-                <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                Show Details
-              </>
+              <><ChevronDown className="h-4 w-4" />Show</>
             )}
           </Button>
         </div>
@@ -834,7 +740,7 @@ const BarangaysPage = () => {
         {openDistribution && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
             {/* Residents Distribution */}
-            <Card className="bg-white shadow-sm border-0 h-fit hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
+            <Card className="bg-white shadow-sm border-0 h-fit hover:shadow-lg transition-all duration-300">
               <CardHeader className="pb-2">
                 <div className="flex items-center space-x-2 text-base sm:text-lg">
                   <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
@@ -871,7 +777,7 @@ const BarangaysPage = () => {
             </Card>
 
             {/* Households Distribution */}
-            <Card className="bg-white shadow-sm border-0 h-fit hover:shadow-lg transition-all duration-300 border-l-4 border-l-green-500">
+            <Card className="bg-white shadow-sm border-0 h-fit hover:shadow-lg transition-all duration-300">
               <CardHeader className="pb-2">
                 <div className="flex items-center space-x-2 text-base sm:text-lg">
                   <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
@@ -908,7 +814,7 @@ const BarangaysPage = () => {
             </Card>
 
             {/* New This Month Distribution */}
-            <Card className="bg-white shadow-sm border-0 h-fit hover:shadow-lg transition-all duration-300 border-l-4 border-l-orange-500">
+            <Card className="bg-white shadow-sm border-0 h-fit hover:shadow-lg transition-all duration-300">
               <CardHeader className="pb-2">
                 <div className="flex items-center space-x-2 text-base sm:text-lg">
                   <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
@@ -945,7 +851,7 @@ const BarangaysPage = () => {
             </Card>
 
             {/* Pets Distribution */}
-            <Card className="bg-white shadow-sm border-0 h-fit hover:shadow-lg transition-all duration-300 border-l-4 border-l-purple-500">
+            <Card className="bg-white shadow-sm border-0 h-fit hover:shadow-lg transition-all duration-300">
               <CardHeader className="pb-2">
                 <div className="flex items-center space-x-2 text-base sm:text-lg">
                   <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
@@ -1031,35 +937,30 @@ const BarangaysPage = () => {
           </TabsList>
 
           <TabsContent value="list" className="space-y-4">
-            {/* Interactive tip for clickable list */}
-            <div className="flex items-center justify-center gap-2 py-2">
-              <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[#2196F3]/10 text-[#2196F3]">
-                <Eye className="h-4 w-4" />
-              </span>
-              <span className="text-xs sm:text-sm text-gray-600 font-medium">
-                Tap or click any barangay card to explore its details.
-              </span>
-            </div>
+            {/* Interactive tip */}
+            <p className="text-xs text-gray-400 text-center">
+              Click any barangay to view its details.
+            </p>
             {/* Barangay List - Grid or Table View */}
             {viewMode === "grid" ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {paginatedBarangays.map((barangay) => (
-                  <Card key={barangay.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                  <Card key={barangay.id} className="hover:shadow-md transition-shadow cursor-pointer">
                     <div onClick={() => {
                       setSelectedBarangay(barangay);
                       setIsAdminDialogOpen(true);
                     }}>
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm sm:text-base truncate">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <CardTitle className="text-sm font-semibold truncate">
                             {barangay.barangay_name}
                           </CardTitle>
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs shrink-0">
                             Active
                           </Badge>
                         </div>
                       </CardHeader>
-                      <CardContent className="space-y-3 !pt-0">
+                      <CardContent className="space-y-3 pt-0">
                         <div className="text-xs text-gray-500">
                           <span className="font-medium">Code:</span> {barangay.barangay_code}
                         </div>
@@ -1071,13 +972,13 @@ const BarangaysPage = () => {
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="text-center p-2 bg-blue-50 rounded">
                             <div className="font-semibold text-blue-700">
-                              {barangayStats[barangay.id]?.households || 0}
+                              {barangayStats[barangay.id]?.loading ? "…" : (barangayStats[barangay.id]?.households ?? 0)}
                             </div>
                             <div className="text-blue-600">Households</div>
                           </div>
                           <div className="text-center p-2 bg-green-50 rounded">
                             <div className="font-semibold text-green-700">
-                              {barangayStats[barangay.id]?.residents || 0}
+                              {barangayStats[barangay.id]?.loading ? "…" : (barangayStats[barangay.id]?.residents ?? 0)}
                             </div>
                             <div className="text-green-600">Residents</div>
                           </div>
@@ -1088,55 +989,45 @@ const BarangaysPage = () => {
                 ))}
               </div>
             ) : (
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg sm:text-xl">Barangay List</CardTitle>
-                </CardHeader>
-                <CardContent>
+              <Card>
+                <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-xs sm:text-sm">Name</TableHead>
-                        <TableHead className="text-xs sm:text-sm">Code</TableHead>
-                        <TableHead className="text-xs sm:text-sm">Admin</TableHead>
-                        <TableHead className="text-xs sm:text-sm">Households</TableHead>
-                        <TableHead className="text-xs sm:text-sm">Residents</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Code</TableHead>
+                        <TableHead>Admin</TableHead>
+                        <TableHead>Households</TableHead>
+                        <TableHead>Residents</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {paginatedBarangays.map((barangay) => (
-                        <TableRow className="cursor-pointer" key={barangay.id} onClick={() => {
-                          setSelectedBarangay(barangay);
-                          setIsAdminDialogOpen(true);
-                        }}>
-                          <TableCell className="text-xs sm:text-sm font-medium">
-                            {barangay.barangay_name}
-                          </TableCell>
-                          <TableCell className="text-xs sm:text-sm">
-                            {barangay.barangay_code}
-                          </TableCell>
-                          <TableCell className="text-xs sm:text-sm">
-                            {barangay.email || "-"}
-                          </TableCell>
-                          <TableCell className="text-xs sm:text-sm">
+                        <TableRow
+                          className="cursor-pointer"
+                          key={barangay.id}
+                          onClick={() => {
+                            setSelectedBarangay(barangay);
+                            setIsAdminDialogOpen(true);
+                          }}
+                        >
+                          <TableCell className="font-medium">{barangay.barangay_name}</TableCell>
+                          <TableCell>{barangay.barangay_code}</TableCell>
+                          <TableCell>{barangay.email || "—"}</TableCell>
+                          <TableCell>
                             {barangayStats[barangay.id]?.loading ? (
-                              <span className="text-muted-foreground">Loading...</span>
-                            ) : barangayStats[barangay.id]?.households !== undefined ? (
-                              barangayStats[barangay.id].households
+                              <span className="text-muted-foreground text-xs">…</span>
                             ) : (
-                              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); fetchBarangayStats(barangay.id); }} className="h-6 text-xs">Load</Button>
+                              barangayStats[barangay.id]?.households ?? "—"
                             )}
                           </TableCell>
-                          <TableCell className="text-xs sm:text-sm">
+                          <TableCell>
                             {barangayStats[barangay.id]?.loading ? (
-                              <span className="text-muted-foreground">...</span>
-                            ) : barangayStats[barangay.id]?.residents !== undefined ? (
-                              barangayStats[barangay.id].residents
+                              <span className="text-muted-foreground text-xs">…</span>
                             ) : (
-                              <span className="text-muted-foreground">-</span>
+                              barangayStats[barangay.id]?.residents ?? "—"
                             )}
                           </TableCell>
-
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1144,13 +1035,13 @@ const BarangaysPage = () => {
                 </CardContent>
               </Card>
             )}
-            {/* Pagination Controls - applies to both grid and table views */}
+            {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <div className="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedBarangays.length)} of {filteredAndSortedBarangays.length} barangays
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-4 py-3 border-t">
+                <div className="text-sm text-gray-500">
+                  Page {currentPage} of {totalPages}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1159,19 +1050,6 @@ const BarangaysPage = () => {
                   >
                     Previous
                   </Button>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setCurrentPage(page)}
-                        className="w-8 h-8 p-0"
-                      >
-                        {page}
-                      </Button>
-                    ))}
-                  </div>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1186,22 +1064,22 @@ const BarangaysPage = () => {
           </TabsContent>
 
           <TabsContent value="officials" className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {paginatedBarangays.map((barangay) => (
-                <Card key={barangay.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <span className="truncate">{barangay.barangay_name}</span>
+                <Card key={barangay.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-sm font-semibold truncate">{barangay.barangay_name}</CardTitle>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => fetchBarangayOfficials(barangay.id)}
                         disabled={officialsLoading[barangay.id]}
-                        className="text-xs sm:text-sm"
+                        className="shrink-0 text-xs"
                       >
-                        {officialsLoading[barangay.id] ? "Loading..." : "Load Officials"}
+                        {officialsLoading[barangay.id] ? "Loading…" : "Load Officials"}
                       </Button>
-                    </CardTitle>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {officialsLoading[barangay.id] ? (
@@ -1825,6 +1703,7 @@ const BarangaysPage = () => {
           </DialogContent>
         </Dialog>
 
+        </>)}
       </div>
     </>
   );

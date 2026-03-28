@@ -25,10 +25,22 @@ import {
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 
+const SERVER_URL   = import.meta.env.VITE_SERVER_URL        || "http://localhost:5000";
+const ESERVICE_URL = import.meta.env.VITE_ESERVICE_SERVER_URL || "http://localhost:3000";
+
+/** Resolve a stored picture_path to an absolute URL. */
+const toAbsUrl = (p) => {
+  if (!p) return null;
+  if (p.startsWith("http://") || p.startsWith("https://")) return p;
+  const clean = p.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (clean.startsWith("uploads/images/")) return `${ESERVICE_URL}/${clean}`;
+  return `${SERVER_URL}/${clean}`;
+};
+
 const ViewOfficialDialog = ({ open, onOpenChange, official }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [imageModalOpen, setImageModalOpen] = useState(false);
-  
+
   if (!official) return null;
 
   const formatDate = (dateString) => {
@@ -82,7 +94,7 @@ const ViewOfficialDialog = ({ open, onOpenChange, official }) => {
                           onClick={() => setImageModalOpen(true)}
                         >
                           <img
-                            src={`${import.meta.env.VITE_SERVER_URL || "localhost:5000"}/${official.picture_path?.replace(/\\/g, "/")}`}
+                            src={toAbsUrl(official.picture_path)}
                             alt={`${official.first_name} ${official.last_name}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             onError={(e) => {
@@ -191,7 +203,7 @@ const ViewOfficialDialog = ({ open, onOpenChange, official }) => {
                           onClick={() => setImageModalOpen(true)}
                         >
                           <img
-                            src={`${import.meta.env.VITE_SERVER_URL || "localhost:5000"}/${official.picture_path?.replace(/\\/g, "/")}`}
+                            src={toAbsUrl(official.picture_path)}
                             alt={`${official.first_name} ${official.last_name}`}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                             onError={(e) => {
@@ -280,7 +292,7 @@ const ViewOfficialDialog = ({ open, onOpenChange, official }) => {
                           onClick={() => setImageModalOpen(true)}
                         >
                           <img
-                            src={`${import.meta.env.VITE_SERVER_URL || "localhost:5000"}/${official.picture_path?.replace(/\\/g, "/")}`}
+                            src={toAbsUrl(official.picture_path)}
                             alt={`${official.first_name} ${official.last_name}`}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
                             onError={(e) => {
@@ -399,7 +411,7 @@ const ViewOfficialDialog = ({ open, onOpenChange, official }) => {
             {official?.picture_path ? (
               <div className="w-full max-h-[90vh] flex items-center justify-center bg-black">
                 <img
-                  src={`${import.meta.env.VITE_SERVER_URL || "localhost:5000"}/${official.picture_path?.replace(/\\/g, "/")}`}
+                  src={toAbsUrl(official.picture_path)}
                   alt={`${official.first_name || 'Official'} ${official.last_name || ''} - Full size image`}
                   className="max-w-full max-h-[90vh] object-contain"
                   onError={(e) => {

@@ -310,32 +310,26 @@ const OfficialsPage = () => {
 
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">
-            {currentView === "list"
-              ? "Barangay Officials"
-              : "Organizational Chart"}
+          <h1 className="text-xl font-bold text-gray-800">
+            {currentView === "list" ? "Barangay Officials" : "Organizational Chart"}
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
+          <p className="text-sm text-gray-500 mt-0.5">
             {currentView === "list"
               ? "Manage and track barangay officials and their positions"
               : "Visual representation of the barangay's organizational structure"}
           </p>
         </div>
         {currentView === "list" && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            <RefreshControls 
-              variant="outline"
-              size="sm"
-            />
-            <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2 text-xs sm:text-sm w-full sm:w-auto">
-            <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Add Official</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            <RefreshControls variant="outline" size="sm" />
+            <Button size="sm" onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Official
+            </Button>
           </div>
         )}
       </div>
@@ -359,10 +353,7 @@ const OfficialsPage = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="list" className="space-y-6">
-          {/* Stats */}
-          <OfficialsStats officials={officials} />
-
+        <TabsContent value="list" className="space-y-5">
           {/* Filters */}
           <OfficialsFilters
             searchTerm={searchTerm}
@@ -375,13 +366,7 @@ const OfficialsPage = () => {
 
           {/* Officials Table */}
           <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg sm:text-xl">Officials Directory</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                Total officials: {filteredOfficials.length}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <OfficialsTable
                 officials={filteredOfficials}
                 loading={loading}
@@ -394,15 +379,9 @@ const OfficialsPage = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="orgChart" className="space-y-6">
+        <TabsContent value="orgChart" className="space-y-5">
           <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg sm:text-xl">Organizational Chart</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                Visual representation of the barangay's organizational structure
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {orgChartLoading ? (
                 <LoadingSpinner 
                   message="Loading organizational chart..." 

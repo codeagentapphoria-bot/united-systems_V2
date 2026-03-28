@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Mail, Eye, Edit } from "lucide-react";
 import React from "react";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 const ResidentsTable = ({
   residents,
@@ -47,17 +46,11 @@ const ResidentsTable = ({
   return (
     <>
       {loading ? (
-        <LoadingSpinner 
-          message="Loading residents..." 
-          variant="default"
-          size="sm"
-        />
+        <div className="py-16 text-center text-gray-400 text-sm">Loading…</div>
       ) : error ? (
-        <div className="text-center text-destructive py-8">{error}</div>
+        <div className="py-16 text-center text-destructive text-sm">{error}</div>
       ) : residents.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          No residents found.
-        </div>
+        <div className="py-16 text-center text-gray-500 text-sm">No residents found.</div>
       ) : (
         <Table>
           <TableHeader>
@@ -100,63 +93,59 @@ const ResidentsTable = ({
                   </TableCell>
                   <TableCell>{age}</TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        {resident.contact_number || "None"}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4" />
-                        {resident.email || "None"}
-                      </div>
+                    <div className="flex flex-col gap-1 text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <Phone className="h-3 w-3 shrink-0" />
+                        {resident.contact_number || "—"}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Mail className="h-3 w-3 shrink-0" />
+                        {resident.email || "—"}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell>{resident.occupation || "-"}</TableCell>
 
-                  <TableCell className="font-medium">{resident.id}</TableCell>
+                  <TableCell className="font-medium">{resident.resident_id || "—"}</TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       )}
-      {/* Pagination Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0 mt-4">
-        <div className="text-xs sm:text-sm">
-          Page {page} of {totalPages}
+      {/* Pagination */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-4 py-3 border-t">
+        <div className="text-sm text-gray-500">
+          Page {page} of {totalPages || 1}
         </div>
-        <div className="flex flex-row sm:flex-row gap-2 items-center w-full sm:w-auto">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrev}
-              disabled={page === 1}
-              className="text-xs sm:text-sm"
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNext}
-              disabled={page === totalPages || totalPages === 0}
-              className="text-xs sm:text-sm"
-            >
-              Next
-            </Button>
-          </div>
-          <select
-            className="w-full sm:w-24 border rounded px-2 py-1 text-xs sm:text-sm"
-            value={perPage}
-            onChange={(e) => setPerPage(Number(e.target.value))}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrev}
+            disabled={page === 1}
           >
-            <option value={5}>5 / page</option>
-            <option value={10}>10 / page</option>
-            <option value={20}>20 / page</option>
-            <option value={50}>50 / page</option>
-          </select>
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleNext}
+            disabled={page === totalPages || totalPages === 0}
+          >
+            Next
+          </Button>
         </div>
+        <select
+          className="w-24 border rounded px-2 py-1 text-sm"
+          value={perPage}
+          onChange={(e) => setPerPage(Number(e.target.value))}
+        >
+          <option value={5}>5 / page</option>
+          <option value={10}>10 / page</option>
+          <option value={20}>20 / page</option>
+          <option value={50}>50 / page</option>
+        </select>
       </div>
     </>
   );

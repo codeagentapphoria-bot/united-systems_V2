@@ -49,6 +49,7 @@ import {
   X,
   Map,
   AlertTriangle,
+  CreditCard,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +67,7 @@ import {
 } from "@/utils/settingsSchema";
 import ClassificationTypeManager from "@/components/ui/ClassificationTypeManager";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import BulkIDPage from "@/pages/admin/municipality/BulkIDPage";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
 
@@ -693,13 +695,6 @@ const SettingsPage = () => {
                     {errors.municipalityCode.message}
                   </p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">
-                  This code will be used as prefix for resident IDs (e.g.,
-                  CODE-2024-0000001)
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Character limit: {municipalityCodeLength}/4
-                </p>
               </div>
               <div>
                 <Label htmlFor="region">Region</Label>
@@ -1295,23 +1290,19 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Settings</h1>
-            <p className="text-xs sm:text-sm text-gray-600">
-              Manage your organization's configuration and preferences
-            </p>
-          </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Settings</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Manage your organization's configuration and preferences
+          </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-          <RefreshControls 
-            variant="outline"
-            size="sm"
-          />
-        </div>
+        <RefreshControls
+          variant="outline"
+          size="sm"
+        />
       </div>
 
              {/* Settings Tabs */}
@@ -1338,6 +1329,14 @@ const SettingsPage = () => {
                    <div className="flex items-center gap-2">
                      <FileText className="h-4 w-4" />
                      Classification
+                   </div>
+                 </SelectItem>
+               )}
+               {isMunicipality && (
+                 <SelectItem value="bulk-id">
+                   <div className="flex items-center gap-2">
+                     <CreditCard className="h-4 w-4" />
+                     Bulk ID
                    </div>
                  </SelectItem>
                )}
@@ -1376,6 +1375,12 @@ const SettingsPage = () => {
              >
                <FileText className="h-4 w-4" />
                Classification
+             </TabsTrigger>
+           )}
+           {isMunicipality && (
+             <TabsTrigger value="bulk-id" className="flex items-center gap-2">
+               <CreditCard className="h-4 w-4" />
+               Bulk ID
              </TabsTrigger>
            )}
            <TabsTrigger value="interface" className="flex items-center gap-2">
@@ -1427,6 +1432,13 @@ const SettingsPage = () => {
         {isBarangay && (
           <TabsContent value="classification" className="space-y-6">
             <ClassificationTypeManager municipalityId={municipalityIdForClassification} />
+          </TabsContent>
+        )}
+
+        {/* Bulk ID Tab (Municipality Only) */}
+        {isMunicipality && (
+          <TabsContent value="bulk-id" className="space-y-6">
+            <BulkIDPage />
           </TabsContent>
         )}
 

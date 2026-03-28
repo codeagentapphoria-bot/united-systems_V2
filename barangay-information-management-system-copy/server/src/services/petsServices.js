@@ -468,12 +468,14 @@ class Pet {
           SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN households h ON h.house_head = r.id
+          WHERE r.status = 'active'
           UNION
           SELECT r.id as resident_id, h.id, h.house_number, h.street
           FROM residents r
           JOIN family_members fm ON fm.family_member = r.id
           JOIN families f ON f.id = fm.family_id
           JOIN households h ON h.id = f.household_id
+          WHERE r.status = 'active'
         ) h ON h.resident_id = r.id
         LEFT JOIN barangays b ON b.id = r.barangay_id
         LEFT JOIN municipalities m ON b.municipality_id = m.id

@@ -120,3 +120,59 @@ Please contact your local government office for assistance.
     text,
   };
 };
+
+// =============================================================================
+// RESUBMISSION REQUEST EMAIL
+// =============================================================================
+
+interface ResidentResubmissionEmailData {
+  residentName: string;
+  email: string;
+  adminNotes: string;
+  statusUrl: string;
+}
+
+export const getResidentResubmissionEmail = (
+  data: ResidentResubmissionEmailData
+): { subject: string; html: string; text: string } => {
+  const content = `
+    ${getAlertBox(data.adminNotes || 'Please re-upload your documents as requested by the administrator.', 'warning')}
+    ${getInfoCard('Next Steps', `
+      <ol style="margin: 0; padding-left: 20px; color: #374151; font-size: 14px; line-height: 1.8;">
+        <li>Visit your <a href="${data.statusUrl}" style="color: #3b82f6;">Registration Status page</a></li>
+        <li>Click "Re-upload Documents"</li>
+        <li>Upload your selfie with ID and government ID document</li>
+        <li>Submit — your application will return to review</li>
+      </ol>
+    `)}
+  `;
+
+  const html = getBaseEmailTemplate({
+    title: 'Action Required',
+    greeting: `Dear ${data.residentName},`,
+    message: 'Your registration application requires additional documents before it can be processed.',
+    content,
+    showActionButton: true,
+    actionText: 'Check Status & Re-upload',
+    actionUrl: data.statusUrl,
+  });
+
+  const text = `
+Dear ${data.residentName},
+
+Your registration requires additional documents.
+
+${data.adminNotes ? `Notes from administrator: ${data.adminNotes}` : ''}
+
+Please visit the following link to re-upload your documents:
+${data.statusUrl}
+
+Thank you.
+  `.trim();
+
+  return {
+    subject: 'Action Required — Additional Documents Needed',
+    html,
+    text,
+  };
+};

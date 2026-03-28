@@ -589,37 +589,41 @@ const ResidentsPage = ({ role }) => {
     let payload;
 
     if (dialogType === "classifications") {
-      // For classifications dialog, swap: use resident for personal info, formValues for classifications/indigenousPerson
-      const formattedClassifications = (formValues.classifications || []).map(
-        ({ type, details }) => ({
-          type: type,
-          details: details || "",
-        })
-      );
+      // Use granular classification endpoints instead of the full PUT (which was removed).
+      // Diff old vs new: delete removed classifications, add new ones.
+      const newClassifications = formValues.classifications || [];
+      const oldClassifications = editResident.classifications || [];
 
-      payload = {
-        barangayId: resident.barangay_id,
-        lastName: resident.last_name,
-        firstName: resident.first_name,
-        middleName: resident.middle_name,
-        suffix: resident.suffix,
-        sex: resident.sex,
-        civilStatus: resident.civil_status,
-        birthdate: resident.birthdate,
-        birth_region: resident.birth_region,
-        birth_province: resident.birth_province,
-        birth_municipality: resident.birth_municipality,
-        contactNumber: resident.contact_number,
-        email: resident.email,
-        occupation: resident.occupation,
-        monthlyIncome: resident.monthly_income,
-        employmentStatus: resident.employment_status,
-        educationAttainment: resident.education_attainment,
-        residentStatus: resident.status,
-        indigenousPerson: formValues.indigenous_person,
-        classifications: formattedClassifications,
-        picturePath: resident.picture_path, // Preserve existing image
-      };
+      const oldTypes = new Set(oldClassifications.map(c => (c.classification_type || '').toLowerCase()));
+      const newTypes = new Set(newClassifications.map(c => (c.type || '').toLowerCase()));
+
+      const toDelete = oldClassifications.filter(c => !newTypes.has((c.classification_type || '').toLowerCase()));
+      const toAdd = newClassifications.filter(c => !oldTypes.has((c.type || '').toLowerCase()));
+
+      try {
+        await Promise.all([
+          ...toDelete.map(c => api.delete(`/classification/${c.classification_id}`)),
+          ...toAdd.map(c => api.post('/classification', {
+            residentId: editResident.id,
+            classificationType: c.type,
+            classificationDetails: c.details || null,
+          })),
+        ]);
+
+        setEditClassificationsDialogOpen(false);
+        setEditResident(null);
+        toast({
+          title: "Classifications Updated Successfully!",
+          description: `Classifications for ${editResident.first_name} have been updated.`,
+        });
+        executeRefresh();
+      } catch (err) {
+        handleCrudError(err, 'update');
+        setEditResidentError("Failed to update classifications.");
+      } finally {
+        setEditResidentLoading(false);
+      }
+      return;
     } else if (dialogType === "image") {
       // For image dialog, use resident for all data, formValues for image
       const formattedClassifications = editResident.classifications.map(
@@ -1248,74 +1252,49 @@ const ResidentsPage = ({ role }) => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+    <div className="space-y-5">
       {/* Cache refresh handler for residents page */}
       <CacheRefreshHandler page="residents" />
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Residents Management</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold text-gray-800">Residents Management</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
             Manage and track all barangay residents
           </p>
         </div>
-        {role !== "municipality" && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            <RefreshControls 
-              variant="outline"
-              size="sm"
-            />
-            <CacheRefreshButton 
-              patterns={['residents:*', 'resident:*']}
-              variant="outline"
-              size="sm"
-              children="Refresh Cache"
-            />
-            <Button
-              variant="outline"
-              onClick={() => setIsExportDialogOpen(true)}
-              disabled={exportLoading}
-              className="flex items-center gap-2 text-xs sm:text-sm"
-            >
-              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-              {exportLoading ? (
-                <LoadingSpinner message="Exporting..." variant="default" size="sm" compact={true} />
-              ) : (
-                "Export"
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsImportDialogOpen(true)}
-              disabled={importLoading}
-              className="flex items-center gap-2 text-xs sm:text-sm"
-            >
-              <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
-              {importLoading ? (
-                <LoadingSpinner message="Importing..." variant="default" size="sm" compact={true} />
-              ) : (
-                "Import"
-              )}
-            </Button>
-{/* AddResidentDialog removed — R2: resident registration happens via E-Services portal only */}
-          </div>
-        )}
-        {role === "municipality" && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            <Button
-              variant="outline"
-              onClick={() => setIsExportDialogOpen(true)}
-              disabled={exportLoading}
-              className="flex items-center gap-2 text-xs sm:text-sm"
-            >
-              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-              {exportLoading ? (
-                <LoadingSpinner message="Exporting..." variant="default" size="sm" compact={true} />
-              ) : (
-                "Export"
-              )}
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2 shrink-0">
+          {role !== "municipality" && (
+            <>
+              <RefreshControls variant="outline" size="sm" />
+              <CacheRefreshButton
+                patterns={['residents:*', 'resident:*']}
+                variant="outline"
+                size="sm"
+                children="Refresh Cache"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => setIsImportDialogOpen(true)}
+                disabled={importLoading}
+              >
+                <Upload className="h-4 w-4" />
+                {importLoading ? "Importing…" : "Import"}
+              </Button>
+            </>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setIsExportDialogOpen(true)}
+            disabled={exportLoading}
+          >
+            <Download className="h-4 w-4" />
+            {exportLoading ? "Exporting…" : "Export"}
+          </Button>
+        </div>
       </div>
 
       {/* Filters and Search */}
@@ -1342,11 +1321,7 @@ const ResidentsPage = ({ role }) => {
 
       {/* Residents Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Residents List</CardTitle>
-          <CardDescription>Total residents: {total}</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <ResidentsTable
             residents={residents}
             loading={loading}

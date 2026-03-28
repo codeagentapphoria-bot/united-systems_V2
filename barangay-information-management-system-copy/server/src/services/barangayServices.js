@@ -258,7 +258,7 @@ class Barangay {
       );
       
       const residentsResult = await client.query(
-        "SELECT COUNT(*) as count FROM residents WHERE barangay_id = $1",
+        "SELECT COUNT(*) as count FROM residents WHERE barangay_id = $1 AND status = 'active'",
         [barangayId]
       );
       
@@ -602,7 +602,7 @@ class Barangay {
       // Export residents
       try {
         const residentsResult = await client.query(
-          "SELECT * FROM residents WHERE barangay_id = $1",
+          "SELECT * FROM residents WHERE barangay_id = $1 AND status = 'active'",
           [barangayId]
         );
         dataToExport.residents = residentsResult.rows;
@@ -1236,7 +1236,7 @@ class Barangay {
       const XLSX = await import("xlsx");
 
       // Build the WHERE clause based on filters
-      let whereConditions = ["r.barangay_id = $1"];
+      let whereConditions = ["r.barangay_id = $1", "r.status = 'active'"];
       let queryParams = [barangayId];
       let paramIndex = 2;
 
@@ -1712,20 +1712,20 @@ class Barangay {
               -- Get house head income
               SELECT r_house.monthly_income
               FROM residents r_house
-              WHERE r_house.id = h.house_head
+              WHERE r_house.id = h.house_head AND r_house.status = 'active'
               UNION
               -- Get family head incomes
               SELECT r_fam.monthly_income
               FROM families fam
               JOIN residents r_fam ON fam.family_head = r_fam.id
-              WHERE fam.household_id = h.id
+              WHERE fam.household_id = h.id AND r_fam.status = 'active'
               UNION
               -- Get family member incomes
               SELECT r_mem.monthly_income
               FROM families fam2
               JOIN family_members fm2 ON fam2.id = fm2.family_id
               JOIN residents r_mem ON fm2.family_member = r_mem.id
-              WHERE fam2.household_id = h.id
+              WHERE fam2.household_id = h.id AND r_mem.status = 'active'
             ) r_income
             WHERE r_income.monthly_income IS NOT NULL
           ) as total_household_income,
@@ -1961,8 +1961,8 @@ class Barangay {
           // Find resident by name (house head) - use JavaScript for better name matching
           const allResidents = await client.query(
             `SELECT id, first_name, last_name, middle_name, extension_name
-             FROM residents 
-             WHERE barangay_id = $1`,
+             FROM residents
+             WHERE barangay_id = $1 AND status = 'active'`,
             [barangayId]
           );
 
@@ -2076,8 +2076,8 @@ class Barangay {
               // Get all residents and match by name in JavaScript for better flexibility
               const allResidents = await client.query(
                 `SELECT id, first_name, last_name, middle_name, extension_name
-                 FROM residents 
-                 WHERE barangay_id = $1`,
+                 FROM residents
+                 WHERE barangay_id = $1 AND status = 'active'`,
                 [barangayId]
               );
 
