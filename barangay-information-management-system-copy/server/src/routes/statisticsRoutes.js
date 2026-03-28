@@ -16,6 +16,7 @@ import {
   getUnemployedHouseholdStats,
   getUnemployedHouseholdDetails,
   getTotalRequestsAndCompleted,
+  getAllBarangayStats,
 } from "../controllers/statisticsControllers.js";
 
 const router = express.Router();
@@ -43,5 +44,6 @@ router.get("/total-registered-pets", smartCache(), getTotalRegisteredPetsAndAdde
 router.get("/unemployed-household-stats", smartCache(), getUnemployedHouseholdStats);
 router.get("/unemployed-household-details", smartCache(), getUnemployedHouseholdDetails);
 router.get("/total-requests", smartCache(), getTotalRequestsAndCompleted);
+router.get("/all-barangay-stats", smartCache(), getAllBarangayStats);
 
 export default router;
