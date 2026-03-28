@@ -673,7 +673,7 @@ ON CONFLICT (id) DO NOTHING;
 -- Disable audit trigger to avoid null record_id error during seed
 ALTER TABLE public.bims_users DISABLE TRIGGER audit_bims_users_trigger;
 
--- Password: ChangeMe1234! (bcrypt hash)
+-- Password: Admin1234! (bcrypt hash)
 INSERT INTO public.bims_users (
     target_type,
     target_id,
@@ -685,8 +685,8 @@ INSERT INTO public.bims_users (
     'municipality',
     '1',
     'System Administrator',
-    'admin@localhost.gov.ph',
-    '$2b$10$dBVUxWGOJ12ZU3BpnEtG/eQ6LQRV4OEPPCbfH0NtNMUagSAHmI5VS',
+    'admin@bims.gov.ph',
+    '$2b$10$j1QPwuezqna1qV98KfLdRuyUHxqLl8TgNmpoVsIayGGqPqMmSbPq2',
     'admin'
 ) ON CONFLICT (email) DO NOTHING;
 
@@ -695,15 +695,15 @@ ALTER TABLE public.bims_users ENABLE TRIGGER audit_bims_users_trigger;
 -- =============================================================================
 -- E-Services: Default Admin User
 -- =============================================================================
--- Password: admin123 (bcrypt hash)
+-- Password: Admin1234! (bcrypt hash)
 INSERT INTO public.eservice_users (
     email,
     password,
     name,
     role
 ) VALUES (
-    'admin@localhost.gov.ph',
-    '$2a$10$R8wkm2gzOps9bZVT0IoEo.HUpoS6C25JssB4UcfqvDAnTPaP1XNk2',
+    'admin@eservice.gov.ph',
+    '$2b$10$y3QB5FpC8AWOLcfLbrij6eWCM0zJ8/t37k5Bj/UiKcNq6uf7yjoLe',
     'System Admin',
     'admin'
 ) ON CONFLICT (email) DO NOTHING;
