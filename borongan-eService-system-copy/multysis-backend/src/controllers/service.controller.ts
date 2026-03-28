@@ -6,6 +6,7 @@ import {
   deactivateService,
   deleteService,
   getActiveServices,
+  getAllCategories,
   getService,
   getServiceByCode,
   getServices,
@@ -226,6 +227,21 @@ export const deactivateServiceController = async (
     res.status(400).json({
       status: 'error',
       message: error.message || 'Failed to deactivate service',
+    });
+  }
+};
+
+export const getCategoriesController = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const categories = await getAllCategories();
+    res.status(200).json({
+      status: 'success',
+      data: categories,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Failed to fetch categories',
     });
   }
 };

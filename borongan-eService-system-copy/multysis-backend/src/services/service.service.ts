@@ -177,6 +177,24 @@ export const getActiveServices = async (options?: {
   });
 };
 
+export const getAllCategories = async (): Promise<string[]> => {
+  const services = await prisma.service.findMany({
+    select: { category: true },
+    where: {
+      isActive: true,
+    },
+  });
+
+  const categories = new Set<string>();
+  services.forEach((service) => {
+    if (service.category) {
+      categories.add(service.category);
+    }
+  });
+
+  return Array.from(categories).sort();
+};
+
 export const updateService = async (id: string, data: UpdateServiceData) => {
   const service = await prisma.service.findUnique({ where: { id } });
 
