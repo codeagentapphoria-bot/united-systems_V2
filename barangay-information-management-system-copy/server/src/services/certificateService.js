@@ -155,10 +155,21 @@ export async function resolvePlaceholders(html, context) {
   // ---------------------------------------------------------------------------
   if (residentId && html.includes('{{ resident.')) {
     const { rows } = await pool.query(
-      `SELECT r.*, b.barangay_name, m.municipality_name, m.province
+      `SELECT r.*, b.barangay_name, m.municipality_name, m.province,
+              hh.house_number, hh.street AS household_street
        FROM residents r
        LEFT JOIN barangays b ON b.id = r.barangay_id
        LEFT JOIN municipalities m ON m.id = b.municipality_id
+       LEFT JOIN (
+         SELECT r2.id AS resident_id, h.house_number, h.street
+         FROM residents r2
+         JOIN households h ON h.house_head = r2.id
+         UNION
+         SELECT fm.family_member AS resident_id, h.house_number, h.street
+         FROM family_members fm
+         JOIN families f ON f.id = fm.family_id
+         JOIN households h ON h.id = f.household_id
+       ) hh ON hh.resident_id = r.id
        WHERE r.id = $1 AND r.status = 'active'`,
       [residentId]
     );
@@ -179,7 +190,7 @@ export async function resolvePlaceholders(html, context) {
       data['resident.age']         = String(age);
       data['resident.sex']         = r.sex || '';
       data['resident.civilStatus'] = r.civil_status || '';
-      data['resident.address']     = [r.street_address, r.barangay_name].filter(Boolean).join(', ');
+      data['resident.address']     = [r.house_number, r.household_street].filter(Boolean).join(', ');
       data['resident.residentId']  = r.resident_id || '';
       // Note: nationality and religion columns removed in v2 schema - using defaults
       data['resident.nationality'] = r.nationality || 'Filipino';
