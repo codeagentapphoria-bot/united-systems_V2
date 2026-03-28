@@ -29,7 +29,7 @@ import { usePortalNotifications } from '@/hooks/notifications/usePortalNotificat
 import { cn } from '@/lib/utils';
 import { FiBell, FiChevronDown, FiLogOut, FiMenu, FiUser, FiX } from 'react-icons/fi';
 
-interface PortalHeaderProps {}
+interface PortalHeaderProps { }
 
 export const PortalHeader: React.FC<PortalHeaderProps> = () => {
   const { user, logout, isLoading } = useAuth();
@@ -42,7 +42,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
+
   const isSubscriber = user?.role === 'resident';
   const hasNotifications = isSubscriber && counts.total > 0;
 
@@ -50,7 +50,6 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
     { path: '/portal', label: 'Home' },
     { path: '/portal/e-government', label: 'E-Government' },
     { path: '/portal/e-bills', label: 'E-Bills' },
-    { path: '/portal/e-services', label: 'E-Services' },
     { path: '/portal/e-news', label: 'E-News' },
   ];
 
@@ -72,9 +71,9 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/portal" className="flex items-center space-x-3">
-            <img 
-              src="/logo-colored.svg" 
-              alt="City of Borongan Logo" 
+            <img
+              src="/logo-colored.svg"
+              alt="City of Borongan Logo"
               className="h-10 w-auto"
             />
             <div className="hidden sm:block">
@@ -135,40 +134,40 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
                 )}
 
                 <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="flex items-center space-x-2 hover:bg-primary-50 text-heading-600 hover:text-primary-700 px-3 py-2 h-auto border border-primary-200"
-                  >
-                    <div className="p-1.5 rounded-full bg-primary-100 text-primary-700">
-                      <FiUser size={18} />
-                    </div>
-                    <span className="hidden sm:inline text-sm font-medium">
-                      {user.name || user.username || 'User'}
-                    </span>
-                    <FiChevronDown size={16} className="hidden sm:block" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel className="text-primary-700">My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => navigate('/portal/profile')}
-                    className="text-heading-600 hover:!bg-primary-50 cursor-pointer"
-                  >
-                    <FiUser size={16} className="mr-2" />
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={handleLogout}
-                    className="text-heading-600 hover:!bg-primary-50 cursor-pointer"
-                  >
-                    <FiLogOut size={16} className="mr-2" />
-                    Logout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="flex items-center space-x-2 hover:bg-primary-50 text-heading-600 hover:text-primary-700 px-3 py-2 h-auto border border-primary-200"
+                    >
+                      <div className="p-1.5 rounded-full bg-primary-100 text-primary-700">
+                        <FiUser size={18} />
+                      </div>
+                      <span className="hidden sm:inline text-sm font-medium">
+                        {user.name || user.username || 'User'}
+                      </span>
+                      <FiChevronDown size={16} className="hidden sm:block" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="text-primary-700">My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => navigate('/portal/profile')}
+                      className="text-heading-600 hover:!bg-primary-50 cursor-pointer"
+                    >
+                      <FiUser size={16} className="mr-2" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleLogout}
+                      className="text-heading-600 hover:!bg-primary-50 cursor-pointer"
+                    >
+                      <FiLogOut size={16} className="mr-2" />
+                      Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             ) : (
               <div className="hidden md:flex items-center space-x-2">

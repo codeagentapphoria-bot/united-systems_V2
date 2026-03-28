@@ -140,13 +140,6 @@ export const PortalHome: React.FC = () => {
       color: 'bg-green-100 text-green-700',
     },
     {
-      icon: <FiTool size={32} />,
-      title: 'E-Services',
-      description: 'Additional services and utilities',
-      path: '/portal/e-services',
-      color: 'bg-purple-100 text-purple-700',
-    },
-    {
       icon: <FiMessageSquare size={32} />,
       title: 'E-News',
       description: 'Stay updated with latest government news and announcements',
