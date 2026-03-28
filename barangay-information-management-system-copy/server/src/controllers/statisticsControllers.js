@@ -227,3 +227,14 @@ export const getTotalRequestsAndCompleted = async (req, res, next) => {
     next(new ApiError(500, "Failed to get total requests and completed"));
   }
 };
+
+export const getAllBarangayStats = async (req, res, next) => {
+  try {
+    const { municipalityId } = req.query;
+    const data = await Statistics.getAllBarangayStats({ municipalityId });
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error("Controller error in getAllBarangayStats:", error);
+    next(new ApiError(500, "Failed to get all barangay stats"));
+  }
+};

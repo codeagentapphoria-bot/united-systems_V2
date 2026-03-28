@@ -1068,6 +1068,33 @@ class Statistics {
       client.release();
     }
   }
+  static async getAllBarangayStats({ municipalityId } = {}) {
+    const client = await pool.connect();
+    try {
+      const values = [];
+      const whereClause = municipalityId ? `WHERE b.municipality_id = $1` : '';
+      if (municipalityId) values.push(municipalityId);
+
+      const query = `
+        SELECT
+          b.id AS barangay_id,
+          (SELECT COUNT(*) FROM households h WHERE h.barangay_id = b.id)::int AS households,
+          (SELECT COUNT(*) FROM residents r WHERE r.barangay_id = b.id AND r.status = 'active')::int AS residents,
+          (SELECT COUNT(*) FROM families f JOIN households h ON h.id = f.household_id WHERE h.barangay_id = b.id)::int AS families,
+          (SELECT COUNT(*) FROM pets p JOIN residents r ON r.id = p.owner_id WHERE r.barangay_id = b.id AND r.status = 'active')::int AS pets
+        FROM barangays b
+        ${whereClause}
+        ORDER BY b.barangay_name
+      `;
+      const result = await client.query(query, values);
+      return result.rows;
+    } catch (error) {
+      logger.error('Error getting all barangay stats:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 export default Statistics;

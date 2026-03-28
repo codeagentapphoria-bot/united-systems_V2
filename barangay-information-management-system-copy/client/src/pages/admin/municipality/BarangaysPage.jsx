@@ -551,41 +551,25 @@ const BarangaysPage = () => {
     currentPage * itemsPerPage
   );
 
-  const fetchBarangayStats = async (barangayId) => {
-    setBarangayStats(prev => ({ ...prev, [barangayId]: { loading: true } }));
-    try {
-      const [householdStats, populationStats, familyStats, petStats] = await Promise.all([
-        api.get("/statistics/total-households", { params: { barangayId } }),
-        api.get("/statistics/total-population", { params: { barangayId } }),
-        api.get("/statistics/total-families", { params: { barangayId } }),
-        api.get("/statistics/total-registered-pets", { params: { barangayId } }),
-      ]);
-      
-      setBarangayStats(prev => ({
-        ...prev,
-        [barangayId]: {
-          households: householdStats.data.data?.total_households || 0,
-          residents: parseInt(populationStats.data.data?.total_population) || 0,
-          families: familyStats.data.data?.total_families || 0,
-          pets: petStats.data.data?.total_pets || 0,
-          loading: false
-        }
-      }));
-    } catch (err) {
-      setBarangayStats(prev => ({ ...prev, [barangayId]: { loading: false, households: 0, residents: 0, families: 0, pets: 0 } }));
-    }
-  };
-
-  // Auto-fetch stats sequentially when barangays load
+  // Fetch stats for all barangays in a single request
   useEffect(() => {
     if (!barangays.length) return;
-    const fetchAllStats = async () => {
-      for (const barangay of barangays) {
-        await fetchBarangayStats(barangay.id);
-      }
-    };
-    fetchAllStats();
-  }, [barangays]);
+    api.get("/statistics/all-barangay-stats")
+      .then(res => {
+        const statsMap = {};
+        res.data.data.forEach(row => {
+          statsMap[row.barangay_id] = {
+            households: row.households,
+            residents: row.residents,
+            families: row.families,
+            pets: row.pets,
+            loading: false,
+          };
+        });
+        setBarangayStats(statsMap);
+      })
+      .catch(() => {});
+  }, [barangays.length]);
 
   // Aggregate stats
   const totalHouseholds = Object.values(barangayStats).reduce(
