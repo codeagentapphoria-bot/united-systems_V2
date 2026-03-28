@@ -16,6 +16,7 @@ import { smartCache, smartInvalidateCache } from "../middlewares/smartCache.js";
 import SetupTokenService from "../services/setupTokenService.js";
 import { pool } from "../config/db.js";
 import bcrypt from "bcrypt";
+import { cacheUtils } from "../config/redis.js";
 import { cp } from "fs/promises";
 
 const router = express.Router();
@@ -93,6 +94,8 @@ router.post(
           ? [fullname || null, hashedPassword, userId, picturePath]
           : [fullname || null, hashedPassword, userId]
       );
+
+      cacheUtils.del(`bims:user:${userId}`).catch(() => {});
 
       return res.status(200).json({ message: "Account setup complete." });
     } catch (err) {

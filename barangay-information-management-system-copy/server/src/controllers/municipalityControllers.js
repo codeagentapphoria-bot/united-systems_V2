@@ -48,7 +48,7 @@ export const updateMunicipality = async (req, res, next) => {
     // Update prefix if municipality code is provided
     if (municipalityCode) {
       try {
-        await Counter.updatePrefix(municipalityCode);
+        await Counter.updatePrefix(municipalityCode, municipalityId);
         logger.info(
           `Prefix updated to: ${municipalityCode} for municipality: ${municipalityName}`
         );

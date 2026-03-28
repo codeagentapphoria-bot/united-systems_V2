@@ -126,7 +126,6 @@ const HouseholdFamiliesForm = ({
       setSuggestedFamilyHeads(familyHeads);
       setSuggestedFamilyMembers(familyMembers);
     } catch (error) {
-      console.error("Error generating family suggestions:", error);
       setSuggestedFamilyHeads([]);
       setSuggestedFamilyMembers([]);
     }
@@ -179,9 +178,6 @@ const HouseholdFamiliesForm = ({
 
       return result;
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-  console.error("Error checking resident household:", error);
-}
       return null;
     } finally {
       setCheckingHousehold(false);
@@ -195,9 +191,6 @@ const HouseholdFamiliesForm = ({
         // Don't fetch all residents initially - wait for search
         setResidents([]);
       } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-  console.error("Failed to fetch residents:", error);
-}
       }
     };
 
@@ -227,9 +220,6 @@ const HouseholdFamiliesForm = ({
       const residentsData = response.data.data?.data || response.data.data || [];
       setResidents(residentsData);
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-  console.error("Failed to search residents:", error);
-}
       setResidents([]);
     } finally {
       setResidentSearchLoading(false);
@@ -298,34 +288,15 @@ const HouseholdFamiliesForm = ({
 
   // Populate form with household data
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-  console.log("HouseholdFamiliesForm - Full household data:", household);
-}
-    
     if (household && household.families && household.families.length > 0) {
-      if (process.env.NODE_ENV === 'development') {
-  console.log("Processing household families data:", household.families);
-}
-      
       // Process families data directly from the household object
-      const familiesData = household.families.map((family, index) => {
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`Processing family ${index}:`, family);
-        }
-        
+      const familiesData = household.families.map((family) => {
         // Use family_head_id directly from the API response
         const familyHeadId = family.family_head_id || family.familyHeadId;
-        if (process.env.NODE_ENV === 'development') {
-  console.log("Family head ID:", familyHeadId);
-}
-        console.log("Family object keys:", Object.keys(family));
 
         // Process family members - they come as an array from the API
         const familyMembers = family.members
           ? family.members.map((member) => {
-              if (process.env.NODE_ENV === 'development') {
-  console.log("Processing member:", member);
-}
               return member.fm_member_id;
             })
           : [];
@@ -335,9 +306,6 @@ const HouseholdFamiliesForm = ({
           members: familyMembers,
         };
 
-        if (process.env.NODE_ENV === 'development') {
-  console.log("Processed family:", processedFamily);
-}
         return processedFamily;
       });
 
@@ -348,48 +316,20 @@ const HouseholdFamiliesForm = ({
       );
 
       if (validFamilies.length > 0) {
-        if (process.env.NODE_ENV === 'development') {
-  console.log("Setting families state with:", validFamilies);
-}
         setFamilies(validFamilies);
         form.reset({ families: validFamilies });
-        if (process.env.NODE_ENV === 'development') {
-  console.log("Form reset completed");
-}
       } else {
         // If no valid families found, set a default empty family
-        if (process.env.NODE_ENV === 'development') {
-  console.log("No valid families found, setting default");
-}
         setFamilies([{ head: "", members: [] }]);
         form.reset({ families: [{ head: "", members: [] }] });
       }
     } else if (household && (!household.families || household.families.length === 0)) {
       // If household has no families data
-      if (process.env.NODE_ENV === 'development') {
-  console.log("Household has no families data, setting default");
-}
       setFamilies([{ head: "", members: [] }]);
       form.reset({ families: [{ head: "", members: [] }] });
     }
   }, [household]);
 
-  // Debug: Watch for changes in families state
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-  console.log("Families state changed:", families);
-}
-  }, [families]);
-
-  // Debug: Watch for changes in form values
-  useEffect(() => {
-    const subscription = form.watch((value, { name, type }) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log("Form value changed:", { name, type, value });
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
 
   // Generate family suggestions when house head is selected
   useEffect(() => {
@@ -431,18 +371,8 @@ const HouseholdFamiliesForm = ({
       const householdFamilyIds = household.families.map(f => f.family_head_id);
       const formFamilyIds = currentFormValues.map(f => f.head);
       
-      if (process.env.NODE_ENV === 'development') {
-  console.log("Checking form sync - household family IDs:", householdFamilyIds);
-}
-      if (process.env.NODE_ENV === 'development') {
-  console.log("Checking form sync - form family IDs:", formFamilyIds);
-}
-      
       // If the form values don't match the household data, force a reset
       if (JSON.stringify(householdFamilyIds) !== JSON.stringify(formFamilyIds)) {
-        if (process.env.NODE_ENV === 'development') {
-  console.log("Form values don't match household data, forcing reset");
-}
         const familiesData = household.families.map((family) => {
           const familyHeadId = family.family_head_id || family.familyHeadId;
           const familyMembers = family.members
@@ -471,16 +401,9 @@ const HouseholdFamiliesForm = ({
       ...formFamilies.flatMap((fam) => [fam.head, ...(fam.members || [])]),
       ...localFamilies.flatMap((fam) => [fam.head, ...(fam.members || [])])
     ].filter((id) => id && id !== currentValue);
-    
+
     // Remove duplicates
     const uniqueSelectedIds = [...new Set(selectedIds)];
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log("Form families:", formFamilies);
-      console.log("Local families:", localFamilies);
-      console.log("Selected IDs (excluding current value):", uniqueSelectedIds);
-      console.log("Current value being checked:", currentValue);
-    }
 
     // Start with current residentOptions (search results)
     let options = [...residentOptions];
@@ -563,9 +486,6 @@ const HouseholdFamiliesForm = ({
             role,
             isDisabled: hasHousehold || (isAlreadySelected && residentData.id !== currentValue),
           };
-          if (process.env.NODE_ENV === 'development') {
-  console.log("Created option for currentValue:", currentValue, option);
-}
           options.push(option);
         }
       }
@@ -649,9 +569,6 @@ const HouseholdFamiliesForm = ({
             role,
             isDisabled: hasHousehold || (isAlreadySelected && residentData.id !== currentValue),
           };
-          if (process.env.NODE_ENV === 'development') {
-  console.log("Created option for selectedId:", selectedId, option);
-}
           options.push(option);
         }
       }
@@ -742,20 +659,10 @@ const HouseholdFamiliesForm = ({
   };
 
   const updateFamilyHead = (index, value) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`updateFamilyHead called with index: ${index}, value: ${value}`);
-      console.log("Current families before update:", families);
-    }
     const newFamilies = [...families];
     newFamilies[index].head = value;
-    if (process.env.NODE_ENV === 'development') {
-      console.log("New families after update:", newFamilies);
-    }
     setFamilies(newFamilies);
     form.setValue("families", newFamilies);
-    if (process.env.NODE_ENV === 'development') {
-      console.log("Form value after setValue:", form.getValues("families"));
-    }
   };
 
   const updateFamilyMember = (familyIndex, memberIndex, value) => {
@@ -847,9 +754,6 @@ const HouseholdFamiliesForm = ({
         description: "Family groups updated successfully!",
       });
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-  console.error("Failed to update family groups:", error);
-}
       toast({
         title: "Error",
         description: "Failed to update family groups",
@@ -879,9 +783,6 @@ const HouseholdFamiliesForm = ({
         </p>
       <div className="pr-2 space-y-4">
         {families.map((family, famIdx) => {
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`Rendering family ${famIdx}:`, family);
-          }
           return (
           <div key={famIdx} className="border rounded p-4 bg-muted/50 relative">
             <div className="flex items-center gap-2 mb-2">
@@ -909,21 +810,9 @@ const HouseholdFamiliesForm = ({
                            value={(() => {
                              const options = getFilteredResidentOptions(family.head);
                              const selectedValue = family.head ? options.find((opt) => opt.value === family.head) || null : null;
-                             if (process.env.NODE_ENV === 'development') {
-                               console.log(`Family ${famIdx} head - family.head:`, family.head);
-                               console.log(`Family ${famIdx} head - options count:`, options.length);
-                               console.log(`Family ${famIdx} head - selectedValue found:`, !!selectedValue);
-                               if (!selectedValue && family.head) {
-                                 console.log(`Family ${famIdx} head - WARNING: selectedValue is null but family.head exists! Options values:`, options.map(o => o.value));
-                               }
-                             }
                              return selectedValue;
                            })()}
                onChange={(opt) => {
-                 if (process.env.NODE_ENV === 'development') {
-                   console.log(`Family ${famIdx} head onChange called with:`, opt);
-                   console.log(`Family ${famIdx} head - setting value:`, opt ? opt.value : "");
-                 }
                  updateFamilyHead(famIdx, opt ? opt.value : "");
                  // Clear search term after selection
                  setFamilyHeadSearchTerms(prev => ({ ...prev, [famIdx]: "" }));
@@ -1017,9 +906,6 @@ const HouseholdFamiliesForm = ({
                        ) || null : null
                      }
                      onChange={(opt) => {
-                       if (process.env.NODE_ENV === 'development') {
-                         console.log(`Family ${famIdx} member ${memIdx} onChange called with:`, opt);
-                       }
                        updateFamilyMember(famIdx, memIdx, opt ? opt.value : "");
                        // Clear search term after selection
                        setFamilyMemberSearchTerms(prev => ({ ...prev, [`${famIdx}-${memIdx}`]: "" }));

@@ -41,18 +41,6 @@ export const upsertHousehold = async (req, res, next) => {
     _metadata,
   } = req.body;
 
-  // Debug: Log the raw values being received
-  console.log("Raw form values received:", {
-    houseNumber,
-    street,
-    housingType,
-    structureType,
-    electricity,
-    waterSource,
-    toiletFacility,
-    area,
-  });
-
   // Parse form data values to handle string "null" and other conversions
   const parsedHouseNumber = parseFormValue(houseNumber);
   const parsedStreet = parseFormValue(street);
@@ -62,18 +50,6 @@ export const upsertHousehold = async (req, res, next) => {
   const parsedWaterSource = parseFormValue(waterSource);
   const parsedToiletFacility = parseFormValue(toiletFacility);
   const parsedArea = parseFormValue(area);
-
-  // Debug: Log the parsed values
-  console.log("Parsed form values:", {
-    parsedHouseNumber,
-    parsedStreet,
-    parsedHousingType,
-    parsedStructureType,
-    parsedElectricity,
-    parsedWaterSource,
-    parsedToiletFacility,
-    parsedArea,
-  });
 
   // Parse geom if it's a string
   let parsedGeom = null;

@@ -3,6 +3,9 @@
 import { verifyToken } from '../config/jwt.js';
 import { ApiError } from '../utils/apiError.js';
 import User from '../models/User.js';
+import { cacheUtils } from '../config/redis.js';
+
+const USER_CACHE_TTL = 300; // 5 minutes
 
 // Protect route - only for authenticated users
 export const protect = async (req, res, next) => {
@@ -32,32 +35,34 @@ export const protect = async (req, res, next) => {
     }
 
     const decoded = verifyToken(token);
-    const user = await User.findById(decoded.userId);
+    const cacheKey = `bims:user:${decoded.userId}`;
 
-    if (!user) {
-      throw new ApiError(401, 'User no longer exists');
+    let userFields = await cacheUtils.get(cacheKey);
+
+    if (!userFields) {
+      const user = await User.findById(decoded.userId);
+      if (!user) throw new ApiError(401, 'User no longer exists');
+      userFields = {
+        id: user.id,
+        email: user.email,
+        target_type: user.target_type,
+        target_id: user.target_id,
+        role: user.role,
+        picture_path: user.picture_path,
+      };
+      cacheUtils.set(cacheKey, userFields, USER_CACHE_TTL).catch(() => {});
     }
 
-    // Attach essential user fields to the request
-    req.user = {
-      id: user.id,
-      email: user.email,
-      target_type: user.target_type,
-      target_id: user.target_id,
-      role: user.role,
-      picture_path: user.picture_path
-    };
+    req.user = userFields;
 
-    // Set current user for audit logging
-    try {
-      const { pool } = await import('../config/db.js');
+    // Fire-and-forget — audit must not block the response
+    import('../config/db.js').then(async ({ pool }) => {
       const client = await pool.connect();
-      await client.query('SELECT set_config($1, $2, false)', ['audit.user_id', user.id.toString()]);
+      await client.query('SELECT set_config($1, $2, false)', ['audit.user_id', req.user.id.toString()]);
       client.release();
-    } catch (error) {
-      // If audit logging fails, continue without it
+    }).catch((error) => {
       console.warn('Failed to set audit user:', error.message);
-    }
+    });
 
     next();
   } catch (err) {

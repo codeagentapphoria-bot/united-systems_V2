@@ -3,6 +3,7 @@ import { ApiError } from "../utils/apiError.js";
 import { generateToken } from "../config/jwt.js";
 import { sendEmail } from "../utils/email.js";
 import crypto from "crypto";
+import { cacheUtils } from "../config/redis.js";
 
 export const loginUser = async (email, password) => {
   const user = await User.findByEmail(email);
@@ -302,6 +303,8 @@ export const resetPassword = async (email, resetCode, newPassword) => {
   // Update password and clear reset token
   await User.updatePassword(user.id, newPassword);
   await User.clearResetToken(user.id);
+
+  cacheUtils.del(`bims:user:${user.id}`).catch(() => {});
 
   return { message: "Password reset successful" };
 };

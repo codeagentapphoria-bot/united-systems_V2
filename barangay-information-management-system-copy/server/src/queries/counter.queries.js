@@ -21,9 +21,9 @@ export const UPDATE_PREFIX = `
 `;
 
 export const INSERT_OR_UPDATE_PREFIX = `
-  INSERT INTO resident_counters(year, counter, prefix) 
-  VALUES ($1, 0, $2)
-  ON CONFLICT (year) DO UPDATE SET
+  INSERT INTO resident_counters(municipality_id, year, counter, prefix)
+  VALUES ($3, $1, 0, $2)
+  ON CONFLICT (municipality_id, year) DO UPDATE SET
     prefix = EXCLUDED.prefix
   RETURNING prefix;
 `;

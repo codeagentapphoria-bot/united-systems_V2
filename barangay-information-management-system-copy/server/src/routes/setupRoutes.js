@@ -323,7 +323,7 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
       if (!relPath) return null;
       if (relPath.startsWith("http://") || relPath.startsWith("https://")) return relPath;
       const normalized = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
-      return `http://localhost:${PORT}/${normalized}`;
+      return `${process.env.BASE_URL || `http://localhost:${PORT}`}/${normalized}`;
     }
 
     function formatDateLong(dateStr) {
