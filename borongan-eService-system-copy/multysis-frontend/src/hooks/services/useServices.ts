@@ -11,6 +11,7 @@ export const useServices = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [allCategories, setAllCategories] = useState<string[]>([]);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -19,6 +20,16 @@ export const useServices = () => {
   const [total, setTotal] = useState(0);
 
   const { toast } = useToast();
+
+  // Fetch all categories from API
+  const fetchCategories = useCallback(async () => {
+    try {
+      const categories = await serviceService.getCategories();
+      setAllCategories(categories);
+    } catch (err: any) {
+      console.error('Failed to fetch categories:', err);
+    }
+  }, []);
 
   // Debounce search query to avoid excessive API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -65,6 +76,11 @@ export const useServices = () => {
   useEffect(() => {
     fetchServices();
   }, [fetchServices]);
+
+  // Fetch all categories on mount
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   // Reset to page 1 when filters change (use debounced search query)
   useEffect(() => {
@@ -199,12 +215,10 @@ export const useServices = () => {
     }
   };
 
-  // Get unique categories for filter (memoized)
+  // Get unique categories from all categories (from API, not just current page)
   const categories = useMemo(() => {
-    return Array.from(
-      new Set(services.map((service) => service.category).filter((cat): cat is string => Boolean(cat)))
-    ).sort();
-  }, [services]);
+    return allCategories;
+  }, [allCategories]);
 
   return {
     services,

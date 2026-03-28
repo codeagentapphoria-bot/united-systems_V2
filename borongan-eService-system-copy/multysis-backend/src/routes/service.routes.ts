@@ -6,6 +6,7 @@ import {
   deleteServiceController,
   getActiveServicesController,
   getAppointmentAvailabilityController,
+  getCategoriesController,
   getServiceByCodeController,
   getServiceController,
   getServicesController,
@@ -26,6 +27,9 @@ const router = Router();
 
 // Get active services (for sidebar/tabs) - Public endpoint, no auth required
 router.get('/active', getActiveServicesController);
+
+// Get all categories - Public endpoint, no auth required
+router.get('/categories', getCategoriesController);
 
 // Get service by code - must come before /:id and before verifyAdmin
 // This is used by the dynamic service pages, so it needs admin auth

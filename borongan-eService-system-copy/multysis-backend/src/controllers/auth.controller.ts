@@ -20,7 +20,7 @@
 import { Request, Response } from 'express';
 import { logFailedLogin, logSuccessfulLogin } from '../middleware/audit';
 import { AuthRequest } from '../middleware/auth';
-import { createOrUpdateSession } from '../middleware/sessionTimeout';
+import { createOrUpdateSession, deleteUserSessions } from '../middleware/sessionTimeout';
 import { addDevLog } from '../services/dev.service';
 import { adminLogin, getCurrentUser, portalLogin } from '../services/auth.service';
 import {
@@ -288,8 +288,10 @@ export const logoutController = async (req: AuthRequest, res: Response): Promise
     if (user?.id) {
       if (user.type === 'admin') {
         await revokeAllUserTokens(user.id, undefined, 'User logout');
+        await deleteUserSessions(user.id, undefined);
       } else if (user.type === 'resident') {
         await revokeAllUserTokens(undefined, user.id, 'User logout');
+        await deleteUserSessions(undefined, user.id);
       }
     }
 

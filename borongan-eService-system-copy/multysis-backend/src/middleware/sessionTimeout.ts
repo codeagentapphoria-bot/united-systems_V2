@@ -184,3 +184,25 @@ export const createOrUpdateSession = async (
     console.error('Error creating/updating session:', error);
   }
 };
+
+/**
+ * Delete all sessions for a user (used during logout)
+ */
+export const deleteUserSessions = async (
+  userId?: string,
+  residentId?: string
+): Promise<void> => {
+  if (!userId && !residentId) {
+    return;
+  }
+
+  try {
+    await prisma.session.deleteMany({
+      where: userId
+        ? { userId }
+        : { residentId: residentId as string },
+    });
+  } catch (error) {
+    console.error('Error deleting user sessions:', error);
+  }
+};

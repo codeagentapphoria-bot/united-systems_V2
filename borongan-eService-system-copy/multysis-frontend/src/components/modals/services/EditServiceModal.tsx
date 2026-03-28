@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 
 // Third-party libraries
-import Select from 'react-select';
+import CreatableSelect from 'react-select/creatable';
 
 // UI Components (shadcn/ui)
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ import { useServiceForm } from '@/hooks/services/useServiceForm';
 
 // Types and Schemas
 import type { UpdateServiceInput, Service } from '@/services/api/service.service';
+import { serviceService } from '@/services/api/service.service';
 
 // Utils
 import { cn } from '@/lib/utils';
@@ -41,15 +42,6 @@ interface EditServiceModalProps {
   service: Service | null;
   isLoading?: boolean;
 }
-
-const categoryOptions = [
-  { value: 'Civil Registry', label: 'Civil Registry' },
-  { value: 'Tax', label: 'Tax' },
-  { value: 'Permit', label: 'Permit' },
-  { value: 'Health', label: 'Health' },
-  { value: 'Business', label: 'Business' },
-  { value: 'Other', label: 'Other' },
-];
 
 const commonPaymentStatuses = [
   'PENDING',
@@ -80,6 +72,7 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
   isLoading = false,
 }) => {
   const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
   const form = useServiceForm(service ? {
     code: service.code,
     name: service.name,
@@ -120,6 +113,15 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
       });
     }
   }, [service, form]);
+
+  // Fetch categories when modal opens
+  useEffect(() => {
+    if (open) {
+      serviceService.getCategories()
+        .then(setCategories)
+        .catch(err => console.error('Failed to fetch categories:', err));
+    }
+  }, [open]);
 
   const selectedPaymentStatuses = form.watch('paymentStatuses') || [];
 
@@ -272,26 +274,29 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                       <FormItem>
                         <CustomFormLabel>Category</CustomFormLabel>
                         <FormControl>
-                          <Select
-                            value={categoryOptions.find(option => option.value === field.value)}
-                            onChange={(selectedOption) => field.onChange(selectedOption?.value || '')}
-                            options={categoryOptions}
-                            placeholder="Select category"
+                          <CreatableSelect
+                            {...field}
+                            value={
+                              field.value
+                                ? { value: field.value, label: field.value }
+                                : null
+                            }
+                            onChange={(option) =>
+                              field.onChange(option?.value || '')
+                            }
+                            options={categories.map((cat) => ({
+                              value: cat,
+                              label: cat,
+                            }))}
+                            placeholder="Select or create category"
                             className="mt-1"
                             classNamePrefix="react-select"
                             isClearable
-                            styles={{
-                              control: (base) => ({
-                                ...base,
-                                minHeight: '40px',
-                                borderColor: form.formState.errors.category ? '#ef4444' : '#d1d5db',
-                                '&:hover': {
-                                  borderColor: form.formState.errors.category ? '#ef4444' : '#9ca3af',
-                                },
-                              }),
-                            }}
                           />
                         </FormControl>
+                        <FormDescription className="text-xs text-gray-500 mt-1">
+                          Type a new category to create it. It will be saved for future use.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

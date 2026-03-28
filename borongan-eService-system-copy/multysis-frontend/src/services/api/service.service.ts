@@ -109,6 +109,11 @@ export const serviceService = {
     return response.data.data;
   },
 
+  async getCategories(): Promise<string[]> {
+    const response = await api.get('/services/categories');
+    return response.data.data;
+  },
+
   async getService(id: string): Promise<Service> {
     const response = await api.get(`/services/${id}`);
     return response.data.data;
