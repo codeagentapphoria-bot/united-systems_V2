@@ -11,6 +11,18 @@
 
 Both the Barangay Information Management System (BIMS) and the E-Services system (Multysis) have their PostgreSQL databases merged into a single Supabase PostgreSQL instance. Both backends connect to this unified DB. The `united-database/` directory is the canonical home for the unified schema, migration scripts, and documentation.
 
+**Migrations added (2026-03-28):**
+
+| File | Description |
+|---|---|
+| `migrations/05_add-live-in-civil-status.sql` | Adds `live_in` to `residents.civil_status` CHECK constraint |
+| `migrations/06_add-requests-full-name.sql` | Adds `full_name VARCHAR(200)` column to `requests` table |
+| `seed_bims.sql` | Seeds classification types and certificate templates per municipality |
+
+Run order after fresh schema: `seed.sql` → `seed_bims.sql`. Migrations 05 and 06 are idempotent and can be run on existing databases.
+
+---
+
 **Schema v2 Changes (2026-03-25):**
 
 | Change | Details |
