@@ -1,4 +1,4 @@
-import { buildEGovernmentSubmenu, type MenuEntry } from '@/utils/dynamic-menu';
+import { buildEGovernmentSubmenu } from '@/utils/dynamic-menu';
 import {
   FiCreditCard,
   FiFileText,

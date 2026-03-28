@@ -1,8 +1,7 @@
 // React imports
 import React, { useState, useEffect } from 'react';
 
-// Third-party libraries
-import Select from 'react-select';
+
 
 // UI Components (shadcn/ui)
 import { Button } from '@/components/ui/button';
@@ -29,6 +28,7 @@ import { useServiceForm } from '@/hooks/services/useServiceForm';
 
 // Types and Schemas
 import type { CreateServiceInput } from '@/services/api/service.service';
+import { serviceService } from '@/services/api/service.service';
 
 // Utils
 import { cn } from '@/lib/utils';
@@ -41,15 +41,6 @@ interface AddServiceModalProps {
   isLoading?: boolean;
   defaultOrder?: number;
 }
-
-const categoryOptions = [
-  { value: 'Civil Registry', label: 'Civil Registry' },
-  { value: 'Tax', label: 'Tax' },
-  { value: 'Permit', label: 'Permit' },
-  { value: 'Health', label: 'Health' },
-  { value: 'Business', label: 'Business' },
-  { value: 'Other', label: 'Other' },
-];
 
 const commonPaymentStatuses = [
   'PENDING',
@@ -81,6 +72,17 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
 }) => {
   const form = useServiceForm(defaultOrder !== undefined ? { order: defaultOrder } : undefined);
   const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+
+
+  // Fetch categories when modal opens
+  useEffect(() => {
+    if (open) {
+      serviceService.getCategories()
+        .then(setCategories)
+        .catch(err => console.error('Failed to fetch categories:', err));
+    }
+  }, [open]);
 
   // Update order when defaultOrder changes or modal opens
   useEffect(() => {
@@ -190,26 +192,25 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
                       <FormItem>
                         <CustomFormLabel>Category</CustomFormLabel>
                         <FormControl>
-                          <Select
-                            value={categoryOptions.find(option => option.value === field.value)}
-                            onChange={(selectedOption) => field.onChange(selectedOption?.value || '')}
-                            options={categoryOptions}
-                            placeholder="Select category"
-                            className="mt-1"
-                            classNamePrefix="react-select"
-                            isClearable
-                            styles={{
-                              control: (base) => ({
-                                ...base,
-                                minHeight: '40px',
-                                borderColor: form.formState.errors.category ? '#ef4444' : '#d1d5db',
-                                '&:hover': {
-                                  borderColor: form.formState.errors.category ? '#ef4444' : '#9ca3af',
-                                },
-                              }),
-                            }}
-                          />
+                          <div className="relative">
+                            <Input
+                              {...field}
+                              list="category-options"
+                              placeholder="Select or type category"
+                              value={field.value || ''}
+                              onChange={(e) => field.onChange(e.target.value)}
+                              className="mt-1"
+                            />
+                            <datalist id="category-options">
+                              {categories.map((cat) => (
+                                <option key={cat} value={cat} />
+                              ))}
+                            </datalist>
+                          </div>
                         </FormControl>
+                        <FormDescription className="text-xs text-gray-500 mt-1">
+                          Type a new category to create it. It will be saved for future use.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

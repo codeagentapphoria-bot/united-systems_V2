@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 
 // Utils
 import { cn } from '@/lib/utils';
-import { FiArrowRight, FiCreditCard, FiFileText, FiMessageSquare, FiTool, FiUser, FiShield, FiZap, FiBarChart, FiCheck } from 'react-icons/fi';
+import { FiArrowRight, FiCreditCard, FiFileText, FiMessageSquare, FiTool, FiShield, FiZap, FiBarChart, FiCheck } from 'react-icons/fi';
 
 // Supabase
 import { supabase } from '@/lib/supabase';
