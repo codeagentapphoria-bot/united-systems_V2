@@ -3,6 +3,7 @@ import { verifyAdmin, verifyToken } from '../middleware/auth';
 import {
   activateResidentController,
   checkUsernameController,
+  checkEmailController,
   deactivateResidentController,
   deleteResidentController,
   getByResidentIdController,
@@ -22,6 +23,9 @@ const router = Router();
 
 // Username availability check (used during portal registration — no auth)
 router.get('/check-username', checkUsernameController);
+
+// Email existence check (used during portal registration — no auth)
+router.get('/check-email', checkEmailController);
 
 // Resident's own profile (portal auth)
 router.get('/me', verifyToken, getMyProfileController);

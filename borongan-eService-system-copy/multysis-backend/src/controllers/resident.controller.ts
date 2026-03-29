@@ -12,6 +12,7 @@ import {
   markMovedOut,
   updateResident,
   updateMyProfile,
+  checkEmailExists,
 } from '../services/resident.service';
 import prisma from '../config/database';
 
@@ -83,6 +84,21 @@ export const checkUsernameController = async (req: AuthRequest, res: Response): 
       return;
     }
     const result = await checkUsernameAvailability(username);
+    res.status(200).json({ status: 'success', data: result });
+  } catch (error: any) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// GET /api/residents/check-email?email=
+export const checkEmailController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const email = req.query.email as string;
+    if (!email) {
+      res.status(400).json({ status: 'error', message: 'email query param required' });
+      return;
+    }
+    const result = await checkEmailExists(email);
     res.status(200).json({ status: 'success', data: result });
   } catch (error: any) {
     res.status(500).json({ status: 'error', message: error.message });

@@ -10,21 +10,21 @@ import { z } from 'zod';
 // UI Components (shadcn/ui)
 import { Button } from '@/components/ui/button';
 import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
 } from '@/components/ui/sheet';
 
 // Hooks
@@ -232,13 +232,13 @@ export const PortalLoginSheet: React.FC<PortalLoginSheetProps> = ({
 
                 <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                   <p className="text-xs text-gray-600 text-center">
-                    New resident?{' '}
+                    Already have an account?{' '}
                     <button
                       type="button"
-                      onClick={() => { closeLoginSheet(); navigate('/portal/register'); }}
+                      onClick={() => { closeLoginSheet(); navigate('/portal/register/status'); }}
                       className="font-medium text-primary-600 hover:underline"
                     >
-                      Register with ID Verification
+                      Check Status
                     </button>
                   </p>
                 </div>

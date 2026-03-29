@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { PortalHeader } from '@/components/layout/PortalHeader';
 import api from '@/services/api/auth.service';
 
 const schema = z.object({
@@ -135,115 +136,118 @@ export const RegistrationStatus: React.FC = () => {
   const statusInfo = statusData ? STATUS_CONFIG[statusData.registrationStatus] : null;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-md mx-auto space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <img src="/logo-colored.svg" alt="LGU" className="h-10 w-auto" />
-              <CardTitle className="text-xl">Check Registration Status</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form className="space-y-4" onSubmit={form.handleSubmit(handleCheck)}>
-                <FormField
-                  control={form.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Username</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Enter your registered username" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Checking...' : 'Check Status'}
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+    <div className="min-h-screen flex flex-col bg-neutral-50">
+      <PortalHeader />
 
-        {statusData && statusInfo && (
+      <div className="flex-1 py-8 px-4">
+        <div className="max-w-md mx-auto space-y-6">
           <Card>
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-800">
-                    {statusData.firstName} {statusData.lastName}
-                  </p>
-                  <p className="text-sm text-gray-500">@{statusData.username}</p>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color}`}>
-                  {statusInfo.label}
-                </span>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-xl">Check Registration Status</CardTitle>
               </div>
-
-              <p className="text-sm text-gray-600">{statusInfo.description}</p>
-
-              {statusData.adminNotes && (
-                <div className="bg-gray-50 border rounded p-3">
-                  <p className="text-xs font-medium text-gray-500 mb-1">Admin Notes</p>
-                  <p className="text-sm text-gray-700">{statusData.adminNotes}</p>
-                </div>
-              )}
-
-              {statusData.registrationStatus === 'requires_resubmission' && (
-                <div className="space-y-3">
-                  {!showResubmitForm ? (
-                    <Button variant="outline" className="w-full" onClick={() => setShowResubmitForm(true)}>
-                      Re-upload Documents
-                    </Button>
-                  ) : (
-                    <div className="space-y-3 border rounded p-4">
-                      <p className="text-sm font-medium text-gray-700">Upload Required Documents</p>
-                      <div className="space-y-1">
-                        <label className="text-xs text-gray-500">Selfie with Government ID</label>
-                        <input type="file" accept="image/*" onChange={e => setSelfieFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-gray-500">Government ID Document</label>
-                        <input type="file" accept="image/*" onChange={e => setIdFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button className="flex-1" onClick={handleResubmit} disabled={resubmitting}>
-                          {resubmitting ? 'Submitting...' : 'Submit'}
-                        </Button>
-                        <Button variant="outline" onClick={() => setShowResubmitForm(false)} disabled={resubmitting}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {statusData.registrationStatus === 'approved' && (
-                <Button className="w-full" onClick={() => navigate('/portal/login')}>
-                  Log In Now
-                </Button>
-              )}
-
-              {statusData.submittedAt && (
-                <p className="text-xs text-gray-400 text-right">
-                  Submitted: {new Date(statusData.submittedAt).toLocaleDateString('en-PH')}
-                </p>
-              )}
+            </CardHeader>
+            <CardContent>
+              <Form {...form}>
+                <form className="space-y-4" onSubmit={form.handleSubmit(handleCheck)}>
+                  <FormField
+                    control={form.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Username</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Enter your registered username" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Checking...' : 'Check Status'}
+                  </Button>
+                </form>
+              </Form>
             </CardContent>
           </Card>
-        )}
 
-        <div className="text-center">
-          <button
-            onClick={() => navigate('/portal/login')}
-            className="text-sm text-primary hover:underline"
-          >
-            ← Back to Login
-          </button>
+          {statusData && statusInfo && (
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-gray-800">
+                      {statusData.firstName} {statusData.lastName}
+                    </p>
+                    <p className="text-sm text-gray-500">@{statusData.username}</p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color}`}>
+                    {statusInfo.label}
+                  </span>
+                </div>
+
+                <p className="text-sm text-gray-600">{statusInfo.description}</p>
+
+                {statusData.adminNotes && (
+                  <div className="bg-gray-50 border rounded p-3">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Admin Notes</p>
+                    <p className="text-sm text-gray-700">{statusData.adminNotes}</p>
+                  </div>
+                )}
+
+                {statusData.registrationStatus === 'requires_resubmission' && (
+                  <div className="space-y-3">
+                    {!showResubmitForm ? (
+                      <Button variant="outline" className="w-full" onClick={() => setShowResubmitForm(true)}>
+                        Re-upload Documents
+                      </Button>
+                    ) : (
+                      <div className="space-y-3 border rounded p-4">
+                        <p className="text-sm font-medium text-gray-700">Upload Required Documents</p>
+                        <div className="space-y-1">
+                          <label className="text-xs text-gray-500">Selfie with Government ID</label>
+                          <input type="file" accept="image/*" onChange={e => setSelfieFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-gray-500">Government ID Document</label>
+                          <input type="file" accept="image/*" onChange={e => setIdFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button className="flex-1" onClick={handleResubmit} disabled={resubmitting}>
+                            {resubmitting ? 'Submitting...' : 'Submit'}
+                          </Button>
+                          <Button variant="outline" onClick={() => setShowResubmitForm(false)} disabled={resubmitting}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {statusData.registrationStatus === 'approved' && (
+                  <Button className="w-full" onClick={() => navigate('/portal/login')}>
+                    Log In Now
+                  </Button>
+                )}
+
+                {statusData.submittedAt && (
+                  <p className="text-xs text-gray-400 text-right">
+                    Submitted: {new Date(statusData.submittedAt).toLocaleDateString('en-PH')}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="text-center">
+            <button
+              onClick={() => navigate('/portal/login')}
+              className="text-sm text-primary hover:underline"
+            >
+              ← Back to Login
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -273,3 +273,13 @@ export const checkUsernameAvailability = async (username: string) => {
   });
   return { available: !existing };
 };
+
+// CHECK EMAIL EXISTS
+// =============================================================================
+export const checkEmailExists = async (email: string) => {
+  const existing = await prisma.resident.findFirst({
+    where: { email: email.toLowerCase() },
+    select: { id: true },
+  });
+  return { exists: !!existing };
+};
