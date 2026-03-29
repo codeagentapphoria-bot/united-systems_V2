@@ -82,6 +82,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, menuItems }) 
   const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
   const location = useLocation();
 
+  // Initialize all categories as collapsed by default
+  useEffect(() => {
+    const allCategories = new Set<string>();
+    menuItems.forEach((item) => {
+      item.submenuItems?.forEach((sub) => {
+        if (sub.category) allCategories.add(sub.category);
+      });
+    });
+    setCollapsedCategories(Array.from(allCategories));
+  }, [menuItems]);
+
   // Auto-expand submenus when their submenu items are active
   useEffect(() => {
     menuItems.forEach((item) => {

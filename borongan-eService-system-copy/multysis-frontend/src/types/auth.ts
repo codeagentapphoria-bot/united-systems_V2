@@ -29,6 +29,7 @@ export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isLoggingOut: boolean;
   login: (
     credentials: { username: string; password: string } | { email: string; password: string },
     isAdmin?: boolean,

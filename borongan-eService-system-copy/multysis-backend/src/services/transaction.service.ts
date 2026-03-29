@@ -968,7 +968,7 @@ export const getServiceStatistics = async (
   const [total, pending, approved, rejected, cancelled] = await Promise.all([
     prisma.transaction.count({ where }),
     prisma.transaction.count({
-      where: { ...where, status: { in: ['Pending', undefined, null] } },
+      where: { ...where, status: 'Pending' },
     }),
     prisma.transaction.count({
       where: { ...where, status: { in: ['Approved', 'Completed'] } },
