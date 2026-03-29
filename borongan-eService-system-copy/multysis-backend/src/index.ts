@@ -456,6 +456,19 @@ httpServer.listen(PORT, () => {
   console.log(`🔗 API URL: http://localhost:${PORT}/api`);
   console.log(`🔌 WebSocket server initialized`);
 
+  // Verify Redis connection on startup
+  import('./services/cache.service').then(({ cacheService }) => {
+    cacheService.connect().then((connected) => {
+      if (connected) {
+        console.log(`✅ Redis connected successfully`);
+      } else {
+        console.warn(`⚠️ Redis connection failed - caching disabled`);
+      }
+    });
+  }).catch((err) => {
+    console.warn(`⚠️ Redis import failed:`, err.message);
+  });
+
   // Log server startup
   addDevLog('info', 'Server started', {
     port: PORT,

@@ -54,6 +54,12 @@ export const queryKeys = {
       ['transactions', 'resident', residentId, filters] as const,
   },
 
+  profile: {
+    me: ['profile', 'me'] as const,
+    household: ['profile', 'household'] as const,
+    classifications: ['profile', 'classifications'] as const,
+  },
+
   addresses: {
     all: ['addresses'] as const,
     regions: ['addresses', 'regions'] as const,
@@ -65,6 +71,8 @@ export const queryKeys = {
   notifications: {
     all: ['notifications'] as const,
     unread: ['notifications', 'unread'] as const,
+    subscriber: ['notifications', 'subscriber'] as const,
+    admin: ['notifications', 'admin'] as const,
   },
 };
 

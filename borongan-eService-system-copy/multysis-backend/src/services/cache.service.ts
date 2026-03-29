@@ -4,7 +4,6 @@ const redisUrl = process.env.REDIS_URL || process.env.REDIS_INTERNAL_URL || 'red
 
 const redis = new Redis(redisUrl, {
   maxRetriesPerRequest: 3,
-  lazyConnect: true,
   retryStrategy: (times) => {
     if (times > 3) {
       console.warn('[CACHE] Redis connection failed, caching disabled');
@@ -18,11 +17,29 @@ redis.on('error', (err) => {
   console.warn('[CACHE] Redis error:', err.message);
 });
 
+redis.on('connect', () => {
+  console.log('[CACHE] Redis connected successfully');
+});
+
+redis.on('ready', () => {
+  console.log('[CACHE] Redis ready for commands');
+});
+
 export interface CacheOptions {
   ttl?: number;
 }
 
 export const cacheService = {
+  async connect(): Promise<boolean> {
+    try {
+      await redis.connect();
+      return true;
+    } catch (error) {
+      console.warn('[CACHE] Connection failed:', error instanceof Error ? error.message : 'Unknown');
+      return false;
+    }
+  },
+
   async get<T>(key: string): Promise<T | null> {
     try {
       const data = await redis.get(key);

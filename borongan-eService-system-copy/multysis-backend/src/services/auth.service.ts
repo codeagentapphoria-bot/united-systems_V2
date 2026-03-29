@@ -1,4 +1,5 @@
 import prisma from '../config/database';
+import cacheService from './cache.service';
 import { generateRefreshToken, generateToken, TokenPayload } from '../utils/jwt';
 import { comparePassword } from '../utils/password';
 import { createRefreshToken } from './refreshToken.service';
@@ -285,6 +286,7 @@ export const loginWithGoogle = async (data: GoogleLoginData): Promise<GoogleLogi
 
 // =============================================================================
 // GET CURRENT USER  (used by /api/auth/me and token refresh)
+// Cached for 5 minutes per user
 // =============================================================================
 
 export const getCurrentUser = async (
@@ -301,12 +303,25 @@ export const getCurrentUser = async (
     };
   }
 
+  // Cache key based on user type
+  const cacheKey = type === 'admin' 
+    ? `auth:admin:${userId}:me` 
+    : `auth:resident:${userId}:me`;
+
+  // Check cache first (only for non-sensitive data)
+  const cached = await cacheService.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   if (type === 'admin') {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, name: true, role: true, createdAt: true },
     });
     if (!user) throw new Error('User not found');
+    
+    await cacheService.set(cacheKey, user, 300); // 5 min TTL
     return user;
   }
 
@@ -320,7 +335,10 @@ export const getCurrentUser = async (
   });
 
   if (!resident) throw new Error('Resident not found');
-  return formatResidentResponse(resident);
+  
+  const formatted = formatResidentResponse(resident);
+  await cacheService.set(cacheKey, formatted, 300); // 5 min TTL
+  return formatted;
 };
 
 // =============================================================================

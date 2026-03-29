@@ -37,6 +37,7 @@ const PortalEGovernment = lazy(() => import('../pages/portal/PortalEGovernment')
 const PortalEBills = lazy(() => import('../pages/portal/PortalEBills').then(m => ({ default: m.PortalEBills })));
 const PortalEServices = lazy(() => import('../pages/portal/PortalEServices').then(m => ({ default: m.PortalEServices })));
 const PortalENews = lazy(() => import('../pages/portal/PortalENews').then(m => ({ default: m.PortalENews })));
+const PortalExternalWebsites = lazy(() => import('../pages/portal/PortalExternalWebsites').then(m => ({ default: m.PortalExternalWebsites })));
 const PortalFAQs = lazy(() => import('../pages/portal/PortalFAQs').then(m => ({ default: m.PortalFAQs })));
 const PortalProfile = lazy(() => import('../pages/portal/PortalProfile').then(m => ({ default: m.PortalProfile })));
 const PortalGuestApply = lazy(() => import('../pages/portal/PortalGuestApply').then(m => ({ default: m.PortalGuestApply })));
@@ -351,6 +352,14 @@ export const router = createBrowserRouter([
         element: (
           <LazyWrapper>
             <PortalENews />
+          </LazyWrapper>
+        ),
+      },
+      {
+        path: 'external-websites',
+        element: (
+          <LazyWrapper>
+            <PortalExternalWebsites />
           </LazyWrapper>
         ),
       },

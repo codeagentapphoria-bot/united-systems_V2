@@ -51,6 +51,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = () => {
     { path: '/portal/e-government', label: 'E-Government' },
     { path: '/portal/e-bills', label: 'E-Bills' },
     { path: '/portal/e-news', label: 'E-News' },
+    { path: '/portal/external-websites', label: 'External' },
   ];
 
   const isActive = (path: string) => {

@@ -5,7 +5,7 @@
  * Fetches from GET /api/residents/me and updates via PUT /api/residents/me.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +33,11 @@ import {
 } from '@/constants/philippine-addresses';
 import { formatDateWithoutTimezone } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { useMyProfile } from '@/hooks/residents/useMyProfile';
+import { useMyHousehold } from '@/hooks/portal/useMyHousehold';
+import { useMyClassifications } from '@/hooks/portal/useMyClassifications';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query-keys';
 import {
   FiCalendar,
   FiEdit2,
@@ -51,21 +56,20 @@ import {
   FiUsers,
   FiExternalLink,
 } from 'react-icons/fi';
-import api from '@/services/api/auth.service';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const EMPLOYMENT_STATUS_OPTIONS = ['employed','self_employed','unemployed','student','retired','ofw'];
+const EMPLOYMENT_STATUS_OPTIONS = ['employed', 'self_employed', 'unemployed', 'student', 'retired', 'ofw'];
 const EDUCATION_OPTIONS = [
-  'no_formal_education','elementary','high_school','senior_high_school',
-  'vocational','college','post_graduate',
+  'no_formal_education', 'elementary', 'high_school', 'senior_high_school',
+  'vocational', 'college', 'post_graduate',
 ];
 // ── Status badge ───────────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
-  active:    'bg-success-100 text-success-700',
-  pending:   'bg-warning-100 text-warning-700',
-  inactive:  'bg-neutral-200 text-neutral-700',
-  rejected:  'bg-red-100 text-red-700',
-  deceased:  'bg-gray-300 text-gray-700',
+  active: 'bg-success-100 text-success-700',
+  pending: 'bg-warning-100 text-warning-700',
+  inactive: 'bg-neutral-200 text-neutral-700',
+  rejected: 'bg-red-100 text-red-700',
+  deceased: 'bg-gray-300 text-gray-700',
   moved_out: 'bg-blue-100 text-blue-700',
 };
 
@@ -152,29 +156,29 @@ interface EditForm {
 }
 
 const toForm = (r: Resident): EditForm => ({
-  sex:                      r.sex                      ?? '',
-  civilStatus:              r.civilStatus              ?? '',
-  birthdate:                r.birthdate ? r.birthdate.split('T')[0] : '',
-  citizenship:              r.citizenship              ?? '',
-  spouseName:               r.spouseName               ?? '',
-  isVoter:                  r.isVoter                  ?? false,
-  indigenousPerson:         r.indigenousPerson         ?? false,
-  birthRegion:              r.birthRegion              ?? '',
-  birthProvince:            r.birthProvince            ?? '',
-  birthMunicipality:        r.birthMunicipality        ?? '',
-  occupation:               r.occupation               ?? '',
-  profession:               r.profession               ?? '',
-  employmentStatus:         r.employmentStatus         ?? '',
-  isEmployed:               r.isEmployed               ?? false,
-  educationAttainment:      r.educationAttainment      ?? '',
-  monthlyIncome:            r.monthlyIncome != null ? String(r.monthlyIncome) : '',
-  height:                   r.height                   ?? '',
-  weight:                   r.weight                   ?? '',
-  emergencyContactPerson:   r.emergencyContactPerson   ?? '',
-  emergencyContactNumber:   r.emergencyContactNumber   ?? '',
-  idType:                   r.idType                   ?? '',
-  idDocumentNumber:         r.idDocumentNumber         ?? '',
-  acrNo:                    r.acrNo                    ?? '',
+  sex: r.sex ?? '',
+  civilStatus: r.civilStatus ?? '',
+  birthdate: r.birthdate ? r.birthdate.split('T')[0] : '',
+  citizenship: r.citizenship ?? '',
+  spouseName: r.spouseName ?? '',
+  isVoter: r.isVoter ?? false,
+  indigenousPerson: r.indigenousPerson ?? false,
+  birthRegion: r.birthRegion ?? '',
+  birthProvince: r.birthProvince ?? '',
+  birthMunicipality: r.birthMunicipality ?? '',
+  occupation: r.occupation ?? '',
+  profession: r.profession ?? '',
+  employmentStatus: r.employmentStatus ?? '',
+  isEmployed: r.isEmployed ?? false,
+  educationAttainment: r.educationAttainment ?? '',
+  monthlyIncome: r.monthlyIncome != null ? String(r.monthlyIncome) : '',
+  height: r.height ?? '',
+  weight: r.weight ?? '',
+  emergencyContactPerson: r.emergencyContactPerson ?? '',
+  emergencyContactNumber: r.emergencyContactNumber ?? '',
+  idType: r.idType ?? '',
+  idDocumentNumber: r.idDocumentNumber ?? '',
+  acrNo: r.acrNo ?? '',
 });
 
 // ── Household types ────────────────────────────────────────────────────────────
@@ -190,84 +194,36 @@ interface HouseholdFamily {
   family_head: string;
   members: HouseholdMember[];
 }
-interface HouseholdData {
+
+interface Classification {
   id: number;
-  house_number?: string;
-  street?: string;
-  barangay_name?: string;
-  municipality_name?: string;
-  housing_type?: string;
-  electricity?: boolean;
-  water_source?: string;
-  toilet_facility?: string;
-  families: HouseholdFamily[];
+  classification_type: string;
+  type_name: string | null;
+  type_color: string | null;
 }
 
 // ── Label formatter ────────────────────────────────────────────────────────────
 const fmt = (v?: string | null) =>
-  v ? v.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : undefined;
+  v ? v.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : undefined;
 
 export const PortalProfile: React.FC = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [resident, setResident]           = useState<Resident | null>(null);
-  const [isLoading, setIsLoading]         = useState(true);
-  const [editOpen, setEditOpen]           = useState(false);
-  const [isSaving, setIsSaving]           = useState(false);
-  const [isEditLoading, setIsEditLoading] = useState(false);
-  const [form, setForm]                   = useState<EditForm | null>(null);
-  const [household, setHousehold]         = useState<HouseholdData | null | undefined>(undefined);
-  const [isHouseholdLoading, setIsHouseholdLoading] = useState(false);
-  const [classifications, setClassifications] = useState<{ id: number; classification_type: string; type_name: string | null; type_color: string | null }[]>([]);
+  const queryClient = useQueryClient();
 
+  const { data: resident, isLoading } = useMyProfile();
+  const { data: household, isLoading: isHouseholdLoading } = useMyHousehold();
+  const { data: classifications } = useMyClassifications();
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [form, setForm] = useState<EditForm | null>(null);
 
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    setIsLoading(true);
-    residentService
-      .getMyProfile()
-      .then(setResident)
-      .catch((err) => toast({ variant: 'destructive', title: 'Failed to load profile', description: err.message }))
-      .finally(() => setIsLoading(false));
-  }, [isAuthenticated, user]);
-
-  const fetchHousehold = () => {
-    if (!isAuthenticated || !user) return;
-    setIsHouseholdLoading(true);
-    api
-      .get('/portal/household/my')
-      .then((res) => setHousehold(res.data.data ?? null))
-      .catch(() => setHousehold(null))
-      .finally(() => setIsHouseholdLoading(false));
-  };
-
-  useEffect(() => {
-    if (isAuthenticated && user) fetchHousehold();
-  }, [isAuthenticated, user]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    api
-      .get('/portal/classifications/my')
-      .then((res) => setClassifications(res.data.data ?? []))
-      .catch(() => setClassifications([]));
-  }, [isAuthenticated, user]);
-
-  // Always fetch fresh data when opening the edit modal
-  const openEdit = async () => {
-    setIsEditLoading(true);
-    setEditOpen(true);
-    try {
-      const fresh = await residentService.getMyProfile();
-      setResident(fresh);
-      setForm(toForm(fresh));
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Failed to load profile data', description: err.message });
-      setEditOpen(false);
-    } finally {
-      setIsEditLoading(false);
+  const openEdit = () => {
+    if (resident) {
+      setForm(toForm(resident));
+      setEditOpen(true);
     }
   };
 
@@ -282,12 +238,12 @@ export const PortalProfile: React.FC = () => {
         ...form,
         monthlyIncome: form.monthlyIncome !== '' ? parseFloat(form.monthlyIncome) : null,
       };
-      // send empty strings as null
       for (const k of Object.keys(payload)) {
         if (payload[k] === '') payload[k] = null;
       }
-      const updated = await residentService.updateMyProfile(payload);
-      setResident(updated);
+      await residentService.updateMyProfile(payload);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.profile.me });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.profile.household });
       setEditOpen(false);
       toast({ title: 'Profile updated', description: 'Your information has been saved.' });
     } catch (err: any) {
@@ -329,7 +285,7 @@ export const PortalProfile: React.FC = () => {
 
   return (
     <PortalLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6 px-4 py-12">
 
         {/* Header */}
         <Card>
@@ -398,9 +354,9 @@ export const PortalProfile: React.FC = () => {
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <InfoRow icon={<FiCalendar size={14} />} label="Date of Birth"
                   value={resident.birthdate ? formatDateWithoutTimezone(resident.birthdate, { dateStyle: 'long' }) : undefined} />
-                <InfoRow label="Sex"          value={fmt(resident.sex)} />
+                <InfoRow label="Sex" value={fmt(resident.sex)} />
                 <InfoRow label="Civil Status" value={fmt(resident.civilStatus)} />
-                <InfoRow label="Citizenship"  value={resident.citizenship} />
+                <InfoRow label="Citizenship" value={resident.citizenship} />
                 <InfoRow icon={<FiHeart size={14} />} label="Spouse Name" value={resident.spouseName} />
                 <InfoRow label="Registered Voter"
                   value={resident.isVoter === true ? 'Yes' : resident.isVoter === false ? 'No' : undefined} />
@@ -415,8 +371,8 @@ export const PortalProfile: React.FC = () => {
                 <CardTitle className="text-base flex items-center gap-2"><FiMapPin size={15} /> Place of Birth</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                <InfoRow label="Region"              value={resident.birthRegion} />
-                <InfoRow label="Province"            value={resident.birthProvince} />
+                <InfoRow label="Region" value={resident.birthRegion} />
+                <InfoRow label="Province" value={resident.birthProvince} />
                 <InfoRow label="City / Municipality" value={resident.birthMunicipality} />
               </CardContent>
             </Card>
@@ -427,8 +383,8 @@ export const PortalProfile: React.FC = () => {
                 <CardTitle className="text-base flex items-center gap-2"><FiBriefcase size={15} /> Employment & Education</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <InfoRow label="Occupation"        value={resident.occupation} />
-                <InfoRow label="Profession"        value={resident.profession} />
+                <InfoRow label="Occupation" value={resident.occupation} />
+                <InfoRow label="Profession" value={resident.profession} />
                 <InfoRow label="Employment Status" value={fmt(resident.employmentStatus)} />
                 <InfoRow label="Employed"
                   value={resident.isEmployed === true ? 'Yes' : resident.isEmployed === false ? 'No' : undefined} />
@@ -452,7 +408,7 @@ export const PortalProfile: React.FC = () => {
             )}
 
             {/* Classification & Programs (from BIMS) */}
-            {classifications.length > 0 && (
+            {(classifications?.length ?? 0) > 0 && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
@@ -460,7 +416,7 @@ export const PortalProfile: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-2">
-                  {classifications.map((c) => (
+                  {classifications.map((c: Classification) => (
                     <Badge
                       key={c.id}
                       style={
@@ -485,8 +441,8 @@ export const PortalProfile: React.FC = () => {
                 <CardTitle className="text-base flex items-center gap-2"><FiPhone size={15} /> Contact Information</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <InfoRow icon={<FiPhone size={14} />} label="Contact Number"  value={resident.contactNumber} />
-                <InfoRow icon={<FiMail  size={14} />} label="Email Address"   value={resident.email} />
+                <InfoRow icon={<FiPhone size={14} />} label="Contact Number" value={resident.contactNumber} />
+                <InfoRow icon={<FiMail size={14} />} label="Email Address" value={resident.email} />
                 <InfoRow icon={<FiMapPin size={14} />} label="Street Address" value={resident.streetAddress} />
               </CardContent>
             </Card>
@@ -496,7 +452,7 @@ export const PortalProfile: React.FC = () => {
                 <CardTitle className="text-base flex items-center gap-2"><FiHeart size={15} /> Emergency Contact</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <InfoRow label="Name"           value={resident.emergencyContactPerson} />
+                <InfoRow label="Name" value={resident.emergencyContactPerson} />
                 <InfoRow label="Contact Number" value={resident.emergencyContactNumber} />
               </CardContent>
             </Card>
@@ -506,7 +462,7 @@ export const PortalProfile: React.FC = () => {
                 <CardTitle className="text-base flex items-center gap-2"><FiShield size={15} /> Identification</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <InfoRow label="ID Type"   value={resident.idType} />
+                <InfoRow label="ID Type" value={resident.idType} />
                 <InfoRow label="ID Number" value={resident.idDocumentNumber} />
                 {resident.acrNo && <InfoRow label="ACR No." value={resident.acrNo} />}
               </CardContent>
@@ -548,18 +504,18 @@ export const PortalProfile: React.FC = () => {
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <InfoRow label="House Number" value={household.house_number} />
-                    <InfoRow label="Street"       value={household.street} />
-                    <InfoRow label="Barangay"     value={household.barangay_name} />
+                    <InfoRow label="Street" value={household.street} />
+                    <InfoRow label="Barangay" value={household.barangay_name} />
                     <InfoRow label="Municipality" value={household.municipality_name} />
                     <InfoRow label="Housing Type" value={fmt(household.housing_type)} />
-                    <InfoRow label="Electricity"  value={household.electricity ? 'Yes' : 'No'} />
+                    <InfoRow label="Electricity" value={household.electricity ? 'Yes' : 'No'} />
                     <InfoRow label="Water Source" value={fmt(household.water_source)} />
                     <InfoRow label="Toilet Facility" value={fmt(household.toilet_facility)} />
                   </CardContent>
                 </Card>
 
                 {/* Family Members */}
-                {household.families?.length > 0 && (
+                {(household?.families?.length ?? 0) > 0 && (
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
@@ -567,13 +523,13 @@ export const PortalProfile: React.FC = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {household.families.map((fam) => (
+                      {household.families.map((fam: HouseholdFamily) => (
                         <div key={fam.family_id}>
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                             {fam.family_group}
                           </p>
                           <div className="space-y-2">
-                            {fam.members.map((m) => (
+                            {fam.members.map((m: HouseholdMember) => (
                               <div
                                 key={m.member_id}
                                 className="flex items-center justify-between text-sm py-1.5 border-b last:border-0"
@@ -618,7 +574,7 @@ export const PortalProfile: React.FC = () => {
             <DialogTitle>Edit Personal Information</DialogTitle>
           </DialogHeader>
 
-          {isEditLoading || !form ? (
+          {!form ? (
             <div className="flex items-center justify-center py-16 text-gray-400 text-sm gap-2">
               <svg className="animate-spin h-5 w-5 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -642,7 +598,7 @@ export const PortalProfile: React.FC = () => {
                       onChange={(v) => set('sex')(v)} options={['male', 'female']} />
                     <SelectField label="Civil Status" value={form.civilStatus}
                       onChange={(v) => set('civilStatus')(v)}
-                      options={['single','married','widowed','separated','divorced','live_in','annulled']} />
+                      options={['single', 'married', 'widowed', 'separated', 'divorced', 'live_in', 'annulled']} />
                     <Field label="Citizenship">
                       <Input value={form.citizenship} onChange={(e) => set('citizenship')(e.target.value)}
                         placeholder="e.g. Filipino" className="h-9 text-sm" />

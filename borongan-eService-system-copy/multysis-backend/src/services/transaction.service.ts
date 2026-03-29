@@ -291,6 +291,16 @@ export const getTransactions = async (
             payments: true,
           },
         },
+        _count: {
+          select: {
+            transactionNotes: {
+              where: {
+                isRead: false,
+                senderType: 'ADMIN',
+              },
+            },
+          },
+        },
       },
       skip,
       take: limit,
@@ -313,6 +323,7 @@ export const getTransactions = async (
 
         return {
           ...transaction,
+          unreadMessageCount: transaction._count?.transactionNotes || 0,
           taxComputation: {
             id: taxComputation.id,
             totalTax: taxComputation.totalTax,
@@ -328,7 +339,10 @@ export const getTransactions = async (
           },
         };
       }
-      return transaction;
+      return {
+        ...transaction,
+        unreadMessageCount: transaction._count?.transactionNotes || 0,
+      };
     })
   );
 
