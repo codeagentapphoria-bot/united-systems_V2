@@ -91,9 +91,7 @@ const HouseholdTable = ({
                     {household.house_head}
                   </TableCell>
                   <TableCell>
-                    {household.house_number}
-                    {household.house_number && household.street ? ", " : " "}
-                    {household.street}
+                    {[household.house_number, household.street, household.barangay_name].filter(Boolean).join(', ') || '-'}
                   </TableCell>
                   <TableCell className="font-medium">
                     ₱
