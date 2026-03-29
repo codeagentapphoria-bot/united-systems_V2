@@ -16,9 +16,7 @@ import {
 
 // Hooks
 import { useAdminNotifications } from '@/hooks/notifications/useAdminNotifications';
-
-// Services
-import { serviceService, type Service } from '@/services/api/service.service';
+import { useActiveServices } from '@/hooks/useActiveServices';
 
 // Utils
 import { FiBell, FiEdit, FiFileText, FiMessageSquare, FiUsers } from 'react-icons/fi';
@@ -30,24 +28,9 @@ interface NotificationDropdownProps {
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ children }) => {
   const navigate = useNavigate();
   const { counts } = useAdminNotifications();
-  const [services, setServices] = React.useState<Service[]>([]);
+  const { services } = useActiveServices();
 
   const hasNotifications = counts.total > 0;
-
-  // Fetch services to find the first one with pending applications
-  React.useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const activeServices = await serviceService.getActiveServices({
-          displayInSidebar: true,
-        });
-        setServices(activeServices);
-      } catch (error) {
-        console.error('Failed to fetch services:', error);
-      }
-    };
-    fetchServices();
-  }, []);
 
   // Find the first service with pending applications
   const firstPendingService = useMemo(() => {

@@ -1,4 +1,22 @@
 import { Server as SocketIOServer } from 'socket.io';
+import cacheService from './cache.service';
+
+const invalidateAdminNotificationCache = async (): Promise<void> => {
+  try {
+    await cacheService.del('admin:notificationCounts');
+  } catch (error) {
+    console.error('Failed to invalidate admin notification cache:', error);
+  }
+};
+
+const invalidateSubscriberNotificationCache = async (residentId: string): Promise<void> => {
+  try {
+    await cacheService.del(`subscriber:${residentId}:notificationCounts`);
+  } catch (error) {
+    console.error(`Failed to invalidate subscriber ${residentId} notification cache:`, error);
+  }
+};
+
 import type {
   AppointmentNewPayload,
   AppointmentUpdatePayload,
@@ -34,7 +52,7 @@ export const getSocketInstance = (): SocketIOServer | null => {
   return ioInstance || ((global as any).io as SocketIOServer) || null;
 };
 
-export const emitTransactionUpdate = (
+export const emitTransactionUpdate = async (
   transactionId: string,
   update: {
     status?: string;
@@ -49,8 +67,9 @@ export const emitTransactionUpdate = (
     serviceId?: string;
     serviceCode?: string;
     paymentAmount?: number;
+    residentId?: string;
   }
-): void => {
+): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     io.to(`transaction:${transactionId}`).emit('transaction:update', {
@@ -65,15 +84,22 @@ export const emitTransactionUpdate = (
       ...update,
       updatedAt: update.updatedAt.toISOString(),
     } as TransactionUpdatePayload);
+
+    // Invalidate caches
+    await invalidateAdminNotificationCache();
+    if (update.residentId) {
+      await invalidateSubscriberNotificationCache(update.residentId);
+    }
   }
 };
 
-export const emitTransactionNoteRead = (
+export const emitTransactionNoteRead = async (
   noteId: string,
   transactionId: string,
   senderType: 'ADMIN' | 'RESIDENT',
-  isRead: boolean
-): void => {
+  isRead: boolean,
+  residentId?: string
+): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     const payload: TransactionNoteReadPayload = {
@@ -89,16 +115,22 @@ export const emitTransactionNoteRead = (
 
     // Also notify admins for notification count updates
     io.to('admins').emit('transaction:note:read', payload);
+
+    // Invalidate caches
+    await invalidateAdminNotificationCache();
+    if (residentId) {
+      await invalidateSubscriberNotificationCache(residentId);
+    }
   }
 };
 
-export const emitSubscriberUpdate = (
+export const emitSubscriberUpdate = async (
   subscriberId: string,
   update: {
     status?: string;
     updatedAt: Date;
   }
-): void => {
+): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     io.to(`subscriber:${subscriberId}`).emit('subscriber:update', {
@@ -114,10 +146,13 @@ export const emitSubscriberUpdate = (
       ...update,
       timestamp: update.updatedAt.toISOString(),
     });
+
+    // Invalidate subscriber cache
+    await invalidateSubscriberNotificationCache(subscriberId);
   }
 };
 
-export const emitNewSubscriber = (subscriber: {
+export const emitNewSubscriber = async (subscriber: {
   id: string;
   firstName: string;
   middleName?: string;
@@ -128,7 +163,7 @@ export const emitNewSubscriber = (subscriber: {
   status?: string;
   type: 'CITIZEN' | 'SUBSCRIBER';
   createdAt: Date | string;
-}): void => {
+}): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     // Notify admins about new subscriber
@@ -147,6 +182,9 @@ export const emitNewSubscriber = (subscriber: {
           ? subscriber.createdAt.toISOString()
           : subscriber.createdAt,
     } as NewSubscriberPayload);
+
+    // Invalidate admin cache (new subscriber may mean pending citizen)
+    await invalidateAdminNotificationCache();
   }
 };
 
@@ -205,14 +243,14 @@ export const emitServiceDelete = (serviceId: string): void => {
   }
 };
 
-export const emitAppointmentNew = (appointment: {
+export const emitAppointmentNew = async (appointment: {
   transactionId: string;
   serviceId: string;
   serviceCode?: string;
   appointmentDate: Date | string;
   appointmentStatus?: string;
   residentId: string;
-}): void => {
+}): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     const payload: AppointmentNewPayload = {
@@ -237,10 +275,13 @@ export const emitAppointmentNew = (appointment: {
       transactionId: appointment.transactionId,
       timestamp: new Date().toISOString(),
     });
+
+    // Invalidate subscriber cache (appointment is a status update)
+    await invalidateSubscriberNotificationCache(appointment.residentId);
   }
 };
 
-export const emitAppointmentUpdate = (
+export const emitAppointmentUpdate = async (
   transactionId: string,
   update: {
     appointmentStatus?: string;
@@ -251,7 +292,7 @@ export const emitAppointmentUpdate = (
     residentId?: string;
     updatedAt: Date;
   }
-): void => {
+): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     const payload: AppointmentUpdatePayload = {
@@ -284,10 +325,16 @@ export const emitAppointmentUpdate = (
         timestamp: update.updatedAt.toISOString(),
       });
     }
+
+    // Invalidate caches
+    await invalidateAdminNotificationCache();
+    if (update.residentId) {
+      await invalidateSubscriberNotificationCache(update.residentId);
+    }
   }
 };
 
-export const emitNewTransaction = (transaction: {
+export const emitNewTransaction = async (transaction: {
   id: string;
   residentId: string;
   transactionId: string;
@@ -299,7 +346,7 @@ export const emitNewTransaction = (transaction: {
   referenceNumber?: string;
   createdAt: Date | string;
   serviceCode?: string;
-}): void => {
+}): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     // Notify admins with full transaction data
@@ -318,17 +365,20 @@ export const emitNewTransaction = (transaction: {
       transactionId: transaction.id,
       timestamp: new Date().toISOString(),
     });
+
+    // Invalidate admin cache (new transaction = new pending application)
+    await invalidateAdminNotificationCache();
   }
 };
 
-export const emitBeneficiaryNew = (beneficiary: {
+export const emitBeneficiaryNew = async (beneficiary: {
   beneficiaryId: string;
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT';
   residentId: string;
   status?: string;
   programIds?: string[];
   createdAt: Date | string;
-}): void => {
+}): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     io.to('admins').emit('beneficiary:new', {
@@ -342,10 +392,13 @@ export const emitBeneficiaryNew = (beneficiary: {
           ? beneficiary.createdAt.toISOString()
           : beneficiary.createdAt,
     } as BeneficiaryNewPayload);
+
+    // Invalidate admin cache
+    await invalidateAdminNotificationCache();
   }
 };
 
-export const emitBeneficiaryUpdate = (
+export const emitBeneficiaryUpdate = async (
   beneficiaryId: string,
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT',
   update: {
@@ -355,7 +408,7 @@ export const emitBeneficiaryUpdate = (
     programIds?: string[];
     updatedAt: Date;
   }
-): void => {
+): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     io.to('admins').emit('beneficiary:update', {
@@ -367,14 +420,17 @@ export const emitBeneficiaryUpdate = (
       programIds: update.programIds,
       updatedAt: update.updatedAt.toISOString(),
     } as BeneficiaryUpdatePayload);
+
+    // Invalidate admin cache
+    await invalidateAdminNotificationCache();
   }
 };
 
-export const emitBeneficiaryDelete = (
+export const emitBeneficiaryDelete = async (
   beneficiaryId: string,
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT',
   residentId?: string
-): void => {
+): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     io.to('admins').emit('beneficiary:delete', {
@@ -382,17 +438,20 @@ export const emitBeneficiaryDelete = (
       type,
       residentId,
     } as BeneficiaryDeletePayload);
+
+    // Invalidate admin cache
+    await invalidateAdminNotificationCache();
   }
 };
 
-export const emitGovernmentProgramNew = (program: {
+export const emitGovernmentProgramNew = async (program: {
   id: string;
   name: string;
   description?: string;
   type: 'SENIOR_CITIZEN' | 'PWD' | 'STUDENT' | 'SOLO_PARENT' | 'ALL';
   isActive: boolean;
   createdAt: Date | string;
-}): void => {
+}): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     io.to('admins').emit('government-program:new', {
@@ -404,10 +463,13 @@ export const emitGovernmentProgramNew = (program: {
       createdAt:
         program.createdAt instanceof Date ? program.createdAt.toISOString() : program.createdAt,
     } as GovernmentProgramNewPayload);
+
+    // Invalidate admin cache
+    await invalidateAdminNotificationCache();
   }
 };
 
-export const emitGovernmentProgramUpdate = (
+export const emitGovernmentProgramUpdate = async (
   programId: string,
   update: {
     name?: string;
@@ -417,7 +479,7 @@ export const emitGovernmentProgramUpdate = (
     oldIsActive?: boolean;
     updatedAt: Date;
   }
-): void => {
+): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     io.to('admins').emit('government-program:update', {
@@ -429,6 +491,9 @@ export const emitGovernmentProgramUpdate = (
       oldIsActive: update.oldIsActive,
       updatedAt: update.updatedAt.toISOString(),
     } as GovernmentProgramUpdatePayload);
+
+    // Invalidate admin cache (program activation affects beneficiaries)
+    await invalidateAdminNotificationCache();
   }
 };
 
@@ -441,7 +506,7 @@ export const emitGovernmentProgramDelete = (programId: string): void => {
   }
 };
 
-export const emitCitizenNew = (citizen: {
+export const emitCitizenNew = async (citizen: {
   id: string;
   firstName: string;
   middleName?: string;
@@ -449,7 +514,7 @@ export const emitCitizenNew = (citizen: {
   extensionName?: string;
   status: string;
   createdAt: Date | string;
-}): void => {
+}): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     io.to('admins').emit('citizen:new', {
@@ -462,10 +527,13 @@ export const emitCitizenNew = (citizen: {
       createdAt:
         citizen.createdAt instanceof Date ? citizen.createdAt.toISOString() : citizen.createdAt,
     } as CitizenNewPayload);
+
+    // Invalidate admin cache (new citizen = pending citizen)
+    await invalidateAdminNotificationCache();
   }
 };
 
-export const emitCitizenUpdate = (
+export const emitCitizenUpdate = async (
   citizenId: string,
   update: {
     firstName?: string;
@@ -476,7 +544,7 @@ export const emitCitizenUpdate = (
     oldStatus?: string;
     updatedAt: Date;
   }
-): void => {
+): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     io.to('admins').emit('citizen:update', {
@@ -489,16 +557,19 @@ export const emitCitizenUpdate = (
       oldStatus: update.oldStatus,
       updatedAt: update.updatedAt.toISOString(),
     } as CitizenUpdatePayload);
+
+    // Invalidate admin cache (citizen status changes affect pending count)
+    await invalidateAdminNotificationCache();
   }
 };
 
-export const emitCitizenStatusChange = (
+export const emitCitizenStatusChange = async (
   citizenId: string,
   oldStatus: string,
   newStatus: string,
   action: 'approve' | 'reject' | 'activate' | 'deactivate',
   remarks?: string
-): void => {
+): Promise<void> => {
   const io = getSocketInstance();
   if (io) {
     const payload: CitizenStatusChangePayload = {
@@ -519,6 +590,9 @@ export const emitCitizenStatusChange = (
       message: `Your citizen registration has been ${action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : action === 'activate' ? 'activated' : 'deactivated'}`,
       timestamp: new Date().toISOString(),
     });
+
+    // Invalidate admin cache (citizen status change affects pending count)
+    await invalidateAdminNotificationCache();
   }
 };
 

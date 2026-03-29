@@ -73,7 +73,8 @@ export const serviceService = {
     limit: number = 10,
     search?: string,
     category?: string,
-    isActive?: boolean
+    isActive?: boolean,
+    signal?: AbortSignal
   ): Promise<PaginatedServices> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -84,17 +85,20 @@ export const serviceService = {
     if (category) params.append('category', category);
     if (isActive !== undefined) params.append('isActive', isActive.toString());
 
-    const response = await api.get(`/services?${params.toString()}`);
+    const response = await api.get(`/services?${params.toString()}`, { signal });
     return {
       services: response.data.data,
       pagination: response.data.pagination,
     };
   },
 
-  async getActiveServices(options?: {
-    displayInSidebar?: boolean;
-    displayInSubscriberTabs?: boolean;
-  }): Promise<Service[]> {
+  async getActiveServices(
+    options?: {
+      displayInSidebar?: boolean;
+      displayInSubscriberTabs?: boolean;
+    },
+    signal?: AbortSignal
+  ): Promise<Service[]> {
     const params = new URLSearchParams();
     if (options?.displayInSidebar !== undefined) {
       params.append('displayInSidebar', options.displayInSidebar.toString());
@@ -105,17 +109,17 @@ export const serviceService = {
 
     const queryString = params.toString();
     const url = `/services/active${queryString ? `?${queryString}` : ''}`;
-    const response = await api.get(url);
+    const response = await api.get(url, { signal });
     return response.data.data;
   },
 
-  async getCategories(): Promise<string[]> {
-    const response = await api.get('/services/categories');
+  async getCategories(signal?: AbortSignal): Promise<string[]> {
+    const response = await api.get('/services/categories', { signal });
     return response.data.data;
   },
 
-  async getService(id: string): Promise<Service> {
-    const response = await api.get(`/services/${id}`);
+  async getService(id: string, signal?: AbortSignal): Promise<Service> {
+    const response = await api.get(`/services/${id}`, { signal });
     return response.data.data;
   },
 

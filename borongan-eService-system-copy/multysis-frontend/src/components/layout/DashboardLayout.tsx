@@ -40,19 +40,19 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   menuItems: propMenuItems,
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // Initialize with propMenuItems or staticMenuItems as fallback
   const [menuItems, setMenuItems] = useState<MenuItem[]>(propMenuItems || staticMenuItems);
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
   const { counts } = useAdminNotifications();
 
   useEffect(() => {
-    // Always try to load dynamic menu items for fresh data
+    if (hasInitiallyLoaded) return;
+    
+    setHasInitiallyLoaded(true);
     getAdminMenuItems(counts)
       .then((items) => {
-        // Only update if we got valid items
         if (items && items.length > 0) {
           setMenuItems(items);
         } else {
-          // Fallback to propMenuItems or staticMenuItems
           const fallback = propMenuItems || staticMenuItems;
           if (fallback.length > 0) {
             setMenuItems(fallback);
@@ -61,15 +61,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       })
       .catch((error) => {
         console.error('Failed to load dynamic menu items:', error);
-        // Fallback to propMenuItems or staticMenuItems on error
         const fallback = propMenuItems || staticMenuItems;
         if (fallback.length > 0) {
           setMenuItems(fallback);
         }
       });
-  }, [propMenuItems, counts]); // Re-run if propMenuItems or counts change
+  }, [propMenuItems]);
 
-  // Refresh menu when services change (e.g., after creating/updating a service)
   useEffect(() => {
     const handleServiceChange = () => {
       clearServiceCache();
@@ -77,7 +75,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         .then(setMenuItems)
         .catch((error) => {
           console.error('Failed to refresh menu items:', error);
-          // Keep current menu items on error
         });
     };
 

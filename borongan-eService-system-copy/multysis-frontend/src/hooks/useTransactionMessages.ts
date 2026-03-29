@@ -6,6 +6,10 @@ import { transactionNoteService, type CreateTransactionNoteInput, type Transacti
 
 // Hooks
 import { useToast } from '@/hooks/use-toast';
+import { useSocket } from '@/context/SocketContext';
+
+// Types
+import type { TransactionNoteResponse } from '@/types/socket.types';
 
 interface UseTransactionMessagesOptions {
   transactionId: string;
@@ -27,14 +31,19 @@ interface UseTransactionMessagesReturn {
 export const useTransactionMessages = ({
   transactionId,
   autoRefresh = true,
-  refreshInterval = 30000, // 30 seconds default
+  refreshInterval = 30000, // 30 seconds default - fallback only
 }: UseTransactionMessagesOptions): UseTransactionMessagesReturn => {
   const [messages, setMessages] = useState<TransactionNote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isWebSocketHealthy, setIsWebSocketHealthy] = useState(true);
   const { toast } = useToast();
+  const { socket, isConnected } = useSocket();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastEventTimeRef = useRef<number>(Date.now());
+  const healthCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isMountedRef = useRef(true);
 
   const fetchMessages = useCallback(async () => {
     if (!transactionId) return;
@@ -156,13 +165,98 @@ export const useTransactionMessages = ({
     }
   }, [transactionId, fetchMessages, fetchUnreadCount]);
 
-  // Auto-refresh setup
+  // WebSocket health monitoring
   useEffect(() => {
-    if (autoRefresh && transactionId) {
+    if (!socket || !isConnected || !transactionId) {
+      return;
+    }
+
+    healthCheckIntervalRef.current = setInterval(() => {
+      const timeSinceLastEvent = Date.now() - lastEventTimeRef.current;
+      const healthThreshold = 60000;
+
+      if (timeSinceLastEvent > healthThreshold) {
+        if (isWebSocketHealthy) {
+          setIsWebSocketHealthy(false);
+        }
+      }
+    }, 30000);
+
+    return () => {
+      if (healthCheckIntervalRef.current) {
+        clearInterval(healthCheckIntervalRef.current);
+        healthCheckIntervalRef.current = null;
+      }
+    };
+  }, [socket, isConnected, transactionId, isWebSocketHealthy]);
+
+  // WebSocket real-time updates
+  useEffect(() => {
+    if (!socket || !isConnected || !transactionId) {
+      return;
+    }
+
+    const updateLastEventTime = () => {
+      lastEventTimeRef.current = Date.now();
+      if (!isWebSocketHealthy) {
+        setIsWebSocketHealthy(true);
+      }
+    };
+
+    const handleNewNote = (data: TransactionNoteResponse) => {
+      if (data.transactionId !== transactionId) return;
+      
+      updateLastEventTime();
+      
+      // Add new message to the list
+      setMessages((prev) => {
+        // Avoid duplicates
+        if (prev.some((msg) => msg.id === data.id)) {
+          return prev;
+        }
+        return [...prev, data as TransactionNote];
+      });
+
+      // Update unread count if message is from admin and unread
+      if (data.senderType === 'ADMIN' && !data.isRead) {
+        setUnreadCount((prev) => prev + 1);
+      }
+    };
+
+    const handleNoteRead = (data: { transactionId: string; noteId: string; isRead: boolean }) => {
+      if (data.transactionId !== transactionId) return;
+      
+      updateLastEventTime();
+      
+      // Update local state when a note is marked as read
+      if (data.isRead) {
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === data.noteId ? { ...msg, isRead: true } : msg))
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+    };
+
+    socket.on('transaction:note:new', handleNewNote);
+    socket.on('transaction:note:read', handleNoteRead);
+
+    return () => {
+      socket.off('transaction:note:new', handleNewNote);
+      socket.off('transaction:note:read', handleNoteRead);
+    };
+  }, [socket, isConnected, transactionId, isWebSocketHealthy]);
+
+  // Fallback polling when WebSocket is unhealthy
+  useEffect(() => {
+    if (autoRefresh && transactionId && !isWebSocketHealthy) {
+      const effectivePollInterval = Math.min(refreshInterval, 15000); // Max 15s when unhealthy
+
       intervalRef.current = setInterval(() => {
-        fetchMessages();
-        fetchUnreadCount();
-      }, refreshInterval);
+        if (isMountedRef.current) {
+          fetchMessages();
+          fetchUnreadCount();
+        }
+      }, effectivePollInterval);
 
       return () => {
         if (intervalRef.current) {
@@ -170,7 +264,21 @@ export const useTransactionMessages = ({
         }
       };
     }
-  }, [autoRefresh, transactionId, refreshInterval, fetchMessages, fetchUnreadCount]);
+  }, [autoRefresh, transactionId, refreshInterval, fetchMessages, fetchUnreadCount, isWebSocketHealthy]);
+
+  // Cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      if (healthCheckIntervalRef.current) {
+        clearInterval(healthCheckIntervalRef.current);
+      }
+    };
+  }, []);
 
   return {
     messages,

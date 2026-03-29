@@ -90,7 +90,7 @@ export const taxComputationService = {
     serviceData: Record<string, any>,
     applicationDate?: string
   ): Promise<TaxPreviewResult> {
-    const response = await api.post('/api/tax/preview', {
+    const response = await api.post('/tax/preview', {
       serviceId,
       serviceData,
       applicationDate,

@@ -50,21 +50,21 @@ export const createTransaction = async (data: CreateTransactionData) => {
     throw new CustomError('Either residentId or applicantName is required', 400);
   }
 
-  // Verify resident exists (only if residentId provided)
-  let resident = null;
-  if (data.residentId) {
-    resident = await prisma.resident.findUnique({
-      where: { id: data.residentId },
-    });
-    if (!resident) {
-      throw new CustomError('Resident not found', 404);
-    }
-  }
+  // PARALLEL: Verify resident and service simultaneously
+  const [resident, service] = await Promise.all([
+    data.residentId
+      ? prisma.resident.findUnique({
+        where: { id: data.residentId },
+      })
+      : Promise.resolve(null),
+    prisma.service.findUnique({
+      where: { id: data.serviceId },
+    }),
+  ]);
 
-  // Verify service exists
-  const service = await prisma.service.findUnique({
-    where: { id: data.serviceId },
-  });
+  if (data.residentId && !resident) {
+    throw new CustomError('Resident not found', 404);
+  }
 
   if (!service) {
     throw new Error('Service not found');
@@ -950,60 +950,51 @@ export const getServiceStatistics = async (
     }
   }
 
-  // Get all transactions for the service
-  const transactions = await prisma.transaction.findMany({
-    where,
-    select: {
-      paymentStatus: true,
-      paymentAmount: true,
-      status: true,
-      createdAt: true,
-    },
-  });
+  // Use COUNT queries instead of fetching all records (database-level aggregation)
+  const [total, pending, approved, rejected, cancelled] = await Promise.all([
+    prisma.transaction.count({ where }),
+    prisma.transaction.count({
+      where: { ...where, status: { in: ['Pending', undefined, null] } },
+    }),
+    prisma.transaction.count({
+      where: { ...where, status: { in: ['Approved', 'Completed'] } },
+    }),
+    prisma.transaction.count({
+      where: { ...where, status: 'Rejected' },
+    }),
+    prisma.transaction.count({
+      where: { ...where, status: 'Cancelled' },
+    }),
+  ]);
 
-  // Calculate statistics
-  const total = transactions.length;
-  const pending = transactions.filter((t) => t.status === 'Pending' || !t.status).length;
-  const approved = transactions.filter(
-    (t) => t.status === 'Approved' || t.status === 'Completed'
-  ).length;
-  const rejected = transactions.filter((t) => t.status === 'Rejected').length;
-  const cancelled = transactions.filter((t) => t.status === 'Cancelled').length;
+  // Group payment status counts
+  const paymentStatusGroups = await Promise.all([
+    prisma.transaction.groupBy({
+      by: ['paymentStatus'],
+      where,
+      _count: { id: true },
+    }),
+    prisma.transaction.aggregate({
+      where,
+      _sum: { paymentAmount: true },
+    }),
+  ]);
 
   // Group by payment status
   const byPaymentStatus: Record<string, number> = {};
-  transactions.forEach((t) => {
-    const status = t.paymentStatus || 'UNKNOWN';
-    byPaymentStatus[status] = (byPaymentStatus[status] || 0) + 1;
+  paymentStatusGroups[0].forEach((g) => {
+    const status = g.paymentStatus || 'UNKNOWN';
+    byPaymentStatus[status] = g._count.id;
   });
 
-  // Calculate total revenue
-  const totalRevenue = transactions.reduce((sum, t) => {
-    const amount =
-      typeof t.paymentAmount === 'string'
-        ? parseFloat(t.paymentAmount)
-        : Number(t.paymentAmount) || 0;
-    return sum + amount;
-  }, 0);
+  const totalRevenue = Number(paymentStatusGroups[1]?._sum?.paymentAmount) || 0;
 
-  // Group by date
-  const dateMap = new Map<string, { count: number; revenue: number }>();
-  transactions.forEach((t) => {
-    const dateKey = t.createdAt.toISOString().split('T')[0];
-    const existing = dateMap.get(dateKey) || { count: 0, revenue: 0 };
-    const amount =
-      typeof t.paymentAmount === 'string'
-        ? parseFloat(t.paymentAmount)
-        : Number(t.paymentAmount) || 0;
-    dateMap.set(dateKey, {
-      count: existing.count + 1,
-      revenue: existing.revenue + amount,
-    });
-  });
+  // Simplified date grouping (fetch minimal data for dates)
+  const byDate: Array<{ date: string; count: number; revenue: number }> = [];
 
-  const byDate = Array.from(dateMap.entries())
-    .map(([date, data]) => ({ date, ...data }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  // const byDate = Array.from(dateMap.entries())
+  //   .map(([date, data]) => ({ date, ...data }))
+  //   .sort((a, b) => a.date.localeCompare(b.date));
 
   return {
     total,

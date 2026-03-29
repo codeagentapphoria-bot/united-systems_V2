@@ -38,21 +38,48 @@ const transformUser = (backendUser: BackendUser): AdminUser => {
   };
 };
 
+export interface PaginatedUsers {
+  users: AdminUser[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export const userService = {
-  async getAllUsers(): Promise<AdminUser[]> {
+  async getAllUsers(
+    page: number = 1,
+    limit: number = 10,
+    signal?: AbortSignal
+  ): Promise<PaginatedUsers> {
     try {
-      const response = await api.get('/users');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      const response = await api.get(`/users?${params.toString()}`, { signal });
       const backendUsers: BackendUser[] = response.data.data;
-      return backendUsers.map(transformUser);
+      return {
+        users: backendUsers.map(transformUser),
+        pagination: response.data.pagination || {
+          page,
+          limit,
+          total: backendUsers.length,
+          totalPages: Math.ceil(backendUsers.length / limit),
+        },
+      };
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch users';
       throw new Error(errorMessage);
     }
   },
 
-  async getUser(id: string): Promise<AdminUser> {
+  async getUser(id: string, signal?: AbortSignal): Promise<AdminUser> {
     try {
-      const response = await api.get(`/users/${id}`);
+      const response = await api.get(`/users/${id}`, { signal });
       const backendUser: BackendUser = response.data.data;
       return transformUser(backendUser);
     } catch (error: any) {

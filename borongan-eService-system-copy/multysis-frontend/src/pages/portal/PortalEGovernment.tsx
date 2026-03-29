@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 
 // Custom Components
 import { PortalLayout } from '@/components/layout/PortalLayout';
-import { LoginPrompt } from '@/components/portal/LoginPrompt';
 import { RequestServiceModal } from '@/components/portal/RequestServiceModal';
 import { CategoryServicesModal } from '@/components/portal/CategoryServicesModal';
 
@@ -24,12 +23,12 @@ import { serviceService, type Service } from '@/services/api/service.service';
 
 // Utils
 import { useNavigate } from 'react-router-dom';
-import { FiArrowRight, FiCalendar, FiChevronLeft, FiChevronRight, FiClipboard, FiFileText, FiLock, FiSearch, FiUser } from 'react-icons/fi';
+import { FiArrowRight, FiChevronLeft, FiChevronRight, FiClipboard, FiFileText, FiSearch, FiUser } from 'react-icons/fi';
 
 export const PortalEGovernment: React.FC = () => {
   const navigate = useNavigate();
   const { user, isLoading: isAuthLoading } = useAuth();
-  const { openLoginSheet } = useLoginSheet();
+  useLoginSheet();
   const { toast } = useToast();
   const { socket, isConnected } = useSocket();
   const [services, setServices] = useState<Service[]>([]);
@@ -178,11 +177,6 @@ export const PortalEGovernment: React.FC = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentItems = allDisplayItems.slice(startIndex, startIndex + itemsPerPage);
 
-  const openService = (service: Service) => {
-    setSelectedService(service);
-    setIsModalOpen(true);
-  };
-
   const openCategoryModal = (category: string, categoryServicesList: Service[]) => {
     setSelectedCategory(category);
     setCategoryServices(categoryServicesList);
@@ -200,33 +194,6 @@ export const PortalEGovernment: React.FC = () => {
       'Other': 'Other government services.',
     };
     return descriptions[cat] || `Services related to ${cat}`;
-  };
-
-  const ServiceActionButtons: React.FC<{ service: Service }> = ({ service }) => {
-    if (isAuthLoading) {
-      return <Button disabled className="w-full bg-gray-300 text-gray-500 cursor-not-allowed">Loading...</Button>;
-    }
-    if (user) {
-      return (
-        <Button onClick={() => openService(service)} className="w-full bg-primary-600 hover:bg-primary-700 text-white">
-          Request Service <FiArrowRight className="ml-2" size={16} />
-        </Button>
-      );
-    }
-    return (
-      <div className="space-y-2">
-        <Button onClick={openLoginSheet} variant="outline" className="w-full border-primary-600 text-primary-600 hover:bg-primary-50">
-          Login to Request <FiLock className="ml-2" size={16} />
-        </Button>
-        <Button
-          onClick={() => navigate(`/portal/apply-as-guest?serviceId=${service.id}`)}
-          variant="ghost"
-          className="w-full text-gray-500 hover:text-gray-700 text-sm"
-        >
-          <FiUser size={14} className="mr-1.5" /> Apply as Guest
-        </Button>
-      </div>
-    );
   };
 
   return (

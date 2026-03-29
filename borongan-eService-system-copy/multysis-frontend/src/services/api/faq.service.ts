@@ -32,7 +32,8 @@ export interface PaginatedFAQs {
 export const faqService = {
   async getAllFAQs(
     search?: string,
-    isActive?: boolean
+    isActive?: boolean,
+    signal?: AbortSignal
   ): Promise<FAQ[]> {
     const params = new URLSearchParams();
 
@@ -41,12 +42,12 @@ export const faqService = {
 
     const queryString = params.toString();
     const url = `/faqs${queryString ? `?${queryString}` : ''}`;
-    const response = await api.get(url);
+    const response = await api.get(url, { signal });
     return response.data.data;
   },
 
-  async getFAQ(id: string): Promise<FAQ> {
-    const response = await api.get(`/faqs/${id}`);
+  async getFAQ(id: string, signal?: AbortSignal): Promise<FAQ> {
+    const response = await api.get(`/faqs/${id}`, { signal });
     return response.data.data;
   },
 
@@ -83,7 +84,8 @@ export const faqService = {
   async getPaginatedFAQs(
     page: number = 1,
     limit: number = 10,
-    search?: string
+    search?: string,
+    signal?: AbortSignal
   ): Promise<PaginatedFAQs> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -92,7 +94,7 @@ export const faqService = {
 
     if (search) params.append('search', search);
 
-    const response = await api.get(`/public/faqs/paginated?${params.toString()}`);
+    const response = await api.get(`/public/faqs/paginated?${params.toString()}`, { signal });
     return {
       faqs: response.data.data,
       pagination: response.data.pagination,

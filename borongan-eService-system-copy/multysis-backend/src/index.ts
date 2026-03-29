@@ -2,7 +2,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import express, { Application, Request, Response } from 'express';
+import express, { Application, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { createServer } from 'http';
@@ -270,6 +270,52 @@ const apiLimiter = rateLimit({
 
 app.use(compression()); // Compress responses
 app.use(morgan('dev')); // HTTP request logger
+
+import performanceMiddleware from './middleware/performance';
+app.use(performanceMiddleware); // Log slow requests
+
+// Cache control headers middleware
+app.use((req: Request, res: Response, next: NextFunction): void => {
+  const path = req.path;
+
+  // Static data endpoints - cacheable (5 minutes)
+  if (path.startsWith('/api/services') || 
+      path.startsWith('/api/faqs') ||
+      path.startsWith('/api/public/faqs') ||
+      path.startsWith('/api/addresses')) {
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+  }
+  // Dashboard - short cache (30 seconds)
+  else if (path.includes('dashboard') || path.includes('statistics')) {
+    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  }
+  // User-specific data - no cache
+  else {
+    res.set('Cache-Control', 'no-store, max-age=0');
+  }
+  next();
+});
+
+// Request timeout middleware (30 seconds)
+app.use((req: Request, res: Response, next: NextFunction): void => {
+  const timeoutMs = 30000; // 30 seconds
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(504).json({
+        status: 'error',
+        message: 'Request timeout',
+        code: 'TIMEOUT',
+      });
+    }
+  }, timeoutMs);
+
+  res.on('finish', () => {
+    clearTimeout(timeout);
+  });
+
+  next();
+});
+
 app.use(express.json({ limit: '50mb' })); // Parse JSON bodies with increased limit for file uploads
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Parse URL-encoded bodies with increased limit
 app.use(cookieParser()); // Parse cookies
