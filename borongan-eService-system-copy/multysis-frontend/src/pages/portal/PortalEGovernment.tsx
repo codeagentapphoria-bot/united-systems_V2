@@ -1,5 +1,5 @@
 // React imports
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 // UI Components (shadcn/ui)
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { LoginPrompt } from '@/components/portal/LoginPrompt';
 import { RequestServiceModal } from '@/components/portal/RequestServiceModal';
+import { CategoryServicesModal } from '@/components/portal/CategoryServicesModal';
 
 // Hooks
 import { useAuth } from '@/context/AuthContext';
@@ -25,8 +26,6 @@ import { serviceService, type Service } from '@/services/api/service.service';
 import { useNavigate } from 'react-router-dom';
 import { FiArrowRight, FiCalendar, FiChevronLeft, FiChevronRight, FiClipboard, FiFileText, FiLock, FiSearch, FiUser } from 'react-icons/fi';
 
-const BARANGAY_CERT_CATEGORY = 'Barangay Certificate';
-
 export const PortalEGovernment: React.FC = () => {
   const navigate = useNavigate();
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -39,9 +38,12 @@ export const PortalEGovernment: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // For the barangay cert expanded picker
-  const [brgyPickerOpen, setBrgyPickerOpen] = useState(false);
-  const [selectedBrgyCert, setSelectedBrgyCert] = useState<Service | null>(null);
+
+  // Category modal state
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [categoryServices, setCategoryServices] = useState<Service[]>([]);
+
   const itemsPerPage = 6;
 
   useEffect(() => {
@@ -108,26 +110,69 @@ export const PortalEGovernment: React.FC = () => {
     return () => { socket.off('service:update', handleServiceUpdate); };
   }, [socket, isConnected, selectedService, toast]);
 
-  // Split services: barangay certs go into the grouped card; rest are individual cards
-  const brgyCertServices = services.filter((s) => s.category === BARANGAY_CERT_CATEGORY);
-  const otherServices = services.filter((s) => s.category !== BARANGAY_CERT_CATEGORY);
+  // Group services by category
+  const servicesByCategory = useMemo(() => {
+    const groups: Record<string, Service[]> = {};
 
-  // Search applies across both groups
+    services.forEach((service) => {
+      const category = service.category || 'Other';
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(service);
+    });
+
+    // Sort services within each category by order
+    Object.keys(groups).forEach((category) => {
+      groups[category].sort((a, b) => a.order - b.order);
+    });
+
+    return groups;
+  }, [services]);
+
+  // Category order preference
+  const categoryOrder = ['Barangay Certificate', 'Civil Registry', 'Tax', 'Health', 'Business', 'Permit', 'Other'];
+
+  const sortedCategories = useMemo(() => {
+    const categories = Object.keys(servicesByCategory);
+    return categories.sort((a, b) => {
+      const aIndex = categoryOrder.indexOf(a);
+      const bIndex = categoryOrder.indexOf(b);
+
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [servicesByCategory]);
+
+  // Search filter
   const searchLower = searchQuery.toLowerCase();
-  const filteredBrgy = brgyCertServices.filter(
-    (s) => s.name.toLowerCase().includes(searchLower) || s.description?.toLowerCase().includes(searchLower)
-  );
-  const filteredOther = otherServices.filter(
-    (s) => s.name.toLowerCase().includes(searchLower) || s.description?.toLowerCase().includes(searchLower)
-  );
+  const filteredCategories = useMemo(() => {
+    if (!searchLower) return sortedCategories;
 
-  // Build display items: the barangay group card counts as 1 item (if any match)
-  // We mix: brgy group card first, then other services
-  type DisplayItem = { type: 'brgy-group' } | { type: 'service'; service: Service };
-  const allDisplayItems: DisplayItem[] = [
-    ...(filteredBrgy.length > 0 ? [{ type: 'brgy-group' as const }] : []),
-    ...filteredOther.map((s) => ({ type: 'service' as const, service: s })),
-  ];
+    return sortedCategories.filter((category) => {
+      const categoryServices = servicesByCategory[category];
+      return categoryServices.some(
+        (s) =>
+          s.name.toLowerCase().includes(searchLower) ||
+          s.description?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [sortedCategories, servicesByCategory, searchLower]);
+
+  // Build display items
+  type DisplayItem = { type: 'category'; category: string; services: Service[] };
+  const allDisplayItems: DisplayItem[] = filteredCategories.map((category) => ({
+    type: 'category' as const,
+    category,
+    services: servicesByCategory[category].filter(
+      (s) =>
+        !searchLower ||
+        s.name.toLowerCase().includes(searchLower) ||
+        s.description?.toLowerCase().includes(searchLower)
+    ),
+  })).filter((item) => item.services.length > 0);
 
   const totalPages = Math.ceil(allDisplayItems.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -136,6 +181,25 @@ export const PortalEGovernment: React.FC = () => {
   const openService = (service: Service) => {
     setSelectedService(service);
     setIsModalOpen(true);
+  };
+
+  const openCategoryModal = (category: string, categoryServicesList: Service[]) => {
+    setSelectedCategory(category);
+    setCategoryServices(categoryServicesList);
+    setIsCategoryModalOpen(true);
+  };
+
+  const getCategoryDescription = (cat: string) => {
+    const descriptions: Record<string, string> = {
+      'Barangay Certificate': 'Request official barangay certificates including clearance, indigency, residency, and more.',
+      'Civil Registry': 'Birth, marriage, and death certificate services.',
+      'Tax': 'Community tax certificates and real property tax services.',
+      'Health': 'Occupational health and medical certificate services.',
+      'Business': 'Business permits, licensing, and related business services.',
+      'Permit': 'Permits and licensing for various business activities.',
+      'Other': 'Other government services.',
+    };
+    return descriptions[cat] || `Services related to ${cat}`;
   };
 
   const ServiceActionButtons: React.FC<{ service: Service }> = ({ service }) => {
@@ -224,117 +288,37 @@ export const PortalEGovernment: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentItems.map((item) => {
-              if (item.type === 'brgy-group') {
-                return (
-                  <Card key="brgy-group" className="hover:shadow-lg transition-shadow flex flex-col h-full border-primary-200">
-                    <CardHeader>
-                      <div className="flex items-center gap-2 mb-2">
-                        <FiFileText size={20} className="text-primary-600" />
-                        <Badge className="bg-primary-100 text-primary-700 border-primary-200">Barangay Certificate</Badge>
-                      </div>
-                      <CardTitle className="text-xl text-heading-700">Barangay Certificate Services</CardTitle>
-                      <CardDescription className="text-base mt-2">
-                        Request official barangay certificates including clearance, indigency, residency, and more.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="mt-auto space-y-3">
-                      {/* Collapsed: show count */}
-                      {!brgyPickerOpen ? (
-                        <>
-                          <p className="text-sm text-heading-500">{filteredBrgy.length} certificates available</p>
-                          <Button
-                            variant="outline"
-                            className="w-full border-primary-600 text-primary-600 hover:bg-primary-50"
-                            onClick={() => setBrgyPickerOpen(true)}
-                          >
-                            View Certificates <FiArrowRight className="ml-2" size={16} />
-                          </Button>
-                        </>
-                      ) : (
-                        /* Expanded: pick a certificate */
-                        <div className="space-y-2">
-                          <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
-                            {filteredBrgy.map((cert) => (
-                              <button
-                                key={cert.id}
-                                onClick={() => setSelectedBrgyCert(cert)}
-                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors border ${
-                                  selectedBrgyCert?.id === cert.id
-                                    ? 'bg-primary-600 text-white border-primary-600'
-                                    : 'border-gray-200 hover:bg-primary-50 hover:border-primary-300 text-heading-700'
-                                }`}
-                              >
-                                {cert.name}
-                              </button>
-                            ))}
-                          </div>
-                          {selectedBrgyCert && (
-                            <ServiceActionButtons service={selectedBrgyCert} />
-                          )}
-                          <button
-                            onClick={() => { setBrgyPickerOpen(false); setSelectedBrgyCert(null); }}
-                            className="w-full text-xs text-gray-400 hover:text-gray-600 pt-1"
-                          >
-                            Collapse
-                          </button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              }
+              const category = item.category;
+              const categoryServicesList = item.services;
 
-              const service = item.service;
               return (
-                <Card key={service.id} className="hover:shadow-lg transition-shadow flex flex-col h-full">
+                <Card
+                  key={category}
+                  className="hover:shadow-lg transition-shadow flex flex-col h-full border-primary-200 cursor-pointer"
+                  onClick={() => openCategoryModal(category, categoryServicesList)}
+                >
                   <CardHeader>
-                    <div className="flex items-start justify-end mb-4">
-                      <div className="flex items-center gap-2">
-                        {service.requiresAppointment && (
-                          <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-white border-blue-700">
-                            <FiCalendar size={12} className="mr-1" />
-                            Appointment
-                          </Badge>
-                        )}
-                        {!isAuthLoading && !user && (
-                          <div className="flex items-center space-x-1 text-orange-600">
-                            <FiLock size={16} />
-                            <span className="text-xs font-medium">Login Required</span>
-                          </div>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <FiFileText size={20} className="text-primary-600" />
+                      <Badge className="bg-primary-100 text-primary-700 border-primary-200">
+                        {category}
+                      </Badge>
                     </div>
-                    <CardTitle className="text-xl text-heading-700">{service.name}</CardTitle>
+                    <CardTitle className="text-xl text-heading-700">{category} Services</CardTitle>
                     <CardDescription className="text-base mt-2">
-                      {service.description || 'Government service available for online request'}
+                      {getCategoryDescription(category)}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="mt-auto">
-                    <div className="space-y-3">
-                      {service.category && (
-                        <div className="text-sm">
-                          <span className="text-heading-500">Category: </span>
-                          <span className="text-heading-700 font-medium">{service.category}</span>
-                        </div>
-                      )}
-                      {service.requiresPayment && (
-                        <div className="text-sm">
-                          <span className="text-heading-500">Payment Required</span>
-                          {service.defaultAmount && !isNaN(Number(service.defaultAmount)) && (
-                            <span className="text-heading-700 font-medium ml-2">
-                              - ₱{Number(service.defaultAmount).toFixed(2)}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {service.requiresAppointment && (
-                        <div className="text-sm text-blue-600 flex items-center">
-                          <FiCalendar size={14} className="mr-1" />
-                          <span className="font-medium">Appointment Required</span>
-                        </div>
-                      )}
-                      <ServiceActionButtons service={service} />
-                    </div>
+                    <p className="text-sm text-heading-500 mb-4">
+                      {categoryServicesList.length} service{categoryServicesList.length !== 1 ? 's' : ''} available
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="w-full border-primary-600 text-primary-600 hover:bg-primary-50"
+                    >
+                      View Services <FiArrowRight className="ml-2" size={16} />
+                    </Button>
                   </CardContent>
                 </Card>
               );
@@ -369,23 +353,6 @@ export const PortalEGovernment: React.FC = () => {
           </div>
         )}
 
-        {/* Login Prompt Section */}
-        {!isAuthLoading && !user && (
-          <div className="mt-16">
-            <LoginPrompt
-              title="Login to Request Services"
-              description="Create an account or log in to request government services and track your applications:"
-              features={[
-                'Submit service requests online',
-                'Track application status',
-                'Make secure payments',
-                'View transaction history',
-                'Receive notifications',
-              ]}
-            />
-          </div>
-        )}
-
         {/* Request Service Modal */}
         {selectedService && (
           <RequestServiceModal
@@ -395,9 +362,21 @@ export const PortalEGovernment: React.FC = () => {
               setSelectedService(null);
             }}
             service={selectedService}
-            onSuccess={() => {}}
+            onSuccess={() => { }}
           />
         )}
+
+        {/* Category Services Modal */}
+        <CategoryServicesModal
+          open={isCategoryModalOpen}
+          onClose={() => {
+            setIsCategoryModalOpen(false);
+            setSelectedCategory('');
+            setCategoryServices([]);
+          }}
+          category={selectedCategory}
+          services={categoryServices}
+        />
       </div>
     </PortalLayout>
   );

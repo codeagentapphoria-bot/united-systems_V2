@@ -133,7 +133,7 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
     try {
       // Clean the data before submitting - create a new object without null/undefined values
       const cleanedData: UpdateServiceInput = {};
-      
+
       // Copy all fields, excluding null/undefined values
       Object.keys(data).forEach(key => {
         const value = data[key];
@@ -151,7 +151,7 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
           }
         }
       });
-      
+
       onSubmit(service.id, cleanedData);
       onClose();
     } catch (error) {
@@ -186,8 +186,8 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
 
         <div className="flex-1 overflow-y-auto px-6">
           <Form {...form}>
-            <form 
-              id="edit-service-form" 
+            <form
+              id="edit-service-form"
               onSubmit={form.handleSubmit(
                 handleFormSubmit,
                 (errors) => {
@@ -202,7 +202,7 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                     }
                   }
                 }
-              )} 
+              )}
               className="space-y-6 pb-6"
             >
               {/* Basic Information */}
@@ -342,7 +342,7 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
               {/* Payment Settings */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-heading-700">Payment Settings</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -415,7 +415,7 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
               {/* Appointment Settings */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-heading-700">Appointment Settings</h3>
-                
+
                 <FormField
                   control={form.control}
                   name="requiresAppointment"
@@ -484,7 +484,7 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
               {/* Display Settings */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-heading-700">Display Settings</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -519,9 +519,9 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                           />
                         </FormControl>
                         <div className="space-y-1 leading-none">
-                          <FormLabel>Display in Subscriber Tabs</FormLabel>
+                          <FormLabel>Display in Portal Tabs</FormLabel>
                           <FormDescription>
-                            Show this service as a tab in subscriber information
+                            Show this service as a tab in portal E-Government Services
                           </FormDescription>
                         </div>
                       </FormItem>
@@ -569,10 +569,10 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                   name="formFields"
                   render={({ field }) => {
                     // Convert formFields to array format for FormFieldsBuilder
-                    const fieldsArray = Array.isArray(field.value?.fields) 
-                      ? field.value.fields 
-                      : Array.isArray(field.value) 
-                        ? field.value 
+                    const fieldsArray = Array.isArray(field.value?.fields)
+                      ? field.value.fields
+                      : Array.isArray(field.value)
+                        ? field.value
                         : [];
 
                     const handleFieldsChange = (fields: any[]) => {
@@ -654,9 +654,9 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                 <h4 className="font-semibold text-blue-900 mb-2">Example 1: Text Field</h4>
                 <div className="bg-white rounded p-3 text-sm">
                   <p className="font-mono text-gray-700">
-                    {`Field Name: firstName`}<br/>
-                    {`Field Type: Text`}<br/>
-                    {`Label: First Name`}<br/>
+                    {`Field Name: firstName`}<br />
+                    {`Field Type: Text`}<br />
+                    {`Label: First Name`}<br />
                     {`Required: Yes`}
                   </p>
                 </div>
@@ -666,12 +666,12 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                 <h4 className="font-semibold text-green-900 mb-2">Example 2: Select/Dropdown Field</h4>
                 <div className="bg-white rounded p-3 text-sm">
                   <p className="font-mono text-gray-700">
-                    {`Field Name: documentType`}<br/>
-                    {`Field Type: Select`}<br/>
-                    {`Label: Document Type`}<br/>
-                    {`Options:`}<br/>
-                    {`  - Value: "birth_cert", Label: "Birth Certificate"`}<br/>
-                    {`  - Value: "death_cert", Label: "Death Certificate"`}<br/>
+                    {`Field Name: documentType`}<br />
+                    {`Field Type: Select`}<br />
+                    {`Label: Document Type`}<br />
+                    {`Options:`}<br />
+                    {`  - Value: "birth_cert", Label: "Birth Certificate"`}<br />
+                    {`  - Value: "death_cert", Label: "Death Certificate"`}<br />
                     {`Required: Yes`}
                   </p>
                 </div>
@@ -681,11 +681,11 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                 <h4 className="font-semibold text-purple-900 mb-2">Example 3: Number Field with Validation</h4>
                 <div className="bg-white rounded p-3 text-sm">
                   <p className="font-mono text-gray-700">
-                    {`Field Name: copies`}<br/>
-                    {`Field Type: Number`}<br/>
-                    {`Label: Number of Copies`}<br/>
-                    {`Min Value: 1`}<br/>
-                    {`Max Value: 10`}<br/>
+                    {`Field Name: copies`}<br />
+                    {`Field Type: Number`}<br />
+                    {`Label: Number of Copies`}<br />
+                    {`Min Value: 1`}<br />
+                    {`Max Value: 10`}<br />
                     {`Required: Yes`}
                   </p>
                 </div>
@@ -695,9 +695,9 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                 <h4 className="font-semibold text-orange-900 mb-2">Example 4: Date Field</h4>
                 <div className="bg-white rounded p-3 text-sm">
                   <p className="font-mono text-gray-700">
-                    {`Field Name: dateOfBirth`}<br/>
-                    {`Field Type: Date`}<br/>
-                    {`Label: Date of Birth`}<br/>
+                    {`Field Name: dateOfBirth`}<br />
+                    {`Field Type: Date`}<br />
+                    {`Label: Date of Birth`}<br />
                     {`Required: Yes`}
                   </p>
                 </div>
@@ -707,9 +707,9 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
                 <h4 className="font-semibold text-indigo-900 mb-2">Example 5: File Upload Field</h4>
                 <div className="bg-white rounded p-3 text-sm">
                   <p className="font-mono text-gray-700">
-                    {`Field Name: supportingDocument`}<br/>
-                    {`Field Type: File Upload`}<br/>
-                    {`Label: Supporting Document`}<br/>
+                    {`Field Name: supportingDocument`}<br />
+                    {`Field Type: File Upload`}<br />
+                    {`Label: Supporting Document`}<br />
                     {`Required: No`}
                   </p>
                 </div>

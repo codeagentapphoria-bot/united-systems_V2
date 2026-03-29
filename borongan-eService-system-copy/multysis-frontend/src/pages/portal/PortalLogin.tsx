@@ -122,7 +122,20 @@ export const PortalLogin: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-primary-600 py-12 px-4 sm:px-6 lg:px-8 overflow-hidden">
-      <Card className="w-full max-w-md shadow-xl">
+      <div className="w-full max-w-md">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <p className="text-sm text-blue-800">
+            Already submitted your application?{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/portal/register/status')}
+              className="font-medium text-primary hover:underline"
+            >
+              Check registration status →
+            </button>
+          </p>
+        </div>
+        <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-4 pb-4">
           <div className="flex flex-col items-center space-y-3">
             <img
@@ -213,7 +226,7 @@ export const PortalLogin: React.FC = () => {
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </Button>
 
-              <div className="text-center text-sm space-y-1">
+              <div className="text-center text-sm">
                 <p className="text-gray-600">
                   New resident?{' '}
                   <button
@@ -222,15 +235,6 @@ export const PortalLogin: React.FC = () => {
                     className="font-medium text-primary hover:underline"
                   >
                     Register here
-                  </button>
-                </p>
-                <p className="text-gray-500">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/portal/register/status')}
-                    className="text-xs hover:underline"
-                  >
-                    Check registration status
                   </button>
                 </p>
               </div>
