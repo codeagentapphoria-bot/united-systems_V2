@@ -1036,7 +1036,7 @@ const PetsPage = () => {
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-primary" />
                             <span className="font-semibold">Owner ID:</span>
-                            <span className="ml-1">{selectedPet.owner_id}</span>
+                            <span className="ml-1">{selectedPet.owner_resident_id}</span>
                           </div>
                         </CardContent>
                       </Card>

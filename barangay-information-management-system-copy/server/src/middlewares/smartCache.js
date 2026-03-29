@@ -57,7 +57,7 @@ const CACHE_STRATEGY = {
  * Smart Cache Middleware
  * Automatically determines cache strategy based on route and data type
  */
-export const smartCache = () => {
+export const smartCache = (ttlOverride = null) => {
   return async (req, res, next) => {
     // Skip caching for non-GET requests
     if (req.method !== 'GET') {
@@ -89,6 +89,8 @@ export const smartCache = () => {
         return next();
       }
 
+      const effectiveTtl = ttlOverride !== null ? ttlOverride : ttl;
+
       // Generate cache key
       const cacheKey = `${keyPrefix}${req.originalUrl}`;
       
@@ -96,24 +98,26 @@ export const smartCache = () => {
       const cachedResponse = await cacheUtils.get(cacheKey);
       
       if (cachedResponse) {
-        logger.info(`Cache hit for key: ${cacheKey} (TTL: ${ttl}s)`);
+        logger.info(`Cache hit for key: ${cacheKey} (TTL: ${effectiveTtl}s)`);
         return res.json(cachedResponse);
       }
 
       // Store original send method
       const originalSend = res.json;
-      
+
       // Override send method to cache the response
       res.json = function(data) {
-        // Cache the response with determined TTL
-        cacheUtils.set(cacheKey, data, ttl)
-          .then(() => {
-            logger.info(`Cached response for key: ${cacheKey} with TTL: ${ttl}s`);
-          })
-          .catch(error => {
-            logger.error(`Failed to cache response for key: ${cacheKey}`, error);
-          });
-        
+        // Only cache successful responses — never cache errors
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          cacheUtils.set(cacheKey, data, effectiveTtl)
+            .then(() => {
+              logger.info(`Cached response for key: ${cacheKey} with TTL: ${effectiveTtl}s`);
+            })
+            .catch(error => {
+              logger.error(`Failed to cache response for key: ${cacheKey}`, error);
+            });
+        }
+
         // Call original send method
         return originalSend.call(this, data);
       };

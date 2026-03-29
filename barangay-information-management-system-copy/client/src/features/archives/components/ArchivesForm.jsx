@@ -76,23 +76,16 @@ const ArchivesForm = ({
         params: { search: searchTerm, perPage: 50 }
       });
       
-      console.log("API Response:", response.data);
-      console.log("Search term:", searchTerm);
-      
       // The server returns { data: { data: [...], pagination: {...} } }
       // So we need to access response.data.data.data for the residents array
       const residentsData = response.data?.data?.data;
-      console.log("Residents data:", residentsData);
-      
+
       if (Array.isArray(residentsData)) {
-        console.log("Found residents:", residentsData.length);
         setResidents(residentsData);
       } else {
-        console.warn("Unexpected residents data structure:", residentsData);
         setResidents([]);
       }
     } catch (error) {
-      console.error("Error searching residents:", error);
       setResidents([]);
     } finally {
       setResidentSearchLoading(false);

@@ -393,10 +393,15 @@ const ResidentIDCard = ({
               <div className="flex gap-1">
                 <span>ADDRESS:</span>
                 <span className="font-semibold">
-                  {barangayData?.barangay_name?.toUpperCase() || ""}
-                  {municipalityData?.municipality_name
-                    ? `, ${municipalityData.municipality_name.toUpperCase()}`
-                    : ""}
+                  {[
+                    viewResident.house_number,
+                    viewResident.household_street,
+                    barangayData?.barangay_name,
+                    municipalityData?.municipality_name,
+                  ]
+                    .filter(Boolean)
+                    .map((s) => s.toUpperCase())
+                    .join(", ")}
                 </span>
               </div>
             </div>

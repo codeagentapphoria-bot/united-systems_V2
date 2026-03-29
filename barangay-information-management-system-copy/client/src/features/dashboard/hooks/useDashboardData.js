@@ -71,6 +71,7 @@ const cachedApiCall = async (endpoint, params = {}) => {
 export const useDashboardData = (role, selectedBarangay) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [distributionLoading, setDistributionLoading] = useState(true);
   const [barangays, setBarangays] = useState([]);
 
   // Statistics state
@@ -256,75 +257,24 @@ export const useDashboardData = (role, selectedBarangay) => {
     }
   }, [buildParams]);
 
-  // Fetch distribution data by barangay
+  // Fetch distribution data via single aggregated endpoint
   const fetchDistributionData = useCallback(async () => {
     try {
-      let barangaysList = [];
-      if (role === "municipality") {
-        if (selectedBarangay) {
-          // A specific barangay is selected — only fetch for that one
-          const allBarangays = (await cachedApiCall("/list/barangay?perPage=200")).data.data || [];
-          barangaysList = allBarangays.filter(b => b.id.toString() === selectedBarangay.toString());
-        } else {
-          barangaysList = (await cachedApiCall("/list/barangay?perPage=200")).data.data || [];
-        }
-      } else if (role === "barangay" && user?.target_id) {
-        barangaysList = [{ id: user.target_id, barangay_name: "This Barangay" }];
+      const params = {};
+      if (role === "barangay" && user?.target_id) {
+        params.barangayId = user.target_id;
+      } else if (role === "municipality" && selectedBarangay) {
+        params.barangayId = selectedBarangay;
       }
 
-      if (barangaysList.length === 0) {
-        setDistributionData({ demographics: [], employment: [], education: [], voters: [] });
-        return;
-      }
-
-      const statsPromises = barangaysList.map(async (barangay) => {
-        try {
-          const params = { barangayId: barangay.id };
-          const [demoRes, empRes, eduRes, voterRes] = await Promise.all([
-            cachedApiCall("/statistics/gender-demographics", params),
-            cachedApiCall("/statistics/employment-status-demographics", params),
-            cachedApiCall("/statistics/educational-attainment-demographics", params),
-            cachedApiCall("/statistics/voter-demographics", params),
-          ]);
-
-          const genderData = demoRes.data || [];
-          const employmentData = empRes.data || [];
-          const educationData = eduRes.data || [];
-          const voterData = voterRes.data || [];
-
-          return {
-            name: barangay.barangay_name || "Unknown Barangay",
-            male: safeParseInt(genderData.find(item => item.sex === "male")?.count, 0),
-            female: safeParseInt(genderData.find(item => item.sex === "female")?.count, 0),
-            employed: safeParseInt(employmentData.find(item => item.employment_status === "employed")?.count, 0),
-            unemployed: safeParseInt(employmentData.find(item => item.employment_status === "unemployed")?.count, 0),
-            student: safeParseInt(employmentData.find(item => item.employment_status === "student")?.count, 0),
-            retired: safeParseInt(employmentData.find(item => item.employment_status === "retired")?.count, 0),
-            elementary: safeParseInt(educationData.find(item => item.education_attainment === "elementary")?.count, 0),
-            high_school: safeParseInt(educationData.find(item => item.education_attainment === "high_school_graduate")?.count, 0),
-            college: safeParseInt(educationData.find(item => item.education_attainment === "college_graduate")?.count, 0),
-            post_graduate: safeParseInt(educationData.find(item => item.education_attainment === "post_graduate")?.count, 0),
-            regular_voter: safeParseInt(voterData.find(item => item.voter_type === "Regular Voter")?.count, 0),
-            sk_voter: safeParseInt(voterData.find(item => item.voter_type === "SK Voter")?.count, 0),
-            other_voter: safeParseInt(voterData.find(item => item.voter_type === "Other Voter")?.count, 0),
-          };
-        } catch {
-          return {
-            name: barangay.barangay_name || "Unknown Barangay",
-            male: 0, female: 0, employed: 0, unemployed: 0, student: 0, retired: 0,
-            elementary: 0, high_school: 0, college: 0, post_graduate: 0,
-            regular_voter: 0, sk_voter: 0, other_voter: 0,
-          };
-        }
-      });
-
-      const stats = await Promise.all(statsPromises);
+      const res = await cachedApiCall("/statistics/barangay-distribution", params);
+      const rows = res.data || [];
 
       setDistributionData({
-        demographics: stats.map(s => ({ name: s.name, male: s.male, female: s.female, value: s.male + s.female })),
-        employment: stats.map(s => ({ name: s.name, employed: s.employed, unemployed: s.unemployed, student: s.student, retired: s.retired, value: s.employed + s.unemployed + s.student + s.retired })),
-        education: stats.map(s => ({ name: s.name, elementary: s.elementary, high_school: s.high_school, college: s.college, post_graduate: s.post_graduate, value: s.elementary + s.high_school + s.college + s.post_graduate })),
-        voters: stats.map(s => ({ name: s.name, regular_voter: s.regular_voter, sk_voter: s.sk_voter, other_voter: s.other_voter, value: s.regular_voter + s.sk_voter + s.other_voter })),
+        demographics: rows.map(s => ({ name: s.barangay_name, male: safeParseInt(s.male), female: safeParseInt(s.female), value: safeParseInt(s.male) + safeParseInt(s.female) })),
+        employment: rows.map(s => ({ name: s.barangay_name, employed: safeParseInt(s.employed), unemployed: safeParseInt(s.unemployed), student: safeParseInt(s.student), retired: safeParseInt(s.retired), value: safeParseInt(s.employed) + safeParseInt(s.unemployed) + safeParseInt(s.student) + safeParseInt(s.retired) })),
+        education: rows.map(s => ({ name: s.barangay_name, elementary: safeParseInt(s.elementary), high_school: safeParseInt(s.high_school), college: safeParseInt(s.college), post_graduate: safeParseInt(s.post_graduate), value: safeParseInt(s.elementary) + safeParseInt(s.high_school) + safeParseInt(s.college) + safeParseInt(s.post_graduate) })),
+        voters: rows.map(s => ({ name: s.barangay_name, regular_voter: safeParseInt(s.regular_voter), sk_voter: safeParseInt(s.sk_voter), other_voter: safeParseInt(s.other_voter), value: safeParseInt(s.regular_voter) + safeParseInt(s.sk_voter) + safeParseInt(s.other_voter) })),
       });
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -334,32 +284,41 @@ export const useDashboardData = (role, selectedBarangay) => {
     }
   }, [role, selectedBarangay, user?.target_id]);
 
-  // Load all dashboard data with optimization
+  // Load all dashboard data — primary content first, distribution after
   const loadDashboardData = useCallback(async () => {
     // Cancel previous request if still pending
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-
-    // Create new abort controller
     abortControllerRef.current = new AbortController();
 
     setLoading(true);
+    setDistributionLoading(true);
+
+    // Phase 1: stats + demographics — unblocks the page spinner
     try {
       await Promise.all([
         fetchBarangays(),
         fetchStatistics(),
         fetchDemographics(),
-        fetchDistributionData(),
       ]);
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        if (process.env.NODE_ENV === 'development') {
-          console.error("loadDashboardData (cached) error:", error);
-        }
+      if (error.name !== 'AbortError' && process.env.NODE_ENV === 'development') {
+        console.error("loadDashboardData primary error:", error);
       }
     } finally {
       setLoading(false);
+    }
+
+    // Phase 2: distribution — renders progressively in the distribution tab
+    try {
+      await fetchDistributionData();
+    } catch (error) {
+      if (error.name !== 'AbortError' && process.env.NODE_ENV === 'development') {
+        console.error("loadDashboardData distribution error:", error);
+      }
+    } finally {
+      setDistributionLoading(false);
     }
   }, [fetchBarangays, fetchStatistics, fetchDemographics, fetchDistributionData]);
 
@@ -379,6 +338,7 @@ export const useDashboardData = (role, selectedBarangay) => {
 
   return {
     loading,
+    distributionLoading,
     stats,
     demographics,
     distributionData,

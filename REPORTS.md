@@ -2950,3 +2950,255 @@ All 4 files contain live, functional code:
 ---
 
 *Section 16 added: 2026-03-25 | Claude Code*
+
+---
+
+## Section 17 — Performance Audit: borongan-eService-system-copy (2026-03-29)
+
+**Analyst:** Claude Code
+**Scope:** `/home/anivaryam/github/repositories/unified-systems/borongan-eService-system-copy/`
+**Method:** Full source-code audit of backend (`multysis-backend/`) and frontend (`multysis-frontend/`)
+
+---
+
+### Backend Issues
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🔴 Critical | Auth middleware executes 4 sequential DB calls per token refresh: `findRefreshToken` → `getCurrentUser` → `createRefreshToken` → `createOrUpdateSession` | `src/middleware/auth.ts:92-152` |
+| 🔴 Critical | Session middleware hits DB on every protected request to fetch session + refreshToken | `src/middleware/sessionTimeout.ts:40-53` |
+| 🔴 Critical | Social amelioration controllers pre-fetch record before service call, but service queries the same record — 8 duplicate DB hits across Senior, PWD, Student, Solo Parent update/delete handlers | `src/controllers/social-amelioration.controller.ts:90-447` |
+| 🟠 High | `ioredis` installed but unused — no caching layer despite expensive aggregations (dashboard stats, permissions, address hierarchies) | `package.json` |
+| 🟠 High | Permission checks traverse full user→roles→permissions tree on every authenticated request with no caching | `src/middleware/auth.ts:345-357` |
+| 🟡 Medium | 50MB JSON body limit — excessive, enables slow payload processing | `src/index.ts:273` |
+| 🟡 Medium | No database indexes on resident search fields — `contains` on firstName, lastName, email causes full table scans | `src/services/resident.service.ts:72-79` |
+
+### Frontend Issues
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🔴 Critical | `SettingsTab.tsx` is 1,645 lines with 4 unrelated management tabs in one component — any state change re-renders all four | `src/components/social-amelioration/SettingsTab.tsx` |
+| 🔴 Critical | Four large tab components (SeniorCitizenTab 1156 LOC, PWDTab 1140, SoloParentsTab 991, StudentsTab 952) all eagerly loaded regardless of active tab | `src/components/social-amelioration/` |
+| 🔴 Critical | Dashboard WebSocket updates not batched — each socket event creates a new stats object and triggers a full context re-render | `src/context/DashboardStatisticsContext.tsx:77-167` |
+| 🔴 Critical | `AdminSubscribers` scrollable resident list has no virtualization — all Card components stay in the DOM | `src/pages/admin/AdminSubscribers.tsx:335-385` |
+| 🟠 High | `ApplicationDetailsModal` (789 LOC) and `RequestServiceModal` (904 LOC) loaded eagerly despite being rarely opened | component files |
+| 🟠 High | No client-side data caching — every page navigation re-fetches all data; React Query/SWR not used | throughout frontend |
+| 🟡 Medium | `fetchServices` callback in `useServices` recreates on every render due to non-memoized dependencies, causing cascading re-fetches | `src/hooks/services/useServices.ts:27-55` |
+
+### Recommended Fix Order
+
+1. **Auth/session DB hits** — highest per-request cost; cache user + permissions in Redis (already installed, not wired up) with short TTL
+2. **Social amelioration double queries** — have services return the old record, remove pre-fetch from controllers (8 instances)
+3. **SettingsTab + social tab components** — split into sub-components and lazy-load; combined ~5,000 lines loaded on every visit
+
+---
+
+### Additional Backend Issues (Deep Audit)
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🔴 Critical | Session middleware runs 1 read + 1 write on **every authenticated request** — `findFirst` with `include: { refreshToken: true }` (full object, unused) + unconditional `update lastActivityAt`. At 500 concurrent users = 1000+ DB writes/min | `src/middleware/sessionTimeout.ts:40-111` |
+| 🔴 Critical | Dashboard statistics endpoint fires 22 parallel Prisma queries (counts, aggregates, groupBys, raw SQL trends) — exhausts connection pool under concurrent admin views. Frontend also polls this every 2 minutes as fallback | `src/services/admin.service.ts:196-322` |
+| 🔴 Critical | `requirePermission()` middleware fetches full 3-level nested user→roles→rolePermissions tree on every protected request with no caching | `src/middleware/auth.ts:337-384` |
+| 🟠 High | `verifyResident` middleware queries DB for resident status on every resident-protected request — no caching, status rarely changes. At 500 residents × 10 req/min = 5000 queries/min just for status checks | `src/middleware/auth.ts:230-275` |
+| 🟠 High | Resident search uses 5-way OR with `mode: 'insensitive'` (ILIKE) — disables btree index usage in Postgres, causes full table scans | `src/services/resident.service.ts:72-80` |
+| 🟠 High | `EGovReports` page makes N separate `getServiceStatistics()` API calls — one per service, each hits the DB. With 50 services = 50 parallel API calls + 50 DB queries on every page load | `src/pages/admin/EGovReports.tsx:78-124` (frontend) |
+| 🟠 High | `useAdminNotifications` calls `fetchCounts()` (full refetch) on every incoming notification event. With 10-20 WebSocket events/min, this triggers 10-20 full notification queries/min | `src/hooks/notifications/useAdminNotifications.ts:354-360` |
+| 🟡 Medium | Dual polling in `useAdminNotifications` — main poll every 120s + health check every 30s. When WebSocket is unhealthy, poll interval drops to 15s. Page visibility handler can create duplicate intervals | `src/hooks/notifications/useAdminNotifications.ts:98-180` |
+| 🟡 Medium | `emitTransactionUpdate()` broadcasts to both `transaction:{id}` room AND `admins` room on every update — 2 events × N admin connections per transaction change, no batching | `src/services/socket.service.ts:37-69` |
+| 🟡 Medium | WebSocket rate limit maps (`typingRateLimits`, `noteRateLimits`) never pruned for users with multiple open tabs — entries accumulate indefinitely on long-running servers | `src/socket/socket.ts:28-72` |
+| 🟡 Medium | Admin notification count query uses JSON array operator (`->>0`) in a `CASE` inside a JOIN — evaluated per row, no index on `payment_statuses` JSON field | `src/services/admin.service.ts:36-47` |
+| 🟡 Medium | `Session` table missing composite indexes on `(userId, createdAt)` and `(residentId, createdAt)` — `findFirst` with `orderBy: createdAt desc` scans without them | `prisma/schema.prisma` |
+
+### Recommended Fix Order (Updated)
+
+1. **Session middleware** — cache in-memory with 10s TTL, batch `lastActivityAt` updates async, remove unused `include: { refreshToken: true }`
+2. **Dashboard statistics** — cache full result for 30–60s; move incremental updates to WebSocket only
+3. **Permission middleware** — cache role/permission set per user in Redis with 10-min TTL
+4. **Resident status check** — encode in JWT or short-lived in-memory cache
+5. **Notification polling** — remove `fetchCounts()` from `handleNotification()`, use incremental state only; consolidate to single interval
+6. **Resident search** — add GIN/trigram index for full-text search
+7. **EGovReports** — add batch statistics endpoint
+8. **Socket rate limit maps** — add TTL cleanup via `setInterval`
+
+---
+
+### Additional Issues (Round 3 — Exhaustive Audit)
+
+#### Prisma Schema — Missing Indexes
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🟠 High | `RolePermission` and `UserRole` only have `@@unique` — no `@@index` on individual FKs. Queries filtering by `roleId` or `userId` alone scan the entire unique index | `prisma/schema.prisma` (RolePermission, UserRole models) |
+| 🟡 Medium | `PWDBeneficiary` missing index on `disabilityTypeId` — beneficiary-by-type queries full-scan | `prisma/schema.prisma` |
+| 🟡 Medium | `SeniorCitizenPensionTypePivot`, `StudentBeneficiary`, `SoloParentBeneficiary` all missing single-column indexes on their FK/category fields | `prisma/schema.prisma` |
+| 🟡 Medium | Indexed string columns (`lastName`, `firstName`, `email`) have no `@db.VarChar(n)` — unbounded VARCHAR causes index size bloat | `prisma/schema.prisma` |
+
+#### Backend — Blocking Operations
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🔴 Critical | `validateFileContent` uses `fs.readFileSync()` — reads entire uploaded file (up to 50MB) synchronously, blocking the event loop for the duration | `src/middleware/upload.ts:51-67` |
+| 🔴 Critical | Multiple `await sendEmailSafely()` calls are sequential inside `updateTransaction` — API response is blocked until all SMTP sends complete (5–30s each) | `src/services/transaction.service.ts:475-570` |
+| 🟠 High | `updateTransaction` does a `findUnique` SELECT before the `update` — two round-trips to the same row. Both include the same nested relations | `src/services/transaction.service.ts:397-411` |
+
+#### Frontend — Context & State
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🔴 Critical | `DashboardStatisticsContext` useEffect includes `statistics` in its dependency array — causes socket listeners to be removed and re-added on every statistics update (listener churn) | `src/context/DashboardStatisticsContext.tsx:~215` |
+| 🟠 High | `DashboardStatisticsContext` exposes the entire large statistics object to all consumers — any component reading `totalTransactions` also re-renders when `transactionTrends` updates | `src/context/DashboardStatisticsContext.tsx:8-12` |
+| 🟡 Medium | `SocketContext` per-transaction typing throttle timeouts (`typingThrottleRef` Map) accumulate if a user navigates away without explicit unsubscribe | `src/context/SocketContext.tsx:256-302` |
+
+#### Frontend — Bundle
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🟠 High | `vite.config.ts` has no `build.rollupOptions.output.manualChunks` — heavy libraries (recharts, leaflet, date-fns) are bundled with main chunk instead of being split | `vite.config.ts` |
+| 🟡 Medium | `PortalMyHousehold` is 1,133 lines — manages household registration, member management, and map in a single component; hard to code-split | `src/pages/portal/PortalMyHousehold.tsx` |
+| 🟡 Medium | `PortalProfile` is 832 lines — monolithic profile editor loaded as one chunk | `src/pages/portal/PortalProfile.tsx` |
+
+### One-Line Quick Wins
+
+- **Remove `statistics` from useEffect deps** in `DashboardStatisticsContext` — fixes listener churn immediately, 1-line change
+- **Fire-and-forget email sends** — change `await sendEmailSafely(...)` to `sendEmailSafely(...).catch(...)` in `updateTransaction`
+- **Replace `fs.readFileSync`** with `await fs.promises.readFile` in `validateFileContent`
+- **Add `@@index([roleId])` and `@@index([userId])`** to `RolePermission` and `UserRole` in schema
+
+---
+
+### Additional Issues (Round 4 — Final Pass)
+
+#### Backend
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🔴 Critical | `updateTransaction` fetches the service with `taxProfiles` at line ~65, then fetches it **again** at line ~195 to compute tax, then fetches the transaction **again** at line ~219 with `taxComputations` — three queries where one would suffice | `src/services/transaction.service.ts:65,195,219` |
+| 🟠 High | Prisma connection pool not explicitly configured — defaults to 5 connections, which saturates under concurrent admin dashboard loads (22-query burst) | `src/config/database.ts` |
+| 🟡 Medium | `usePortalNotifications` has the same dual-interval problem as `useAdminNotifications` — both a main poll and a separate health check interval run simultaneously | `src/hooks/notifications/usePortalNotifications.ts` |
+| 🟡 Medium | Response compression uses `compression()` (gzip only) — brotli not configured; brotli gives 20–30% better compression for JSON/JS | `src/index.ts:271` |
+| 🟡 Medium | `/health` endpoint returns a static string with no DB or service check — not useful for readiness probing, and has no rate limit | `src/index.ts:278-284` |
+| 🟡 Medium | `Prisma` logging (`['query', 'error', 'warn']`) is gated on `DEBUG_DB` env var — if accidentally set in production, every query is logged synchronously to stdout | `src/config/database.ts:5-10` |
+| 🟢 Low | `console.error()` used directly in `sessionTimeout.ts` and `transaction.service.ts` hot paths instead of the structured logger — adds unformatted noise to production logs | `src/middleware/sessionTimeout.ts:184`, `src/services/transaction.service.ts:608` |
+
+#### Frontend
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🟡 Medium | `SocketContext` `typingThrottleRef` Map entries are never deleted after their timeout fires — only cleared on component unmount. In long sessions with many conversations the Map grows unboundedly | `src/context/SocketContext.tsx` |
+
+---
+
+### eGovernment Admin Pages — Performance Audit (2026-03-29)
+
+#### EGovReports — N+1 API call pattern
+
+`EGovReports.tsx` fetches the full active-services list, then fires **one separate HTTP request per service** to `getServiceStatistics()` inside a `Promise.all` (lines 78–124). With 50 services this is 51 round-trips per page load. The backend handler (`transaction.service.ts:954–1004`) compounds the issue: it does `prisma.transaction.findMany({ where: { serviceId } })` with **no limit**, loads every matching transaction row into Node memory, then counts/aggregates them in JavaScript (`filter`, `forEach`, `reduce`) instead of using a SQL `GROUP BY`. A service with 100 000 transactions pulls 100 000 rows into memory just to produce four counts.
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🔴 Critical | N+1 HTTP pattern — 1 services fetch + N statistics fetches, one per service | `src/pages/admin/EGovReports.tsx:78–124` |
+| 🔴 Critical | `getServiceStatistics` loads all transactions unbounded into memory and aggregates in JS instead of SQL `GROUP BY` | `src/services/transaction.service.ts:954–1004` |
+| 🟡 Medium | `services` in `useEffect` deps causes all N stats to refetch every time the services array reference changes | `src/pages/admin/EGovReports.tsx:122` |
+| 🟡 Medium | `toast` in `useEffect` deps on the service-list fetch — service list refetches on every toast notification | `src/pages/admin/EGovReports.tsx:68` |
+
+**Fix:** Add a batch endpoint (e.g. `GET /statistics/services-summary?startDate=&endDate=`) that returns all service statistics in a single query using `GROUP BY serviceId`. Replace the N-call `Promise.all` with a single call.
+
+#### AdminAppointments — sequential fetches and socket-triggered API calls
+
+Each appointment modal click fires two **sequential** `await` calls: `getTransaction()` then `getService()` (lines 191–207). These are independent and could run in parallel, but each click pays 2× latency.
+
+Worse, every incoming `appointment:new` or `appointment:update` socket event triggers a full `getTransaction()` API call (lines 77–155). The socket payload already carries the appointment data; fetching the full transaction again converts real-time push events into polling-equivalent HTTP bursts. Under concurrent usage (multiple staff updating appointments) these listener-triggered fetches pile up.
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🟠 High | Socket `appointment:new` / `appointment:update` events each trigger a `getTransaction()` fetch — socket push negated by HTTP pull | `src/pages/admin/AdminAppointments.tsx:77–155` |
+| 🟠 High | Modal open fires `getTransaction()` and `getService()` sequentially — should be `Promise.all` | `src/pages/admin/AdminAppointments.tsx:191–207` |
+
+#### Transaction ID generation — sequential DB read + race condition
+
+`createTransaction` does three sequential operations to generate an ID: raw SQL `MAX(SPLIT_PART(...))` to find the last sequence number, generates the ID in memory, then inserts the row (lines 143–154). Under concurrent submissions two requests can read the same `max_seq`, generate duplicate transaction IDs, and race to insert — no locking or DB-level unique constraint retry logic guards this path.
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🟠 High | Concurrent submissions can generate duplicate `transactionId` — `MAX` read is not atomic with the `INSERT` | `src/services/transaction.service.ts:143–154` |
+
+#### Missing database indexes — appointment and service queries
+
+The `Transaction` model has per-column indexes but is missing composite and appointment-specific indexes that the eGov queries need:
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🟠 High | No index on `preferredAppointmentDate` — appointment calendar queries full-scan | `prisma/schema.prisma` (Transaction model) |
+| 🟠 High | No index on `appointmentStatus` — appointment filter queries full-scan | `prisma/schema.prisma` (Transaction model) |
+| 🟠 High | No composite index on `(serviceId, createdAt)` — statistics date-range queries can't use both filters | `prisma/schema.prisma` (Transaction model) |
+| 🟠 High | No composite index on `(preferredAppointmentDate, appointmentStatus)` — combined appointment queries full-scan | `prisma/schema.prisma` (Transaction model) |
+| 🟡 Medium | No index on `Service.code` — every `getServiceStatistics(service.code)` lookup resolves the code to an ID without an index | `prisma/schema.prisma` (Service model) |
+
+#### DashboardStatisticsContext — O(n) mutations per socket event
+
+The real-time statistics updater in `DashboardStatisticsContext` (lines 76–133) calls `.findIndex()` twice and `.sort()` once on every incoming transaction socket event. With high transaction volume this runs O(n) scans over `transactionsByService` and `transactionTrends` arrays, plus O(n log n) sort, inside a `setStatistics` state updater — meaning React re-renders all consumers on every event while the updater itself is doing array work.
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🟡 Medium | `.sort()` called on `transactionTrends` on every new-transaction socket event — O(n log n) in a state updater | `src/context/DashboardStatisticsContext.tsx:128` |
+| 🟡 Medium | `.findIndex()` over `transactionsByService` and `transactionTrends` on every event — O(n) per event; should use a `Map` keyed by service code / date | `src/context/DashboardStatisticsContext.tsx:95,115` |
+
+#### ReportServiceTable — no list virtualization
+
+`ReportServiceTable.tsx` renders all service report rows into the DOM at once (lines 91–137). With a large service catalogue every row — including hover styles and click handlers — renders synchronously on mount.
+
+| Priority | Issue | Location |
+|----------|-------|----------|
+| 🟢 Low | No virtual list / pagination — all rows rendered at once; degrades with large service lists | `src/components/admin/reports/ReportServiceTable.tsx:91–137` |
+
+#### Quick wins
+
+- **Replace N stats fetches with one batch endpoint** — single largest win; eliminates N HTTP requests and N unbounded DB queries at once
+- **Add `@@index([preferredAppointmentDate])` and `@@index([appointmentStatus])`** to Transaction model — 2-line schema change, unblocks appointment calendar queries
+- **Replace sequential modal awaits with `Promise.all([getTransaction, getService])`** — cuts modal open latency in half
+- **Use socket payload data directly** in `appointment:new` / `appointment:update` handlers instead of re-fetching — eliminates HTTP burst on every real-time event
+- **Replace `findIndex` + `sort` with Map lookups** in `DashboardStatisticsContext` — O(1) service/date updates instead of O(n) scans
+
+---
+
+### Admin Dashboard Slowness — Root Cause Analysis (2026-03-29)
+
+**Symptom:** Admin Dashboard takes several seconds to become interactive after login.
+
+#### Mount-time cascade
+
+When `AdminDashboard.tsx` mounts it simultaneously triggers three API calls: `fetchCounts` (notification counts), `fetchServices` (service list), and `getDashboardStatistics`. Each request passes through `sessionTimeout` middleware which does a `findFirst` + `update` on the sessions table — that is **2 extra DB round-trips per request**, so 3 simultaneous mounts generate **6 extra DB operations** before a single row of business data is read.
+
+`getDashboardStatistics` then fires **22 Prisma queries in a single `Promise.all`** (`admin.service.ts`). The default Prisma connection pool has **5 connections**. With 22 queries arriving at once, 17 of them queue behind the first 5; throughput is serialized to `ceil(22 / 5) = 5` pool-flush cycles. On a remote database (Asia-Pacific region) each cycle adds ~150–200ms, so the statistics response alone takes **750ms–1s before any data renders**.
+
+#### Listener churn
+
+`DashboardStatisticsContext` (`src/context/DashboardStatisticsContext.tsx:~215`) has `statistics` in a `useEffect` dependency array. Every time a statistics update arrives via WebSocket, the effect tears down and re-registers all socket listeners. This means:
+- The socket listener callback is re-created on every incoming stat event
+- Each listener re-registration can trigger a re-render cascade across all consumers of the context
+- Under active use the context may re-register dozens of times per minute
+
+#### WebSocket interval instability
+
+`useAdminNotifications` runs **two simultaneous intervals** — a main polling interval and a separate `healthCheck` interval. `isWebSocketHealthy` appears in both dependency arrays; every health-state change (connected → reconnecting → connected) resets both intervals and calls `fetchCounts()` on each reset, causing a burst of redundant notification-count queries during reconnect events.
+
+#### Summary table
+
+| Priority | Root Cause | Location | Estimated Impact |
+|----------|-----------|----------|-----------------|
+| 🔴 Critical | 22-query `Promise.all` burst against a 5-connection pool — queries queue 4–5 deep, serializing statistics response | `src/services/admin.service.ts` (`getDashboardStatistics`) | +700–900ms on every dashboard load |
+| 🔴 Critical | `statistics` in `useEffect` deps — socket listeners torn down and re-added on every stat update | `src/context/DashboardStatisticsContext.tsx:~215` | Continuous re-render churn during active use |
+| 🟠 High | `sessionTimeout` middleware adds 2 DB round-trips per request; 3 simultaneous mount calls = 6 extra queries before business data | `src/middleware/sessionTimeout.ts` | +300–400ms on initial load |
+| 🟠 High | Dual polling intervals in `useAdminNotifications`; `isWebSocketHealthy` in both dep arrays causes interval restarts + `fetchCounts` burst on reconnect | `src/hooks/notifications/useAdminNotifications.ts` | Redundant DB queries on every WebSocket reconnect |
+
+#### Recommended fixes
+
+1. **Cache `getDashboardStatistics` for 30–60 seconds** in Redis — dashboard stats do not need real-time accuracy; a short TTL eliminates the 22-query burst for all but the first admin to load the page.
+2. **Remove `statistics` from the `useEffect` dependency array** in `DashboardStatisticsContext` — the socket listener setup should only run once on mount, not on every stat change. This is a 1-line fix.
+3. **Batch `lastActivityAt` writes** in `sessionTimeout` middleware — write only if the last update was more than 60 seconds ago (store last-write time in memory or Redis). This drops the session write from every request to at most once per minute per user.
+4. **Increase Prisma connection pool** — set `connection_limit=20` in the database URL or via `datasource` config. This alone would reduce the pool-queue serialization from 5 cycles to 2.
+
+---
+
+*Section 17 added: 2026-03-29 | Claude Code*

@@ -240,10 +240,22 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
         m.municipality_name,
         m.municipality_logo_path,
         m.id_background_front_path,
-        m.id_background_back_path
+        m.id_background_back_path,
+        hh.house_number,
+        hh.street
       FROM residents r
       LEFT JOIN barangays b ON r.barangay_id = b.id
       LEFT JOIN municipalities m ON b.municipality_id = m.id
+      LEFT JOIN (
+        SELECT r2.id AS resident_id, h.house_number, h.street
+        FROM residents r2
+        JOIN households h ON h.house_head = r2.id
+        UNION
+        SELECT fm.family_member AS resident_id, h.house_number, h.street
+        FROM family_members fm
+        JOIN families f ON f.id = fm.family_id
+        JOIN households h ON h.id = f.household_id
+      ) hh ON hh.resident_id = r.id
       WHERE ${whereClauses.join(" AND ")}
       ORDER BY b.barangay_name, r.last_name, r.first_name
     `;
@@ -323,7 +335,7 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
       if (!relPath) return null;
       if (relPath.startsWith("http://") || relPath.startsWith("https://")) return relPath;
       const normalized = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
-      return `http://localhost:${PORT}/${normalized}`;
+      return `${process.env.BASE_URL || `http://localhost:${PORT}`}/${normalized}`;
     }
 
     function formatDateLong(dateStr) {
@@ -430,7 +442,7 @@ router.get("/residents/bulk-id", ...allUsers, async (req, res) => {
           <div style="display:flex;gap:4px;"><span>SEX:</span><span style="font-weight:600;">${esc((r.sex || "N/A").toUpperCase())}</span></div>
           <div style="display:flex;gap:4px;"><span>BIRTH DATE:</span><span style="font-weight:600;">${esc(formatDateLong(r.birthdate))}</span></div>
           <div style="display:flex;gap:4px;"><span>AGE:</span><span style="font-weight:600;">${getAge(r.birthdate)}</span></div>
-          <div style="display:flex;gap:4px;"><span>ADDRESS:</span><span style="font-weight:600;">${esc((r.barangay_name || "").toUpperCase())}${r.municipality_name ? esc(", " + r.municipality_name.toUpperCase()) : ""}</span></div>
+          <div style="display:flex;gap:4px;"><span>ADDRESS:</span><span style="font-weight:600;">${esc([r.house_number, r.street, r.barangay_name, r.municipality_name].filter(Boolean).map(s => s.toUpperCase()).join(", "))}</span></div>
         </div>
       </div>
     </div>

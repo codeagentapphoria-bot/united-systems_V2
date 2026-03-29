@@ -496,11 +496,9 @@ const HouseholdViewDialog = ({
                         </div>
                         <div className="text-muted-foreground text-sm flex items-center gap-2 mb-1">
                           <Building className="h-4 w-4 text-primary" />
-                          {household.house_number && household.street
-                            ? `${household.house_number} ${household.street}`
-                            : household.street || (
-                              <span className="italic text-xs">No address</span>
-                            )}
+                          {[household.house_number, household.street].filter(Boolean).join(', ') || (
+                            <span className="italic text-xs">No address</span>
+                          )}
                         </div>
                         <div className="text-muted-foreground text-sm flex items-center gap-2 mb-3">
                           <MapPin className="h-4 w-4 text-primary" />

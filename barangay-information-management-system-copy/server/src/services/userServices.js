@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import { pool } from "../config/db.js";
 import logger from "../utils/logger.js";
 import { ApiError } from "../utils/apiError.js";
+import { cacheUtils } from "../config/redis.js";
 import {
   INSERT_USER,
   UPDATE_USER,
@@ -143,6 +144,8 @@ class User {
       await client.query("COMMIT");
       console.log("updateUser - Update completed successfully");
 
+      cacheUtils.del(`bims:user:${userId}`).catch(() => {});
+
       return result.rows[0];
     } catch (error) {
       await client.query("ROLLBACK");
@@ -181,6 +184,9 @@ class User {
       }
 
       await client.query("COMMIT");
+
+      cacheUtils.del(`bims:user:${userId}`).catch(() => {});
+
       return { message: "User deleted successfully." };
     } catch (error) {
       await client.query("ROLLBACK");

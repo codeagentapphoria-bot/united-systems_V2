@@ -28,7 +28,6 @@ router.get("/public/geojson/city", smartCache(), async (req, res) => {
     const result = await pool.query(query);
     res.json(result.rows[0].geojson);
   } catch (err) {
-    console.error(err);
     res.status(500).send("Server error");
   }
 });
@@ -81,8 +80,6 @@ router.get("/public/geojson/barangays/:id", async (req, res) => {
     // Handle based on type parameter or auto-detect
     if (type === 'barangay' || (!type && !isNaN(targetId))) {
       // Treat as barangay ID or GIS code - show only this specific barangay
-      console.log("Public: Treating as barangay ID/GIS code:", targetId);
-      
       // Determine if targetId is a barangay ID (numeric) or GIS code (string)
       const isNumericId = !isNaN(targetId);
       
@@ -139,7 +136,6 @@ router.get("/public/geojson/barangays/:id", async (req, res) => {
       `;
 
       const result = await pool.query(query, [targetId]);
-      console.log("Public: Found", result.rows[0].geojson.features?.length || 0, "barangay boundaries for", isNumericId ? "barangay ID" : "GIS code", targetId);
 
       if (
         !result.rows[0].geojson.features ||
@@ -153,7 +149,6 @@ router.get("/public/geojson/barangays/:id", async (req, res) => {
       return res.json(result.rows[0].geojson);
     } else {
       // Treat as municipality - show all barangays in the municipality
-      console.log("Public: Treating as municipality code/ID:", targetId);
       
       // Try to find municipality by code first, then by ID as fallback
       let municipalityQuery = `
@@ -167,7 +162,6 @@ router.get("/public/geojson/barangays/:id", async (req, res) => {
       
       // If not found by code and targetId is numeric, try by ID
       if (municipalityResult.rows.length === 0 && !isNaN(targetId)) {
-        console.log("Public: Municipality not found by code, trying by ID:", targetId);
         municipalityQuery = `
           SELECT m.municipality_name, m.municipality_code, gm.gis_municipality_code
           FROM municipalities m
@@ -176,7 +170,7 @@ router.get("/public/geojson/barangays/:id", async (req, res) => {
         `;
         municipalityResult = await pool.query(municipalityQuery, [targetId]);
       }
-      
+
             if (municipalityResult.rows.length === 0) {
         return res.status(404).json({
           error: "Municipality not found",
@@ -187,10 +181,7 @@ router.get("/public/geojson/barangays/:id", async (req, res) => {
       const municipality = municipalityResult.rows[0];
       const municipalityGisCode = municipality?.gis_municipality_code || 'PH0802604';
       const gisCodePrefix = municipalityGisCode.substring(0, 9); // Get the municipality prefix
-      
-      console.log("Public: Found municipality:", municipality.municipality_name, "with code:", municipality.municipality_code);
-      console.log("Public: Fetching barangays for municipality with GIS prefix:", gisCodePrefix);
-      
+
       // Get all barangays that belong to this municipality
       const query = `
         SELECT jsonb_build_object(
@@ -217,9 +208,8 @@ router.get("/public/geojson/barangays/:id", async (req, res) => {
         LEFT JOIN barangays b ON b.gis_code = gb.gis_barangay_code
         WHERE gb.gis_barangay_code LIKE $1 || '%';
       `;
-      
+
       const result = await pool.query(query, [gisCodePrefix]);
-      console.log("Public: Found", result.rows[0].geojson.features?.length || 0, "barangays for municipality", municipality.municipality_name);
 
       if (
         !result.rows[0].geojson.features ||
@@ -233,7 +223,6 @@ router.get("/public/geojson/barangays/:id", async (req, res) => {
       return res.json(result.rows[0].geojson);
     }
   } catch (err) {
-    console.error(err);
     res.status(500).send("Server error");
   }
 });
@@ -289,7 +278,6 @@ router.get("/geojson/city", ...allUsers, async (req, res) => {
     const result = await pool.query(query, [gisCodePrefix]);
     res.json(result.rows[0].geojson);
   } catch (err) {
-    console.error(err);
     res.status(500).send("Server error");
   }
 });
@@ -342,8 +330,6 @@ router.get("/geojson/barangays/:id", ...allUsers, async (req, res) => {
     // Handle based on type parameter or auto-detect
     if (type === 'barangay' || (!type && !isNaN(targetId))) {
       // Treat as barangay ID - show only this specific barangay
-      console.log("Treating as barangay ID:", targetId);
-      
       // Get the specific barangay's GIS code and boundary
       const query = `
         SELECT jsonb_build_object(
@@ -372,7 +358,6 @@ router.get("/geojson/barangays/:id", ...allUsers, async (req, res) => {
       `;
 
       const result = await pool.query(query, [targetId]);
-      console.log("Found", result.rows[0].geojson.features?.length || 0, "barangay boundaries for barangay ID", targetId);
 
       if (
         !result.rows[0].geojson.features ||
@@ -386,8 +371,6 @@ router.get("/geojson/barangays/:id", ...allUsers, async (req, res) => {
       return res.json(result.rows[0].geojson);
     } else {
       // Treat as municipality - show all barangays in the municipality
-      console.log("Treating as municipality code/ID:", targetId);
-      
       // Try to find municipality by code first, then by ID as fallback
       let municipalityQuery = `
         SELECT m.municipality_name, m.municipality_code, gm.gis_municipality_code
@@ -395,12 +378,11 @@ router.get("/geojson/barangays/:id", ...allUsers, async (req, res) => {
         LEFT JOIN gis_municipality gm ON m.gis_code = gm.gis_municipality_code
         WHERE m.municipality_code = $1;
       `;
-      
+
       let municipalityResult = await pool.query(municipalityQuery, [targetId]);
-      
+
       // If not found by code and targetId is numeric, try by ID
       if (municipalityResult.rows.length === 0 && !isNaN(targetId)) {
-        console.log("Municipality not found by code, trying by ID:", targetId);
         municipalityQuery = `
           SELECT m.municipality_name, m.municipality_code, gm.gis_municipality_code
           FROM municipalities m
@@ -420,10 +402,7 @@ router.get("/geojson/barangays/:id", ...allUsers, async (req, res) => {
       const municipality = municipalityResult.rows[0];
       const municipalityGisCode = municipality?.gis_municipality_code || 'PH0802604';
       const gisCodePrefix = municipalityGisCode.substring(0, 9); // Get the municipality prefix
-      
-      console.log("Found municipality:", municipality.municipality_name, "with code:", municipality.municipality_code);
-      console.log("Fetching barangays for municipality with GIS prefix:", gisCodePrefix);
-      
+
       // Get all barangays that belong to this municipality
       const query = `
         SELECT jsonb_build_object(
@@ -452,7 +431,6 @@ router.get("/geojson/barangays/:id", ...allUsers, async (req, res) => {
       `;
       
       const result = await pool.query(query, [gisCodePrefix]);
-      console.log("Found", result.rows[0].geojson.features?.length || 0, "barangays for municipality", municipality.municipality_name);
 
       if (
         !result.rows[0].geojson.features ||
@@ -471,7 +449,6 @@ router.get("/geojson/barangays/:id", ...allUsers, async (req, res) => {
       error: "Invalid target ID format",
     });
   } catch (err) {
-    console.error(err);
     res.status(500).send("Server error");
   }
 });
@@ -518,7 +495,6 @@ router.get("/public/geojson/barangays", async (req, res) => {
 
     res.json(result.rows[0].geojson);
   } catch (err) {
-    console.error("Error fetching all barangays GeoJSON:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -557,7 +533,6 @@ router.get("/geojson/municipalities", ...allUsers, async (req, res) => {
 
     res.json(result.rows[0].geojson);
   } catch (err) {
-    console.error("Error fetching municipalities GeoJSON:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -596,7 +571,6 @@ router.get("/public/geojson/municipalities", smartCache(), async (req, res) => {
 
     res.json(result.rows[0].geojson);
   } catch (err) {
-    console.error("Error fetching municipalities GeoJSON:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

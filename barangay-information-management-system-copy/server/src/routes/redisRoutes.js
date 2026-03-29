@@ -2,6 +2,7 @@ import express from 'express';
 import { cacheStats, clearCache } from '../middlewares/redisCache.js';
 import { testRedisConnection, cacheUtils } from '../config/redis.js';
 import logger from '../utils/logger.js';
+import { allUsers } from "../middlewares/auth.js";
 
 const router = express.Router();
 
@@ -10,7 +11,7 @@ const router = express.Router();
  * @desc    Test Redis connection
  * @access  Private (Admin only)
  */
-router.get('/status', async (req, res) => {
+router.get('/status', ...allUsers, async (req, res) => {
   try {
     const isConnected = await testRedisConnection();
     
@@ -37,21 +38,21 @@ router.get('/status', async (req, res) => {
  * @desc    Get Redis cache statistics
  * @access  Private (Admin only)
  */
-router.get('/stats', cacheStats);
+router.get('/stats', ...allUsers, cacheStats);
 
 /**
  * @route   DELETE /api/redis/cache
  * @desc    Clear Redis cache
  * @access  Private (Admin only)
  */
-router.delete('/cache', clearCache);
+router.delete('/cache', ...allUsers, clearCache);
 
 /**
  * @route   POST /api/redis/clear-pattern
  * @desc    Clear specific cache patterns
  * @access  Private (Admin only)
  */
-router.post('/clear-pattern', async (req, res) => {
+router.post('/clear-pattern', ...allUsers, async (req, res) => {
   try {
     const { patterns } = req.body;
     
@@ -105,7 +106,7 @@ router.post('/clear-pattern', async (req, res) => {
  * @desc    Redis health check endpoint
  * @access  Public
  */
-router.get('/health', async (req, res) => {
+router.get('/health', ...allUsers, async (req, res) => {
   try {
     const isConnected = await testRedisConnection();
     

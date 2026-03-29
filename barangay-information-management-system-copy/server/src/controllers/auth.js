@@ -17,7 +17,7 @@ export const login = async (req, res, next) => {
 
 export const refreshUserToken = async (req, res, next) => {
   try {
-    const { userId } = req.user;
+    const { id: userId } = req.user; // protect sets req.user.id, not req.user.userId
     const { token, user } = await refreshToken(userId);
 
     res.status(200).json({

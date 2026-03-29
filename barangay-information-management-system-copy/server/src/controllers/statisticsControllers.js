@@ -228,6 +228,17 @@ export const getTotalRequestsAndCompleted = async (req, res, next) => {
   }
 };
 
+export const getBarangayDistribution = async (req, res, next) => {
+  try {
+    const { barangayId } = req.query;
+    const data = await Statistics.getBarangayDistribution({ barangayId });
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error("Controller error in getBarangayDistribution:", error);
+    next(new ApiError(500, "Failed to get barangay distribution"));
+  }
+};
+
 export const getAllBarangayStats = async (req, res, next) => {
   try {
     const { municipalityId } = req.query;

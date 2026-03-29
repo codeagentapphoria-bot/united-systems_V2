@@ -1068,6 +1068,76 @@ class Statistics {
       client.release();
     }
   }
+  static async getBarangayDistribution({ barangayId } = {}) {
+    const client = await pool.connect();
+    try {
+      const values = [];
+      const barangayFilter = barangayId ? `AND r.barangay_id = $1` : '';
+      const outerFilter = barangayId ? `WHERE b.id = $1` : '';
+      if (barangayId) values.push(barangayId);
+
+      const query = `
+        WITH resident_stats AS (
+          SELECT
+            r.barangay_id,
+            COUNT(CASE WHEN r.sex = 'male' THEN 1 END)::int AS male,
+            COUNT(CASE WHEN r.sex = 'female' THEN 1 END)::int AS female,
+            COUNT(CASE WHEN r.employment_status = 'employed' THEN 1 END)::int AS employed,
+            COUNT(CASE WHEN r.employment_status = 'unemployed' THEN 1 END)::int AS unemployed,
+            COUNT(CASE WHEN r.employment_status = 'student' THEN 1 END)::int AS student,
+            COUNT(CASE WHEN r.employment_status = 'retired' THEN 1 END)::int AS retired,
+            COUNT(CASE WHEN r.education_attainment = 'elementary' THEN 1 END)::int AS elementary,
+            COUNT(CASE WHEN r.education_attainment = 'high_school_graduate' THEN 1 END)::int AS high_school,
+            COUNT(CASE WHEN r.education_attainment = 'college_graduate' THEN 1 END)::int AS college,
+            COUNT(CASE WHEN r.education_attainment = 'post_graduate' THEN 1 END)::int AS post_graduate
+          FROM residents r
+          WHERE r.status = 'active' ${barangayFilter}
+          GROUP BY r.barangay_id
+        ),
+        voter_stats AS (
+          SELECT
+            r.barangay_id,
+            COUNT(CASE WHEN rc.classification_details::text LIKE '%Regular%' THEN 1 END)::int AS regular_voter,
+            COUNT(CASE WHEN rc.classification_details::text LIKE '%SK%' THEN 1 END)::int AS sk_voter,
+            COUNT(CASE WHEN rc.classification_details::text NOT LIKE '%Regular%' AND rc.classification_details::text NOT LIKE '%SK%' THEN 1 END)::int AS other_voter
+          FROM residents r
+          JOIN resident_classifications rc ON rc.resident_id = r.id
+          WHERE r.status = 'active' AND rc.classification_type = 'Voter' ${barangayFilter}
+          GROUP BY r.barangay_id
+        )
+        SELECT
+          b.id AS barangay_id,
+          b.barangay_name,
+          COALESCE(rs.male, 0) AS male,
+          COALESCE(rs.female, 0) AS female,
+          COALESCE(rs.employed, 0) AS employed,
+          COALESCE(rs.unemployed, 0) AS unemployed,
+          COALESCE(rs.student, 0) AS student,
+          COALESCE(rs.retired, 0) AS retired,
+          COALESCE(rs.elementary, 0) AS elementary,
+          COALESCE(rs.high_school, 0) AS high_school,
+          COALESCE(rs.college, 0) AS college,
+          COALESCE(rs.post_graduate, 0) AS post_graduate,
+          COALESCE(vs.regular_voter, 0) AS regular_voter,
+          COALESCE(vs.sk_voter, 0) AS sk_voter,
+          COALESCE(vs.other_voter, 0) AS other_voter
+        FROM barangays b
+        LEFT JOIN resident_stats rs ON rs.barangay_id = b.id
+        LEFT JOIN voter_stats vs ON vs.barangay_id = b.id
+        ${outerFilter}
+        ORDER BY b.barangay_name
+      `;
+
+      const result = await client.query(query, values);
+      return result.rows;
+    } catch (error) {
+      logger.error('Error getting barangay distribution:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   static async getAllBarangayStats({ municipalityId } = {}) {
     const client = await pool.connect();
     try {

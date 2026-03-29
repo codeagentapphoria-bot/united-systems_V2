@@ -1,5 +1,7 @@
 import express from "express";
 import { smartCache } from "../middlewares/smartCache.js";
+import { optionalApiKeyAuth } from "../middlewares/apiKeyAuth.js";
+import { allUsers } from "../middlewares/auth.js";
 import {
   getAgeDemographics,
   getGenderDemographics,
@@ -17,33 +19,39 @@ import {
   getUnemployedHouseholdDetails,
   getTotalRequestsAndCompleted,
   getAllBarangayStats,
+  getBarangayDistribution,
 } from "../controllers/statisticsControllers.js";
 
 const router = express.Router();
 
-router.get("/age-demographics", smartCache(), getAgeDemographics);
-router.get("/gender-demographics", smartCache(), getGenderDemographics);
-router.get("/civil-status-demographics", smartCache(), getCivilStatusDemographics);
+// Auth guard: accepts either a valid API key (statistics.read scope) or a JWT session.
+// Must come before smartCache so unauthenticated requests never reach the cache layer.
+const statsAuth = [optionalApiKeyAuth(["statistics.read"]), ...allUsers];
+
+router.get("/age-demographics", ...statsAuth, smartCache(), getAgeDemographics);
+router.get("/gender-demographics", ...statsAuth, smartCache(), getGenderDemographics);
+router.get("/civil-status-demographics", ...statsAuth, smartCache(), getCivilStatusDemographics);
 router.get(
   "/educational-attainment-demographics",
-  smartCache(),
+  ...statsAuth, smartCache(),
   getEducationalAttainmentDemographics
 );
-router.get("/employment-status-demographics", smartCache(), getEmploymentStatusDemographics);
-router.get("/household-size-demographics", smartCache(), getHouseholdSizeDemographics);
-router.get("/total-population", smartCache(), getTotalFemaleTotalmaleTotalPopulation);
+router.get("/employment-status-demographics", ...statsAuth, smartCache(), getEmploymentStatusDemographics);
+router.get("/household-size-demographics", ...statsAuth, smartCache(), getHouseholdSizeDemographics);
+router.get("/total-population", ...statsAuth, smartCache(), getTotalFemaleTotalmaleTotalPopulation);
 router.get(
   "/resident-classification-demographics",
-  smartCache(),
+  ...statsAuth, smartCache(),
   getResidentClassificationDemographics
 );
-router.get("/voter-demographics", smartCache(), getVoterDemographics);
-router.get("/total-households", smartCache(), getTotalHouseholdsAndAddedThisMonth);
-router.get("/total-families", smartCache(), getTotalFamiliesAndAddedThisMonth);
-router.get("/total-registered-pets", smartCache(), getTotalRegisteredPetsAndAddedThisMonth);
-router.get("/unemployed-household-stats", smartCache(), getUnemployedHouseholdStats);
-router.get("/unemployed-household-details", smartCache(), getUnemployedHouseholdDetails);
-router.get("/total-requests", smartCache(), getTotalRequestsAndCompleted);
-router.get("/all-barangay-stats", smartCache(), getAllBarangayStats);
+router.get("/voter-demographics", ...statsAuth, smartCache(), getVoterDemographics);
+router.get("/total-households", ...statsAuth, smartCache(), getTotalHouseholdsAndAddedThisMonth);
+router.get("/total-families", ...statsAuth, smartCache(), getTotalFamiliesAndAddedThisMonth);
+router.get("/total-registered-pets", ...statsAuth, smartCache(), getTotalRegisteredPetsAndAddedThisMonth);
+router.get("/unemployed-household-stats", ...statsAuth, smartCache(), getUnemployedHouseholdStats);
+router.get("/unemployed-household-details", ...statsAuth, smartCache(), getUnemployedHouseholdDetails);
+router.get("/total-requests", ...statsAuth, smartCache(), getTotalRequestsAndCompleted);
+router.get("/all-barangay-stats", ...statsAuth, smartCache(), getAllBarangayStats);
+router.get("/barangay-distribution", ...statsAuth, smartCache(), getBarangayDistribution);
 
 export default router;

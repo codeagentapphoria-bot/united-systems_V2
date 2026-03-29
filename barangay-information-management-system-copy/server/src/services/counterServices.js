@@ -21,7 +21,7 @@ class Counter {
     }
   }
 
-  static async updatePrefix(newPrefix, year = null) {
+  static async updatePrefix(newPrefix, municipalityId, year = null) {
     const client = await pool.connect();
     try {
       // If no year provided, use current year
@@ -38,6 +38,7 @@ class Counter {
       const result = await client.query(INSERT_OR_UPDATE_PREFIX, [
         currentYear,
         paddedPrefix,
+        municipalityId,
       ]);
 
       logger.info(

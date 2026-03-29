@@ -20,13 +20,6 @@ export const upsertPet = async (req, res, next) => {
   // Handle picturePath from file upload OR JSON payload (for mobile sync)
   const finalPicturePath = picturePath || req.files?.picturePath?.[0]?.path;
 
-  // Debug logging
-  console.log('🐾 Pet upsert request:', {
-    picturePathFromBody: picturePath,
-    picturePathFromFile: req.files?.picturePath?.[0]?.path,
-    finalPicturePath: finalPicturePath,
-  });
-
   try {
     let result;
     if (!petId) {

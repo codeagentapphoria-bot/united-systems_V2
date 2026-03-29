@@ -58,6 +58,7 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
 
   const {
     loading,
+    distributionLoading,
     stats,
     demographics,
     distributionData,
@@ -610,6 +611,9 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
         </TabsContent>
 
         <TabsContent value="distribution" className="space-y-3 sm:space-y-4">
+          {distributionLoading ? (
+            <LoadingSpinner message="Loading distribution data..." variant="default" size="default" />
+          ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
               {/* Gender Distribution - More Detailed */}
               <ChartCard
@@ -878,6 +882,7 @@ import UnemployedHouseholdStats from "@/features/dashboard/components/Unemployed
                 )}
               </ChartCard>
             </div>
+          )}
           </TabsContent>
       </Tabs>
 

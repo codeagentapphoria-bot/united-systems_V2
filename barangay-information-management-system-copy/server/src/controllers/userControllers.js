@@ -33,11 +33,6 @@ export const checkUserConflicts = async (req, res, next) => {
 };
 
 export const upsertUser = async (req, res, next) => {
-  console.log("upsertUser - Request received");
-  console.log("upsertUser - Request headers:", req.headers);
-  console.log("upsertUser - Request body:", req.body);
-  console.log("upsertUser - Request files:", req.files);
-  
   let { targetType, targetId, fullname, email, password, role, removePicture } = req.body;
   const { userId } = req.params;
 
@@ -57,19 +52,12 @@ export const upsertUser = async (req, res, next) => {
   let picturePath = null;
   if (req.files && req.files.picturePath && req.files.picturePath[0]) {
     picturePath = req.files.picturePath[0].path;
-    console.log("upsertUser - Picture uploaded:", picturePath);
-  } else {
-    console.log("upsertUser - No picture uploaded or files not found");
-    console.log("upsertUser - req.files:", req.files);
   }
 
   // Handle picture removal flag
   if (removePicture === "true" || removePicture === true) {
     picturePath = null; // Set to null to remove the picture
-    console.log("upsertUser - Picture removal flag set, picturePath set to null");
   }
-
-  console.log("upsertUser - Final picturePath:", picturePath);
 
   try {
     const checkResult = await User.findByEmail(email);
