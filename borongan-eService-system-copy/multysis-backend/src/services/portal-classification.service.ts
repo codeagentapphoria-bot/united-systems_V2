@@ -9,6 +9,7 @@
  */
 
 import prisma from '../config/database';
+import cacheService from './cache.service';
 
 export interface ResidentClassification {
   id: number;
@@ -23,10 +24,18 @@ export interface ResidentClassification {
  * Fetch all BIMS classifications assigned to a resident.
  * Joins resident_classifications → classification_types for display metadata.
  * Returns an empty array (not an error) if the resident has no classifications.
+ * Results are cached for 30 minutes.
  */
 export const getMyClassifications = async (
   residentId: string
 ): Promise<ResidentClassification[]> => {
+  const cacheKey = `resident:${residentId}:classifications`;
+  
+  const cached = await cacheService.get<ResidentClassification[]>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const rows = await prisma.$queryRaw<ResidentClassification[]>`
     SELECT
       rc.id,
@@ -43,5 +52,14 @@ export const getMyClassifications = async (
     ORDER BY rc.classification_type ASC
   `;
 
+  await cacheService.set(cacheKey, rows, 1800); // 30 min TTL
   return rows;
+};
+
+/**
+ * Invalidate classification cache for a resident.
+ * Call this when classifications are added/removed.
+ */
+export const invalidateClassificationCache = async (residentId: string): Promise<void> => {
+  await cacheService.del(`resident:${residentId}:classifications`);
 };

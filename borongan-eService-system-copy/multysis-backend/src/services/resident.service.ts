@@ -6,6 +6,7 @@
  */
 
 import prisma from '../config/database';
+import cacheService from './cache.service';
 import { formatResidentResponse } from './auth.service';
 
 export interface ResidentFilters {
@@ -111,9 +112,16 @@ export const listResidents = async (filters: ResidentFilters) => {
 };
 
 // =============================================================================
-// GET SINGLE RESIDENT
+// GET SINGLE RESIDENT (cached)
 // =============================================================================
 export const getResident = async (id: string) => {
+  const cacheKey = `resident:${id}:profile`;
+  
+  const cached = await cacheService.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const resident = await prisma.resident.findUnique({
     where: { id },
     include: {
@@ -127,7 +135,10 @@ export const getResident = async (id: string) => {
   });
 
   if (!resident) throw new Error('Resident not found');
-  return formatResidentResponse(resident);
+  
+  const formatted = formatResidentResponse(resident);
+  await cacheService.set(cacheKey, formatted, 120); // 2 min TTL
+  return formatted;
 };
 
 // =============================================================================
@@ -170,6 +181,9 @@ export const updateResident = async (id: string, data: UpdateResidentData) => {
       credentials: { select: { googleId: true } },
     },
   });
+
+  // Invalidate cache
+  await invalidateProfileCache(id);
 
   return formatResidentResponse(updated);
 };
@@ -220,7 +234,17 @@ export const updateMyProfile = async (id: string, data: SelfUpdateData) => {
     },
   });
 
+  // Invalidate cache
+  await invalidateProfileCache(id);
+
   return formatResidentResponse(updated);
+};
+
+// =============================================================================
+// CACHE INVALIDATION
+// =============================================================================
+export const invalidateProfileCache = async (residentId: string): Promise<void> => {
+  await cacheService.del(`resident:${residentId}:profile`);
 };
 
 // =============================================================================

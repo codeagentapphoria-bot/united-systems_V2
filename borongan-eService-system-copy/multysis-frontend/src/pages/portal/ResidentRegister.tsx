@@ -40,7 +40,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { PortalHeader } from '@/components/layout/PortalHeader';
 import api from '@/services/api/auth.service';
-import { Camera, User, MapPin, FileText, Shield, Phone, Mail, Ruler, Briefcase, GraduationCap, Users, ChevronRight, Check } from 'lucide-react';
+import { Camera, Shield, Phone, Mail, Briefcase, GraduationCap, ChevronRight, Check } from 'lucide-react';
 
 // =============================================================================
 // SCHEMAS
@@ -179,7 +179,6 @@ export const ResidentRegister: React.FC = () => {
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
   const [emailExists, setEmailExists] = useState<boolean | null>(null);
-  const [emailChecking, setEmailChecking] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [idDocPreview, setIdDocPreview] = useState<string | null>(null);
@@ -234,14 +233,11 @@ export const ResidentRegister: React.FC = () => {
   // Check email exists (debounced)
   const checkEmailExists = async (email: string) => {
     if (!email || !email.includes('@')) { setEmailExists(null); return; }
-    setEmailChecking(true);
     try {
       const res = await api.get(`/residents/check-email?email=${encodeURIComponent(email)}`);
       setEmailExists(res.data.data?.exists ?? false);
     } catch {
       setEmailExists(null);
-    } finally {
-      setEmailChecking(false);
     }
   };
 

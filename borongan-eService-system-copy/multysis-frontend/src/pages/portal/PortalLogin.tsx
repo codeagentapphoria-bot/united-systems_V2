@@ -241,7 +241,8 @@ export const PortalLogin: React.FC = () => {
             </form>
           </Form>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 };

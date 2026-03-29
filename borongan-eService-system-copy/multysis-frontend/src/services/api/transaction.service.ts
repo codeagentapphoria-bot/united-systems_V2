@@ -130,7 +130,8 @@ export const transactionService = {
     page: number = 1,
     limit: number = 10,
     status?: string,
-    search?: string
+    search?: string,
+    signal?: AbortSignal
   ): Promise<PaginatedTransactions> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -141,7 +142,7 @@ export const transactionService = {
     if (status) params.append('status', status);
     if (search) params.append('search', search);
 
-    const response = await api.get(`/transactions/subscriber/${subscriberId}?${params.toString()}`);
+    const response = await api.get(`/transactions/subscriber/${subscriberId}?${params.toString()}`, { signal });
     // Backend returns: { status: 'success', data: transactions[], pagination: {...} }
     return {
       transactions: response.data.data || [],
@@ -154,8 +155,8 @@ export const transactionService = {
     };
   },
 
-  async getTransaction(id: string): Promise<Transaction> {
-    const response = await api.get(`/transactions/${id}`);
+  async getTransaction(id: string, signal?: AbortSignal): Promise<Transaction> {
+    const response = await api.get(`/transactions/${id}`, { signal });
     return response.data.data;
   },
 
@@ -163,7 +164,8 @@ export const transactionService = {
     serviceCode: string,
     filters: GetTransactionsByServiceFilters = {},
     page: number = 1,
-    limit: number = 10
+    limit: number = 10,
+    signal?: AbortSignal
   ): Promise<PaginatedTransactions> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -182,7 +184,7 @@ export const transactionService = {
       params.append('serviceData', JSON.stringify(filters.serviceData));
     }
 
-    const response = await api.get(`/transactions/service/${serviceCode}?${params.toString()}`);
+    const response = await api.get(`/transactions/service/${serviceCode}?${params.toString()}`, { signal });
     return {
       transactions: response.data.data,
       pagination: response.data.pagination,
@@ -192,7 +194,8 @@ export const transactionService = {
   async getServiceStatistics(
     serviceCode: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    signal?: AbortSignal
   ): Promise<ServiceStatistics> {
     const params = new URLSearchParams();
     if (startDate) params.append('startDate', startDate);
@@ -200,7 +203,7 @@ export const transactionService = {
 
     const queryString = params.toString();
     const url = `/transactions/service/${serviceCode}/statistics${queryString ? `?${queryString}` : ''}`;
-    const response = await api.get(url);
+    const response = await api.get(url, { signal });
     return response.data.data;
   },
 
@@ -304,11 +307,14 @@ export const transactionService = {
     return response.data.data;
   },
 
-  async getAppointments(params?: {
-    startDate?: string;
-    endDate?: string;
-    date?: string;
-  }): Promise<Transaction[]> {
+  async getAppointments(
+    params?: {
+      startDate?: string;
+      endDate?: string;
+      date?: string;
+    },
+    signal?: AbortSignal
+  ): Promise<Transaction[]> {
     const queryParams = new URLSearchParams();
     if (params?.startDate) {
       queryParams.append('startDate', params.startDate);
@@ -322,7 +328,7 @@ export const transactionService = {
     
     const queryString = queryParams.toString();
     const url = `/transactions/appointments${queryString ? `?${queryString}` : ''}`;
-    const response = await api.get(url);
+    const response = await api.get(url, { signal });
     return response.data.data;
   },
 };

@@ -1,5 +1,5 @@
 // React imports
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 // Services
 import {
@@ -8,22 +8,30 @@ import {
 } from '@/services/api/notification.service';
 
 // Hooks
-import { useToast } from '@/hooks/use-toast';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Context
 import { useAuth } from '@/context/AuthContext';
+import { useSocket } from '@/context/SocketContext';
+
+// Lib
+import { queryKeys } from '@/lib/query-keys';
+
+// Types
+import type { TransactionUpdatePayload, TransactionNoteResponse } from '@/types/socket.types';
 
 interface UsePortalNotificationsOptions {
-  pollInterval?: number; // Polling interval in milliseconds (default: 30000 = 30 seconds)
-  autoFetch?: boolean; // Whether to automatically fetch on mount
-  enabled?: boolean; // Whether polling is enabled (pauses when tab is not visible)
+  pollInterval?: number;
+  autoFetch?: boolean;
+  enabled?: boolean;
 }
 
 interface UsePortalNotificationsReturn {
   counts: SubscriberNotificationCounts;
   isLoading: boolean;
   error: string | null;
-  refresh: () => Promise<void>;
+  refresh: () => void;
+  isWebSocketConnected: boolean;
 }
 
 const EMPTY_COUNTS: SubscriberNotificationCounts = {
@@ -34,128 +42,130 @@ const EMPTY_COUNTS: SubscriberNotificationCounts = {
 };
 
 export const usePortalNotifications = ({
-  pollInterval = 30000, // 30 seconds default
+  pollInterval = 60000,
   autoFetch = true,
   enabled = true,
 }: UsePortalNotificationsOptions = {}): UsePortalNotificationsReturn => {
-  const { toast } = useToast();
   const { user } = useAuth();
-  const [counts, setCounts] = useState<SubscriberNotificationCounts>(EMPTY_COUNTS);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { socket, isConnected } = useSocket();
+  const queryClient = useQueryClient();
   const isMountedRef = useRef(true);
 
   const fetchCounts = useCallback(async () => {
-    // Only fetch if user is subscriber
-    if (!user || user.role !== 'resident') {
+    const result = await notificationService.getSubscriberNotificationCounts();
+    return result;
+  }, []);
+
+  const {
+    data: counts = EMPTY_COUNTS,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: queryKeys.notifications.all,
+    queryFn: fetchCounts,
+    enabled: autoFetch && enabled && !!user && user.role === 'resident',
+    staleTime: 30000,
+    gcTime: 60000,
+    refetchInterval: pollInterval,
+    refetchOnWindowFocus: false,
+  });
+
+  // Update query client cache on WebSocket events
+  useEffect(() => {
+    if (!socket || !isConnected || !user || user.role !== 'resident') {
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const result = await notificationService.getSubscriberNotificationCounts();
-      if (isMountedRef.current) {
-        setCounts(result);
-      }
-    } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.message || err.message || 'Failed to fetch notification counts';
-      if (isMountedRef.current) {
-        setError(errorMessage);
-        // Only show toast on initial error, not on polling errors
-        if (!intervalRef.current) {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: errorMessage,
-          });
-        }
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [user, toast]);
-
-  // Set up polling
-  useEffect(() => {
-    if (!autoFetch || !enabled || !user || user.role !== 'resident') {
-      return;
-    }
-
-    // Initial fetch
-    fetchCounts();
-
-    // Set up polling interval
-    intervalRef.current = setInterval(() => {
-      if (enabled && isMountedRef.current) {
-        fetchCounts();
-      }
-    }, pollInterval);
-
-    // Cleanup interval on unmount or when dependencies change
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [autoFetch, enabled, pollInterval, fetchCounts, user]);
-
-  // Handle page visibility changes (pause polling when tab is not visible)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // Tab is hidden, pause polling
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-      } else {
-        // Tab is visible, resume polling
-        if (autoFetch && enabled && user && user.role === 'resident' && !intervalRef.current) {
-          fetchCounts();
-          intervalRef.current = setInterval(() => {
-            if (enabled && isMountedRef.current) {
-              fetchCounts();
+    const handleTransactionUpdate = (data: TransactionUpdatePayload) => {
+      queryClient.setQueryData<SubscriberNotificationCounts>(
+        queryKeys.notifications.all,
+        (old) => {
+          if (!old) return old;
+          const updated = { ...old };
+          
+          if (data.status !== undefined && data.oldStatus !== undefined && 
+              data.status !== data.oldStatus) {
+            updated.statusUpdates += 1;
+            updated.total += 1;
+          }
+          
+          if (data.paymentStatus !== undefined && data.oldPaymentStatus !== undefined && 
+              data.paymentStatus !== data.oldPaymentStatus) {
+            if (data.oldPaymentStatus === 'PAID' && data.paymentStatus !== 'PAID') {
+              updated.pendingUpdateRequests += 1;
+              updated.total += 1;
+            } else if (data.oldPaymentStatus !== 'PAID' && data.paymentStatus === 'PAID') {
+              updated.pendingUpdateRequests = Math.max(0, updated.pendingUpdateRequests - 1);
+              updated.total = Math.max(0, updated.total - 1);
             }
-          }, pollInterval);
+          }
+          
+          return updated;
         }
+      );
+    };
+
+    const handleNewTransactionNote = (data: TransactionNoteResponse) => {
+      if (data.senderType === 'ADMIN' && !data.isRead) {
+        queryClient.setQueryData<SubscriberNotificationCounts>(
+          queryKeys.notifications.all,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              unreadMessages: old.unreadMessages + 1,
+              total: old.total + 1,
+            };
+          }
+        );
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const handleTransactionNoteRead = (data: { transactionId: string; senderType: 'ADMIN' | 'SUBSCRIBER'; isRead: boolean }) => {
+      if (data.senderType === 'SUBSCRIBER' && data.isRead) {
+        queryClient.setQueryData<SubscriberNotificationCounts>(
+          queryKeys.notifications.all,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              unreadMessages: Math.max(0, old.unreadMessages - 1),
+              total: Math.max(0, old.total - 1),
+            };
+          }
+        );
+      }
+    };
+
+    socket.on('transaction:update', handleTransactionUpdate);
+    socket.on('transaction:note:new', handleNewTransactionNote);
+    socket.on('transaction:note:read', handleTransactionNoteRead);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      socket.off('transaction:update', handleTransactionUpdate);
+      socket.off('transaction:note:new', handleNewTransactionNote);
+      socket.off('transaction:note:read', handleTransactionNoteRead);
     };
-  }, [autoFetch, enabled, pollInterval, fetchCounts, user]);
+  }, [socket, isConnected, user, queryClient]);
 
   // Cleanup on unmount
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
     };
   }, []);
 
-  const refresh = useCallback(async () => {
-    await fetchCounts();
-  }, [fetchCounts]);
+  const refresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+  }, [queryClient]);
 
   return {
     counts,
     isLoading,
-    error,
+    error: error ? (error as Error).message : null,
     refresh,
+    isWebSocketConnected: isConnected,
   };
 };
 

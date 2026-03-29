@@ -269,18 +269,6 @@ export const CategoryCard: React.FC<OpenCategoryModalProps> = ({
   services,
   onOpen,
 }) => {
-  const getCategoryIcon = (cat: string) => {
-    const icons: Record<string, string> = {
-      'Barangay Certificate': 'file-text',
-      'Civil Registry': 'book-open',
-      Tax: 'dollar-sign',
-      Health: 'heart',
-      Business: 'briefcase',
-      Permit: 'clipboard',
-    };
-    return icons[cat] || 'folder';
-  };
-
   const getCategoryDescription = (cat: string) => {
     const descriptions: Record<string, string> = {
       'Barangay Certificate':

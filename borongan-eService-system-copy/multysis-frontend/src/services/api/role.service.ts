@@ -1,6 +1,16 @@
 import type { Role } from '@/types/role';
 import api from './auth.service';
 
+export interface PaginatedRoles {
+  roles: Role[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 // Backend role response type
 interface BackendRole {
   id: string;
@@ -46,9 +56,9 @@ const transformRole = (backendRole: BackendRole): Role => {
 };
 
 export const roleService = {
-  async getAllRoles(): Promise<Role[]> {
+  async getAllRoles(signal?: AbortSignal): Promise<Role[]> {
     try {
-      const response = await api.get('/roles');
+      const response = await api.get('/roles', { signal });
       const backendRoles: BackendRole[] = response.data.data;
       return backendRoles.map(transformRole);
     } catch (error: any) {
@@ -57,9 +67,37 @@ export const roleService = {
     }
   },
 
-  async getRole(id: string): Promise<Role> {
+  async getRoles(
+    page: number = 1,
+    limit: number = 10,
+    signal?: AbortSignal
+  ): Promise<PaginatedRoles> {
     try {
-      const response = await api.get(`/roles/${id}`);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      const response = await api.get(`/roles?${params.toString()}`, { signal });
+      const backendRoles: BackendRole[] = response.data.data || [];
+      const pagination = response.data.pagination || {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      };
+      return {
+        roles: backendRoles.map(transformRole),
+        pagination,
+      };
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch roles';
+      throw new Error(errorMessage);
+    }
+  },
+
+  async getRole(id: string, signal?: AbortSignal): Promise<Role> {
+    try {
+      const response = await api.get(`/roles/${id}`, { signal });
       const backendRole: BackendRole = response.data.data;
       return transformRole(backendRole);
     } catch (error: any) {

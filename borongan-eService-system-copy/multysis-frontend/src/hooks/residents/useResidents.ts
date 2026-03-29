@@ -6,83 +6,72 @@
  * from the unified /api/residents endpoint.
  */
 
+import { useQuery } from '@tanstack/react-query';
 import { useDebounce } from '@/hooks/useDebounce';
 import { residentService, type Resident, type ResidentFilters } from '@/services/api/resident.service';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { queryKeys } from '@/lib/query-keys';
 
 export const useResidents = (initialFilters: ResidentFilters = {}) => {
-  const [residents, setResidents]               = useState<Resident[]>([]);
-  const [isLoading, setIsLoading]               = useState(true);
-  const [searchQuery, setSearchQuery]           = useState('');
-  const [statusFilter, setStatusFilter]         = useState<string>(initialFilters.status ?? 'all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>(initialFilters.status ?? 'all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(initialFilters.limit ?? 10);
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
-  const [currentPage, setCurrentPage]           = useState(1);
-  const [itemsPerPage]                          = useState(initialFilters.limit ?? 10);
-  const [totalPages, setTotalPages]             = useState(1);
-  const [total, setTotal]                       = useState(0);
 
   const debouncedSearch = useDebounce(searchQuery, 500);
 
-  const fetchResidents = useCallback(async (page = currentPage) => {
-    setIsLoading(true);
-    try {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: queryKeys.residents.list({
+      search: debouncedSearch,
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      page: currentPage,
+      limit: itemsPerPage,
+      barangayId: initialFilters.barangayId,
+      municipalityId: initialFilters.municipalityId,
+    }),
+    queryFn: ({ signal }) => {
       const filters: ResidentFilters = {
-        search:    debouncedSearch   || undefined,
-        status:    statusFilter !== 'all' ? statusFilter : undefined,
-        page,
-        limit:     itemsPerPage,
-        barangayId:     initialFilters.barangayId,
+        search: debouncedSearch || undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        page: currentPage,
+        limit: itemsPerPage,
+        barangayId: initialFilters.barangayId,
         municipalityId: initialFilters.municipalityId,
+        signal,
       };
+      return residentService.listResidents(filters);
+    },
+  });
 
-      const result = await residentService.listResidents(filters);
-      setResidents(result.residents);
-      setTotal(result.pagination.total);
-      setTotalPages(result.pagination.totalPages);
-    } catch (error) {
-      console.error('Failed to fetch residents:', error);
-      setResidents([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [debouncedSearch, statusFilter, currentPage, itemsPerPage,
-      initialFilters.barangayId, initialFilters.municipalityId]);
-
-  // Re-fetch when search/filter/page changes
-  useEffect(() => {
-    fetchResidents(currentPage);
-  }, [debouncedSearch, statusFilter, currentPage]);
+  const residents = data?.residents ?? [];
+  const total = data?.pagination.total ?? 0;
+  const totalPages = data?.pagination.totalPages ?? 1;
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
   }, []);
 
   const refresh = useCallback(() => {
-    fetchResidents(currentPage);
-  }, [fetchResidents, currentPage]);
+    refetch();
+  }, [refetch]);
 
   return {
-    // Data
     residents,
     isLoading,
+    error: null,
     total,
     totalPages,
     currentPage,
     itemsPerPage,
-
-    // Selection
-    selectedResident,
-    setSelectedResident,
-
-    // Filters
     searchQuery,
     setSearchQuery,
     statusFilter,
     setStatusFilter,
-
-    // Actions
+    selectedResident,
+    setSelectedResident,
     handlePageChange,
     refresh,
-    fetchResidents,
+    refetch,
   };
 };

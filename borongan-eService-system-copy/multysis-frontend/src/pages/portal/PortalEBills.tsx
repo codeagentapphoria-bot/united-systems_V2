@@ -70,9 +70,9 @@ export const PortalEBills: React.FC = () => {
             <div className="w-20 h-20 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-4">
               <FiCreditCard size={40} className="text-primary-600" />
             </div>
-            <h2 className="text-2xl font-semibold text-heading-700 mb-2">No Bills Available</h2>
+            <h2 className="text-2xl font-semibold text-heading-700 mb-2">Bills Coming Soon</h2>
             <p className="text-heading-600">
-              You don't have any bills at the moment. Bills will appear here when they are available.
+              The E-Bills section is currently under development. Check back soon for easy bill payment and management.
             </p>
           </div>
         </div>

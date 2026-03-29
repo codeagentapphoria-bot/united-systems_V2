@@ -2,6 +2,37 @@ import type { AddCitizenInput, EditCitizenInput } from '@/validations/citizen.sc
 import { getToken } from '../../utils/tokenStorage';
 import api from './auth.service';
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+export class FileSizeExceededError extends Error {
+  constructor(fileName: string, size: number) {
+    super(`File "${fileName}" exceeds maximum size of 5MB (${(size / 1024 / 1024).toFixed(2)}MB)`);
+    this.name = 'FileSizeExceededError';
+  }
+}
+
+const validateFile = (file: File): void => {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new FileSizeExceededError(file.name, file.size);
+  }
+};
+
+const validateFiles = (files: (File | undefined)[]): void => {
+  for (const file of files) {
+    if (file) {
+      validateFile(file);
+    }
+  }
+};
+
+export interface UploadProgressEvent {
+  loaded: number;
+  total: number;
+  percentage: number;
+}
+
+export type UploadProgressCallback = (event: UploadProgressEvent) => void;
+
 export interface Citizen {
   id: string;
   firstName: string;
@@ -97,7 +128,16 @@ export const citizenService = {
     return response.data.data;
   },
 
-  async createCitizen(data: AddCitizenInput): Promise<Citizen> {
+  async createCitizen(
+    data: AddCitizenInput,
+    onUploadProgress?: UploadProgressCallback
+  ): Promise<Citizen> {
+    validateFiles([
+      data.citizenPictureFile,
+      data.proofOfResidencyFile,
+      data.proofOfIdentificationFile,
+    ]);
+
     const formData = new FormData();
     
     // Add all non-file fields
@@ -154,11 +194,30 @@ export const citizenService = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      onUploadProgress: (progressEvent) => {
+        if (onUploadProgress && progressEvent.total) {
+          const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onUploadProgress({
+            loaded: progressEvent.loaded,
+            total: progressEvent.total,
+            percentage,
+          });
+        }
+      },
     });
     return response.data.data;
   },
 
-  async updateCitizen(id: string, data: EditCitizenInput): Promise<Citizen> {
+  async updateCitizen(
+    id: string,
+    data: EditCitizenInput,
+    onUploadProgress?: UploadProgressCallback
+  ): Promise<Citizen> {
+    validateFiles([
+      data.citizenPictureFile,
+      data.proofOfResidencyFile,
+      data.proofOfIdentificationFile,
+    ]);
     const formData = new FormData();
     
     // Add all non-file fields
@@ -213,6 +272,16 @@ export const citizenService = {
     const response = await api.put(`/citizens/${id}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onUploadProgress && progressEvent.total) {
+          const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onUploadProgress({
+            loaded: progressEvent.loaded,
+            total: progressEvent.total,
+            percentage,
+          });
+        }
       },
     });
     return response.data.data;

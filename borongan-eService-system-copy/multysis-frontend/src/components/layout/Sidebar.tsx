@@ -82,6 +82,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, menuItems }) 
   const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
   const location = useLocation();
 
+  // Initialize all categories as collapsed by default
+  useEffect(() => {
+    const allCategories = new Set<string>();
+    menuItems.forEach((item) => {
+      item.submenuItems?.forEach((sub) => {
+        if (sub.category) allCategories.add(sub.category);
+      });
+    });
+    setCollapsedCategories(Array.from(allCategories));
+  }, [menuItems]);
+
   // Auto-expand submenus when their submenu items are active
   useEffect(() => {
     menuItems.forEach((item) => {
@@ -245,7 +256,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, menuItems }) 
                                     <li key={`cat-${subIndex}`}>
                                       <button
                                         onClick={() => toggleCategory(categoryName)}
-                                        className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-primary-700 bg-primary-50 rounded-md mt-2 first:mt-0 hover:bg-primary-100 transition-colors"
+                                        className="w-full flex items-center justify-between px-3 py-2 text-sm text-primary-700 bg-primary-50 rounded-md mt-2 first:mt-0 hover:bg-primary-100 transition-colors"
                                       >
                                         <span className="flex items-center gap-2">
                                           <span className={cn('transition-transform', isCategoryCollapsed && 'rotate-[-90deg]')}>
@@ -301,7 +312,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, menuItems }) 
                                           isCategoryService
                                             ? 'flex items-center justify-between ml-6 px-2 py-1.5 rounded-md text-xs transition-colors'
                                             : 'flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors',
-                                          'text-gray-400 cursor-not-allowed bg-gray-50 opacity-60'
+                                          'text-gray-400 cursor-not-allowed bg-gray-50 opacity-60 hidden'
                                         )}
                                         title="Not yet implemented"
                                       >
@@ -348,7 +359,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, menuItems }) 
                             <div
                               className={cn(
                                 'flex items-center justify-between px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
-                                'text-gray-400 cursor-not-allowed bg-gray-50 opacity-60'
+                                'text-gray-400 cursor-not-allowed bg-gray-50 opacity-60 hidden'
                               )}
                               title="Not yet implemented"
                             >

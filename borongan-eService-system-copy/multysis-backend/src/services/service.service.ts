@@ -1,5 +1,6 @@
 import prisma from '../config/database';
 import { Prisma } from '@prisma/client';
+import cacheService from './cache.service';
 
 export interface CreateServiceData {
   code: string;
@@ -159,6 +160,13 @@ export const getActiveServices = async (options?: {
   displayInSidebar?: boolean;
   displayInSubscriberTabs?: boolean;
 }) => {
+  const cacheKey = `services:active:${options?.displayInSidebar}:${options?.displayInSubscriberTabs}`;
+  
+  const cached = await cacheService.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const where: Prisma.ServiceWhereInput = {
     isActive: true,
   };
@@ -171,10 +179,14 @@ export const getActiveServices = async (options?: {
     where.displayInSubscriberTabs = options.displayInSubscriberTabs;
   }
 
-  return prisma.service.findMany({
+  const services = await prisma.service.findMany({
     where,
     orderBy: [{ order: 'asc' }, { name: 'asc' }],
   });
+
+  await cacheService.set(cacheKey, services, 600);
+  
+  return services;
 };
 
 export const getAllCategories = async (): Promise<string[]> => {

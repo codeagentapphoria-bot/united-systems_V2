@@ -13,6 +13,7 @@
 
 import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
+import cacheService from './cache.service';
 import { CustomError } from '../middleware/error';
 
 // ---------------------------------------------------------------------------
@@ -46,8 +47,16 @@ export interface RegisterHouseholdInput {
 
 // ---------------------------------------------------------------------------
 // GET /my — fetch the resident's household with nested families + members
+// Cached for 10 minutes
 // ---------------------------------------------------------------------------
 export async function getMyHousehold(residentId: string) {
+  const cacheKey = `resident:${residentId}:household`;
+  
+  const cached = await cacheService.get<any>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const rows = await prisma.$queryRaw<any[]>`
     SELECT
       h.id,
@@ -116,6 +125,7 @@ export async function getMyHousehold(residentId: string) {
     row.families = JSON.parse(row.families);
   }
 
+  await cacheService.set(cacheKey, row, 600); // 10 min TTL
   return row;
 }
 
@@ -291,9 +301,26 @@ export async function registerHousehold(
       }
     }
 
+    // Invalidate cache for all affected residents (house head and family members)
+    await invalidateHouseholdCache(residentId);
+    for (const member of families.flatMap(f => f.members ?? [])) {
+      const uuid = memberUuidMap.get(member.residentId);
+      if (uuid && uuid !== residentId) {
+        await invalidateHouseholdCache(uuid);
+      }
+    }
+
     return household;
   });
 }
+
+/**
+ * Invalidate household cache for a resident.
+ * Call this when household data is modified.
+ */
+export const invalidateHouseholdCache = async (residentId: string): Promise<void> => {
+  await cacheService.del(`resident:${residentId}:household`);
+};
 
 // ---------------------------------------------------------------------------
 // POST /:householdId/members — add a member to an existing household
@@ -371,6 +398,10 @@ export async function addMember(
       VALUES (${familyId}, ${member.id}, ${relationshipToHead ?? null})
     `;
 
+    // Invalidate cache for both the member being added and the house head
+    await invalidateHouseholdCache(member.id);
+    await invalidateHouseholdCache(residentId);
+
     return {
       name: `${member.first_name} ${member.last_name}`,
       residentId: member.resident_id,
@@ -412,4 +443,8 @@ export async function removeMember(
         SELECT id FROM families WHERE household_id = ${householdId}
       )
   `;
+
+  // Invalidate cache for the member being removed and the house head
+  await invalidateHouseholdCache(memberId);
+  await invalidateHouseholdCache(residentId);
 }

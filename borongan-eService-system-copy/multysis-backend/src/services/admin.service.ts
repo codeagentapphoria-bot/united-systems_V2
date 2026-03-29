@@ -1,5 +1,6 @@
 import { TransactionNoteSenderType, UpdateRequestStatus } from '@prisma/client';
 import prisma from '../config/database';
+import cacheService from './cache.service';
 
 export interface AdminNotificationCounts {
   pendingApplications: number;
@@ -18,6 +19,13 @@ export interface SubscriberNotificationCounts {
 }
 
 export const getAdminNotificationCounts = async (): Promise<AdminNotificationCounts> => {
+  // Check Redis cache first
+  const cacheKey = 'admin:notificationCounts';
+  const cached = await cacheService.get<AdminNotificationCounts>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   // HYPER-OPTIMIZATION: Fetch ALL counts in a single round-trip using raw SQL.
   // This avoids parallel independent count queries that each overhead the DB.
   
@@ -63,7 +71,7 @@ export const getAdminNotificationCounts = async (): Promise<AdminNotificationCou
 
   const total = pendingApplications + Number(pending_citizens) + Number(pending_update_requests) + Number(unread_messages);
 
-  return {
+  const result = {
     pendingApplications,
     pendingCitizens: Number(pending_citizens),
     pendingUpdateRequests: Number(pending_update_requests),
@@ -71,11 +79,23 @@ export const getAdminNotificationCounts = async (): Promise<AdminNotificationCou
     total,
     pendingApplicationsByService,
   };
+
+  // Cache for 30 seconds (short TTL because counts change frequently)
+  await cacheService.set(cacheKey, result, 30);
+
+  return result;
 };
 
 export const getSubscriberNotificationCounts = async (
   residentId: string
 ): Promise<SubscriberNotificationCounts> => {
+  // Check Redis cache first (per-user cache)
+  const cacheKey = `subscriber:${residentId}:notificationCounts`;
+  const cached = await cacheService.get<SubscriberNotificationCounts>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   // 1. Count transactions with updateRequestStatus = 'PENDING_PORTAL' for this subscriber
   const pendingUpdateRequests = await prisma.transaction.count({
     where: {
@@ -127,12 +147,17 @@ export const getSubscriberNotificationCounts = async (
 
   const total = pendingUpdateRequests + unreadMessages + statusUpdates;
 
-  return {
+  const result = {
     pendingUpdateRequests,
     unreadMessages,
     statusUpdates,
     total,
   };
+
+  // Cache for 30 seconds (short TTL because counts change frequently)
+  await cacheService.set(cacheKey, result, 30);
+
+  return result;
 };
 
 export interface DashboardStatistics {
@@ -194,6 +219,13 @@ export interface DashboardStatistics {
 }
 
 export const getDashboardStatistics = async (): Promise<DashboardStatistics> => {
+  const cacheKey = 'dashboard:statistics';
+  
+  const cached = await cacheService.get<DashboardStatistics>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const thirtyDaysAgo = new Date();
@@ -405,7 +437,7 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
       createdAt: c.createdAt.toISOString(),
     }));
 
-  return {
+  const result: DashboardStatistics = {
     totalTransactions,
     totalTransactionsThisMonth,
     totalRevenue,
@@ -429,4 +461,8 @@ export const getDashboardStatistics = async (): Promise<DashboardStatistics> => 
       soloParents,
     },
   };
+
+  await cacheService.set(cacheKey, result, 60);
+  
+  return result;
 };

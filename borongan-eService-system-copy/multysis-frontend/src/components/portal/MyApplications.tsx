@@ -18,10 +18,9 @@ import { TaxIndicator } from '@/components/tax/TaxIndicator';
 // Hooks
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useActiveServices } from '@/hooks/useActiveServices';
 
 // Services
-import { serviceService, type Service } from '@/services/api/service.service';
-import { transactionNoteService } from '@/services/api/transaction-note.service';
 import { transactionService, type Transaction } from '@/services/api/transaction.service';
 
 // Utils
@@ -33,8 +32,9 @@ export const MyApplications: React.FC = () => {
   const { toast } = useToast();
   const currentUser = user;
 
+  const { services: cachedServices } = useActiveServices();
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -45,14 +45,12 @@ export const MyApplications: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [transactionsWithUnreadCounts, setTransactionsWithUnreadCounts] = useState<Transaction[]>([]);
 
   const limit = 5;
 
   useEffect(() => {
     if (currentUser?.id) {
       fetchTransactions();
-      fetchServices();
     }
   }, [currentUser, page, statusFilter, serviceFilter, searchQuery]);
 
@@ -75,29 +73,6 @@ export const MyApplications: React.FC = () => {
       setTransactions(transactionsArray);
       setTotalPages(result?.pagination?.totalPages || 1);
       setTotal(result?.pagination?.total || 0);
-
-      // Fetch unread counts for all transactions
-      const transactionsWithCounts = await Promise.all(
-        transactionsArray.map(async (transaction) => {
-          try {
-            const unreadCount = await transactionNoteService.getUnreadCount(transaction.id);
-            return {
-              ...transaction,
-              unreadMessageCount: unreadCount,
-            };
-          } catch (error) {
-            // If fetching fails, use 0 or calculate from transactionNotes if available
-            const countFromNotes = transaction.transactionNotes
-              ? transaction.transactionNotes.filter((note) => !note.isRead && note.senderType === 'ADMIN').length
-              : 0;
-            return {
-              ...transaction,
-              unreadMessageCount: countFromNotes,
-            };
-          }
-        })
-      );
-      setTransactionsWithUnreadCounts(transactionsWithCounts);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -106,15 +81,6 @@ export const MyApplications: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchServices = async () => {
-    try {
-      const result = await serviceService.getActiveServices();
-      setServices(result);
-    } catch (error) {
-      // Silently fail - services are optional for filtering
     }
   };
 
@@ -210,7 +176,7 @@ export const MyApplications: React.FC = () => {
 
   const serviceOptions = [
     { value: '', label: 'All Services' },
-    ...services.map((service) => ({
+    ...cachedServices.map((service) => ({
       value: service.id,
       label: service.name,
     })),
@@ -225,7 +191,7 @@ export const MyApplications: React.FC = () => {
   }
 
   // Count transactions with pending updates
-  const pendingUpdateCount = transactionsWithUnreadCounts.filter(
+  const pendingUpdateCount = transactions.filter(
     (t) => t.updateRequestStatus === 'PENDING_PORTAL' || t.updateRequestStatus === 'PENDING_ADMIN'
   ).length;
 
@@ -344,7 +310,7 @@ export const MyApplications: React.FC = () => {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4">
-            {(transactionsWithUnreadCounts.length > 0 ? transactionsWithUnreadCounts : transactions).map((transaction) => (
+            {transactions.map((transaction) => (
               <Card key={transaction.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

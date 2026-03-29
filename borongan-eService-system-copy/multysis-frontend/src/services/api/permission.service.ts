@@ -56,9 +56,9 @@ const transformPermission = (backendPermission: BackendPermission): Permission =
 };
 
 export const permissionService = {
-  async getAllPermissions(): Promise<Permission[]> {
+  async getAllPermissions(signal?: AbortSignal): Promise<Permission[]> {
     try {
-      const response = await api.get('/permissions');
+      const response = await api.get('/permissions', { signal });
       const backendPermissions: BackendPermission[] = response.data.data;
       return backendPermissions.map(transformPermission);
     } catch (error: any) {
@@ -67,9 +67,9 @@ export const permissionService = {
     }
   },
 
-  async getPermission(id: string): Promise<Permission> {
+  async getPermission(id: string, signal?: AbortSignal): Promise<Permission> {
     try {
-      const response = await api.get(`/permissions/${id}`);
+      const response = await api.get(`/permissions/${id}`, { signal });
       const backendPermission: BackendPermission = response.data.data;
       return transformPermission(backendPermission);
     } catch (error: any) {

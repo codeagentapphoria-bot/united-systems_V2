@@ -77,6 +77,7 @@ export interface ResidentFilters {
   municipalityId?: number;
   page?: number;
   limit?: number;
+  signal?: AbortSignal;
 }
 
 export interface ResidentPagination {
@@ -132,7 +133,7 @@ export interface UpdateResidentData {
  * List residents (admin — paginated, filterable).
  */
 export const residentService = {
-  async listResidents(filters: ResidentFilters = {}): Promise<{
+  async listResidents(filters: ResidentFilters = {}, signal?: AbortSignal): Promise<{
     residents: Resident[];
     pagination: ResidentPagination;
   }> {
@@ -144,22 +145,22 @@ export const residentService = {
     if (filters.page)           params.set('page',           String(filters.page));
     if (filters.limit)          params.set('limit',          String(filters.limit));
 
-    const response = await api.get(`/residents?${params.toString()}`);
+    const response = await api.get(`/residents?${params.toString()}`, { signal });
     return response.data;
   },
 
-  async getResident(id: string): Promise<Resident> {
-    const response = await api.get(`/residents/${id}`);
+  async getResident(id: string, signal?: AbortSignal): Promise<Resident> {
+    const response = await api.get(`/residents/${id}`, { signal });
     return response.data.data;
   },
 
-  async getMyProfile(): Promise<Resident> {
-    const response = await api.get('/residents/me');
+  async getMyProfile(signal?: AbortSignal): Promise<Resident> {
+    const response = await api.get('/residents/me', { signal });
     return response.data.data;
   },
 
-  async getByResidentId(residentId: string): Promise<Resident> {
-    const response = await api.get(`/residents/by-resident-id/${residentId}`);
+  async getByResidentId(residentId: string, signal?: AbortSignal): Promise<Resident> {
+    const response = await api.get(`/residents/by-resident-id/${residentId}`, { signal });
     return response.data.data;
   },
 
@@ -231,11 +232,12 @@ export const residentService = {
    */
   async searchResidents(
     search: string,
-    options: { status?: string; limit?: number } = {}
+    options: { status?: string; limit?: number } = {},
+    signal?: AbortSignal
   ): Promise<Resident[]> {
     const params = new URLSearchParams({ search, limit: String(options.limit ?? 20) });
     if (options.status) params.set('status', options.status);
-    const response = await api.get(`/residents?${params.toString()}`);
+    const response = await api.get(`/residents?${params.toString()}`, { signal });
     return response.data.residents ?? [];
   },
 };
