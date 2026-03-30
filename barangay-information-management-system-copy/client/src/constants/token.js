@@ -1,13 +1,13 @@
+let _token = null;
+
 export const setToken = (token) => {
-  localStorage.setItem("access_token", token);
+  _token = token;
 };
 
-export const getToken = () => {
-  return localStorage.getItem("access_token");
-};
+export const getToken = () => _token;
 
 export const removeToken = () => {
-  localStorage.removeItem("access_token");
+  _token = null;
 };
 
 export const decodeToken = (token) => {
