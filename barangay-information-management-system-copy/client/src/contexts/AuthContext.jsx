@@ -1,12 +1,11 @@
 import { useState, useEffect, createContext, useContext } from "react";
+import axios from "axios";
 import api from "@/utils/api";
 import { handleErrorSilently } from "@/utils/errorHandler";
 import logger from "@/utils/logger";
 import {
-  getToken,
   setToken,
   removeToken,
-  decodeToken,
 } from "@/constants/token";
 import { toast } from "@/hooks/use-toast";
 
@@ -117,13 +116,12 @@ export const AuthProvider = ({ children }) => {
 
   const refreshToken = async () => {
     try {
-      const token = getToken();
-      if (!token) return null;
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"}/auth/refresh`,
+        {},
+        { withCredentials: true }
+      );
 
-      const { data } = await api.post("/auth/refresh", {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
       if (data.status === "success") {
         setToken(data.token);
         return data.token;
@@ -136,67 +134,37 @@ export const AuthProvider = ({ children }) => {
   };
 
   const initializeAuth = async () => {
-    const token = getToken();
-    if (!token) {
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        isSetup: false,
-        isInitialized: true,
-      }));
-      return;
-    }
     try {
-      const decoded = decodeToken(token);
-      const { data } = await api.get("/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setState({
-        user: data.data.user,
-        isAuthenticated: true,
-        loading: false,
-        error: null,
-        isSetup: false,
-        barangayData: null,
-        isInitialized: true,
-        setupLoading: true,
-      });
-      updateSetupStatus(data.data.user);
-    } catch (err) {
-      // Try to refresh token if auth fails
-      if (err.response?.status === 401) {
-        logger.info("Token expired, attempting refresh...");
-        const newToken = await refreshToken();
-        if (newToken) {
-          try {
-            const { data } = await api.get("/auth/me", {
-              headers: { Authorization: `Bearer ${newToken}` },
-            });
-            setState({
-              user: data.data.user,
-              isAuthenticated: true,
-              loading: false,
-              error: null,
-              isSetup: false,
-              barangayData: null,
-              isInitialized: true,
-              setupLoading: true,
-            });
-            updateSetupStatus(data.data.user);
-            return;
-          } catch (refreshErr) {
-            logger.warn("Token refresh failed:", refreshErr.message);
-          }
-        }
+      // Silently exchange the HttpOnly cookie for a fresh access token
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"}/auth/refresh`,
+        {},
+        { withCredentials: true }
+      );
+
+      if (data.status === "success") {
+        setToken(data.token);
+        setState({
+          user: data.data.user,
+          isAuthenticated: true,
+          loading: false,
+          error: null,
+          isSetup: false,
+          barangayData: null,
+          isInitialized: true,
+          setupLoading: true,
+        });
+        updateSetupStatus(data.data.user);
+      } else {
+        setState((prev) => ({ ...prev, loading: false, isInitialized: true }));
       }
-      
-      handleErrorSilently(err, "Auth Initialization");
-      removeToken();
+    } catch {
+      // No cookie or expired — user needs to log in
       setState({
         user: null,
         isAuthenticated: false,
         loading: false,
-        error: err.message,
+        error: null,
         isSetup: false,
         barangayData: null,
         isInitialized: true,
@@ -240,7 +208,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"}/auth/logout`,
+        {},
+        { withCredentials: true }
+      );
+    } catch {
+      // Best-effort — clear local state regardless
+    }
     removeToken();
     setState({
       user: null,
