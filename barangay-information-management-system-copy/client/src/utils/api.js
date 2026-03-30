@@ -24,13 +24,12 @@ const processQueue = (error, token = null) => {
 
 const refreshToken = async () => {
   try {
-    const token = getToken();
-    if (!token) return null;
+    const { data } = await axios.post(
+      `${api.defaults.baseURL}/auth/refresh`,
+      {},
+      { withCredentials: true }
+    );
 
-    const { data } = await axios.post(`${api.defaults.baseURL}/auth/refresh`, {}, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    
     if (data.status === "success") {
       setToken(data.token);
       return data.token;
