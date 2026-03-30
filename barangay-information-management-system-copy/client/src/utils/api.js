@@ -79,8 +79,9 @@ api.interceptors.response.use(
         } else {
           processQueue(error, null);
           removeToken();
-          const isAuthRoute = ["/admin/login", "/setup-account", "/forgot-password", "/reset-password"].some(path => window.location.pathname.startsWith(path));
-          if (!isAuthRoute) {
+          const isAdminRoute = window.location.pathname.startsWith("/admin") ||
+            ["/setup-account", "/forgot-password", "/reset-password"].some(path => window.location.pathname.startsWith(path));
+          if (isAdminRoute) {
             window.location.href = "/admin/login";
           }
           return Promise.reject(error);
@@ -88,8 +89,9 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         removeToken();
-        const isAuthRoute = ["/admin/login", "/setup-account", "/forgot-password", "/reset-password"].some(path => window.location.pathname.startsWith(path));
-        if (!isAuthRoute) {
+        const isAdminRoute = window.location.pathname.startsWith("/admin") ||
+          ["/setup-account", "/forgot-password", "/reset-password"].some(path => window.location.pathname.startsWith(path));
+        if (isAdminRoute) {
           window.location.href = "/admin/login";
         }
         return Promise.reject(refreshError);
