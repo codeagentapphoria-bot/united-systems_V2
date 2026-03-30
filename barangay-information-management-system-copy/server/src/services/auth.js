@@ -1,6 +1,6 @@
 import User from "../models/User.js";
 import { ApiError } from "../utils/apiError.js";
-import { generateToken } from "../config/jwt.js";
+import { generateToken, generateRefreshToken, hashRefreshToken } from "../config/jwt.js";
 import { sendEmail } from "../utils/email.js";
 import crypto from "crypto";
 import { cacheUtils } from "../config/redis.js";
@@ -24,8 +24,14 @@ export const loginUser = async (email, password) => {
     name: user.full_name,
   });
 
+  const refreshToken = generateRefreshToken();
+  const refreshHash = hashRefreshToken(refreshToken);
+  const SEVEN_DAYS = 7 * 24 * 60 * 60; // seconds
+  await cacheUtils.set(`bims:refresh:${refreshHash}`, String(user.id), SEVEN_DAYS);
+
   return {
     token,
+    refreshToken,
     user: {
       id: user.id,
       email: user.email,
@@ -38,16 +44,25 @@ export const loginUser = async (email, password) => {
   };
 };
 
-export const refreshToken = async (userId) => {
+export const refreshToken = async (rawToken) => {
+  if (!rawToken) throw new ApiError(401, "No refresh token");
+
+  const hash = hashRefreshToken(rawToken);
+  const userId = await cacheUtils.get(`bims:refresh:${hash}`);
+
+  if (!userId) throw new ApiError(401, "Refresh token invalid or expired");
+
   const user = await User.findById(userId);
+  if (!user) throw new ApiError(401, "User no longer exists");
 
-  if (!user) {
-    throw new ApiError(401, "User not found");
-  }
+  if (!user.target_id) throw new ApiError(400, "User is missing target_id");
 
-  if (!user.target_id) {
-    throw new ApiError(400, "User is missing target_id");
-  }
+  // Rotate: delete old hash, generate new token + hash
+  await cacheUtils.del(`bims:refresh:${hash}`);
+  const newRawToken = generateRefreshToken();
+  const newHash = hashRefreshToken(newRawToken);
+  const SEVEN_DAYS = 7 * 24 * 60 * 60;
+  await cacheUtils.set(`bims:refresh:${newHash}`, String(user.id), SEVEN_DAYS);
 
   const token = generateToken({
     userId: user.id,
@@ -60,6 +75,7 @@ export const refreshToken = async (userId) => {
 
   return {
     token,
+    refreshToken: newRawToken,
     user: {
       id: user.id,
       email: user.email,
@@ -307,4 +323,10 @@ export const resetPassword = async (email, resetCode, newPassword) => {
   cacheUtils.del(`bims:user:${user.id}`).catch(() => {});
 
   return { message: "Password reset successful" };
+};
+
+export const logoutUser = async (rawToken) => {
+  if (!rawToken) return;
+  const hash = hashRefreshToken(rawToken);
+  await cacheUtils.del(`bims:refresh:${hash}`);
 };
