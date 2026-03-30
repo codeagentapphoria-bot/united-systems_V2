@@ -4,6 +4,9 @@ import { generateToken, generateRefreshToken, hashRefreshToken } from "../config
 import { sendEmail } from "../utils/email.js";
 import crypto from "crypto";
 import { cacheUtils } from "../config/redis.js";
+import logger from "../utils/logger.js";
+
+const SEVEN_DAYS = 7 * 24 * 60 * 60; // seconds
 
 export const loginUser = async (email, password) => {
   const user = await User.findByEmail(email);
@@ -26,8 +29,10 @@ export const loginUser = async (email, password) => {
 
   const refreshToken = generateRefreshToken();
   const refreshHash = hashRefreshToken(refreshToken);
-  const SEVEN_DAYS = 7 * 24 * 60 * 60; // seconds
-  await cacheUtils.set(`bims:refresh:${refreshHash}`, String(user.id), SEVEN_DAYS);
+  const stored = await cacheUtils.set(`bims:refresh:${refreshHash}`, String(user.id), SEVEN_DAYS);
+  if (!stored) {
+    logger.warn("Refresh token not stored — Redis may be disabled. Session will not persist across page loads.");
+  }
 
   return {
     token,
@@ -61,7 +66,6 @@ export const refreshToken = async (rawToken) => {
   await cacheUtils.del(`bims:refresh:${hash}`);
   const newRawToken = generateRefreshToken();
   const newHash = hashRefreshToken(newRawToken);
-  const SEVEN_DAYS = 7 * 24 * 60 * 60;
   await cacheUtils.set(`bims:refresh:${newHash}`, String(user.id), SEVEN_DAYS);
 
   const token = generateToken({
