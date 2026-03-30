@@ -174,13 +174,13 @@ const DeveloperPortal = () => {
   const [liveMsg, setLiveMsg] = React.useState("");
 
   React.useEffect(() => {
-    const saved = localStorage.getItem("devPortalApiKey");
+    const saved = sessionStorage.getItem("devPortalApiKey");
     if (saved) setApiKey(saved);
   }, []);
 
   const { toast } = useToast();
   const saveKey = () => {
-    localStorage.setItem("devPortalApiKey", apiKey);
+    sessionStorage.setItem("devPortalApiKey", apiKey);
     setSavedKeyAt(Date.now());
     setLiveMsg("API key saved for Try It requests");
     toast({ title: "API key saved", description: "Used by Try It requests", duration: 2000 });
