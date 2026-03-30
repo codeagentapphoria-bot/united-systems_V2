@@ -19,8 +19,8 @@ export const listResidents = async (req, res) => {
     const paramsCount = [municipalityId];
     const paramsData = [municipalityId];
     if (q) {
-      // Filter by resident id (partial match)
-      where += " AND r.id ILIKE $2";
+      // Filter by human-readable resident_id (e.g. RES-2026-0010002), partial match
+      where += " AND r.resident_id ILIKE $2";
       paramsCount.push(`%${q}%`);
       paramsData.push(`%${q}%`);
     }
@@ -29,8 +29,9 @@ export const listResidents = async (req, res) => {
     paramsData.push(limit, offset);
 
     const dataSql = `
-      SELECT 
+      SELECT
         r.id,
+        r.resident_id,
         r.barangay_id,
         r.last_name,
         r.first_name,
