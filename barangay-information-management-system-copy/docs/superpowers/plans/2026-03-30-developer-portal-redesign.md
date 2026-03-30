@@ -1,3 +1,37 @@
+# Developer Portal Redesign Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Rewrite `DeveloperPortal.jsx` with a sticky left-sidebar nav, correct auth docs (remove `Authorization: Bearer`), add a Scopes section, fix the base URL, and drop Python code examples in favor of curl + JavaScript only.
+
+**Architecture:** Single file rewrite of `client/src/pages/public/DeveloperPortal.jsx`. Two-panel flex layout: `w-60` sticky sidebar (IntersectionObserver-driven active link) + `flex-1 overflow-y-auto` content area. The component renders standalone at `/developer-portal` — no parent Layout/navbar. No backend changes.
+
+**Tech Stack:** React, Tailwind CSS, Shadcn UI (Tabs, Input, Button, Label, Textarea, useToast)
+
+**Spec:** `docs/superpowers/specs/2026-03-30-developer-portal-redesign.md`
+
+---
+
+## Files
+
+| Action | Path |
+|---|---|
+| Rewrite | `client/src/pages/public/DeveloperPortal.jsx` |
+
+---
+
+### Task 1: Write the data constants and layout shell
+
+**Files:**
+- Modify: `client/src/pages/public/DeveloperPortal.jsx`
+
+This task replaces the entire file with: updated imports, schema constants (unchanged), updated `endpoints` array (no Python), `NAV_GROUPS`, `TRY_IT_ID`, and the component function with the two-panel layout and sidebar. Content sections are empty `<section>` placeholders — they will be filled in Tasks 2–4.
+
+---
+
+- [ ] **Step 1: Replace the entire file with the following**
+
+```jsx
 import React from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -18,31 +52,21 @@ const residentsSchema = {
   success: true,
   data: [
     {
-      id: "uuid",
-      resident_id: "RES-YYYY-NNNNNNN",
-      barangay_id: 0,
-      last_name: "string",
+      id: "string",
       first_name: "string",
-      middle_name: "string|null",
-      extension_name: "string|null",
+      last_name: "string",
+      middle_name: "string",
       sex: "male|female",
       civil_status: "single|married|widowed|separated",
       birthdate: "ISODate",
-      birth_region: "string|null",
-      contact_number: "string|null",
       email: "string|null",
+      contact_number: "string|null",
       occupation: "string|null",
-      monthly_income: "number|null",
-      employment_status: "string|null",
-      education_attainment: "string|null",
-      status: "active|pending|inactive",
-      picture_path: "string|null",
-      indigenous_person: false,
-      created_at: "ISODate",
-      updated_at: "ISODate",
+      status: "active",
+      barangay_id: 0,
     },
   ],
-  pagination: { page: 1, limit: 20, total: 1, pages: 1 },
+  pagination: { page: 1, limit: 10, total: 1, pages: 1 },
 };
 
 const householdsSchema = {
@@ -106,7 +130,7 @@ const endpoints = [
     params: [
       { name: "page", type: "int", required: false, note: "Default: 1" },
       { name: "limit", type: "int", required: false, note: "Default: 10" },
-      { name: "q", type: "string", required: false, note: "Search by resident_id, e.g. RES-2026-0010002 (partial match)" },
+      { name: "q", type: "string", required: false, note: "Resident ID (partial match)" },
     ],
     schema: residentsSchema,
     sampleCurl: `curl -sS "${EX_BASE}/residents?page=1&limit=10" \\\n  -H "X-API-KEY: <your_api_key>"`,
@@ -299,6 +323,54 @@ const DeveloperPortal = () => {
         <div className="max-w-3xl mx-auto px-10 py-12 space-y-20">
           <span className="sr-only" aria-live="polite">{liveMsg}</span>
 
+          {/* Placeholder sections — filled in Tasks 2–4 */}
+          <section id="overview" />
+          <section id="authentication" />
+          <section id="rate-limits" />
+          <section id="scopes" />
+          <section id="error-codes" />
+          {endpoints.map((ep) => (
+            <section key={ep.id} id={`ep-${ep.id}`} />
+          ))}
+          <section id={TRY_IT_ID} />
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default DeveloperPortal;
+```
+
+- [ ] **Step 2: Start the dev server**
+
+```bash
+cd /path/to/repo/client && npm run dev
+```
+
+Navigate to `http://localhost:5173/developer-portal` (or whichever port Vite starts on).
+
+Expected:
+- Two-panel layout: narrow `slate-50` sidebar on left, white area on right
+- Sidebar shows "BIMS API" / "Open API Documentation" header
+- GUIDES group: Overview, Authentication, Rate Limits, Scopes, Error Codes
+- ENDPOINTS group: GET /residents, GET /households, GET /families, GET /barangays, GET /statistics
+- "Try It" link below a divider
+- Content area is blank (placeholder sections)
+- No console errors
+
+---
+
+### Task 2: Fill in guide sections (Overview through Error Codes)
+
+**Files:**
+- Modify: `client/src/pages/public/DeveloperPortal.jsx`
+
+Replace the five empty placeholder `<section>` elements (`id="overview"` through `id="error-codes"`) in the content area with the following. Find the comment `{/* Placeholder sections — filled in Tasks 2–4 */}` and replace the five empty sections:
+
+- [ ] **Step 1: Replace the guide section placeholders**
+
+```jsx
           {/* ── Overview ── */}
           <section id="overview">
             <h1 className="text-2xl font-bold text-slate-900 mb-2">BIMS Open API</h1>
@@ -442,7 +514,30 @@ const DeveloperPortal = () => {
               </tbody>
             </table>
           </section>
+```
 
+- [ ] **Step 2: Verify in the browser**
+
+Reload the page. Expected:
+- Overview section: "BIMS Open API" heading, base URL shows `/api/openapi` (not `/api`)
+- Authentication section: exactly **2** code blocks (header + query param) — **no** `Authorization: Bearer` block
+- Rate Limits: text with "60 requests / minute"
+- Scopes: table with 5 rows, scope codes like `residents.read`
+- Error Codes: table with 401, 403, 429 rows
+- Clicking sidebar links scrolls to each section
+
+---
+
+### Task 3: Fill in endpoint sections
+
+**Files:**
+- Modify: `client/src/pages/public/DeveloperPortal.jsx`
+
+Replace the five empty `{endpoints.map((ep) => (<section key={ep.id} id={`ep-${ep.id}`} />))}` with:
+
+- [ ] **Step 1: Replace the endpoint section placeholder**
+
+```jsx
           {/* ── Endpoint sections ── */}
           {endpoints.map((ep) => (
             <section key={ep.id} id={`ep-${ep.id}`}>
@@ -518,7 +613,30 @@ const DeveloperPortal = () => {
               </div>
             </section>
           ))}
+```
 
+- [ ] **Step 2: Verify in the browser**
+
+Reload. Expected:
+- Five endpoint sections appear (GET /residents through GET /statistics)
+- Each has a blue `GET` badge + monospace path
+- `/residents`, `/households`, `/families`, `/barangays` show a Query Parameters table; `/statistics` has no params table (empty `params: []`)
+- Each shows a dark Response Schema block with JSON
+- Examples tabs show `cURL` and `JavaScript` only — **no Python tab**
+- Clicking "GET /residents" in the sidebar scrolls to that section
+
+---
+
+### Task 4: Fill in the Try It section
+
+**Files:**
+- Modify: `client/src/pages/public/DeveloperPortal.jsx`
+
+Replace the empty `<section id={TRY_IT_ID} />` placeholder with:
+
+- [ ] **Step 1: Replace the Try It placeholder**
+
+```jsx
           {/* ── Try It ── */}
           <section id={TRY_IT_ID}>
             <h2 className="text-xl font-bold text-slate-900 mb-4">Try It</h2>
@@ -611,10 +729,41 @@ const DeveloperPortal = () => {
               </div>
             </div>
           </section>
-        </div>
-      </main>
-    </div>
-  );
-};
+```
 
-export default DeveloperPortal;
+- [ ] **Step 2: Verify Try It works**
+
+Reload. Expected:
+- "Try It" section visible at the bottom of the content area
+- API Key input + Save button: paste a key, click Save — button shows green checkmark briefly
+- Endpoint dropdown lists all 5 endpoints
+- `q` field appears only when `GET /openapi/residents` is selected
+- Click Send with a valid API key → response JSON appears in the textarea with HTTP status shown
+- Click Send without an API key → 401 status shown
+- Clicking "Try It" in the sidebar scrolls to this section and highlights the link
+
+---
+
+### Task 5: Final checks and commit
+
+**Files:**
+- Modify: `client/src/pages/public/DeveloperPortal.jsx` (if any fixes needed)
+
+- [ ] **Step 1: Full visual checklist**
+
+With the dev server running, walk through:
+
+- [ ] Scroll slowly from top to bottom — sidebar link highlights update as each section enters the viewport
+- [ ] Click every sidebar link — page scrolls to correct section, link turns blue with left border
+- [ ] Authentication section: count code blocks — must be exactly **2** (header + query param), no `Authorization: Bearer`
+- [ ] Base URL in Overview shows `https://<your-domain>/api/openapi` (not `/api`)
+- [ ] Code examples on each endpoint: tabs show `cURL` and `JavaScript` only
+- [ ] GET /statistics endpoint: no Query Parameters table visible (it has none)
+- [ ] sessionStorage: open DevTools → Application → Session Storage — save a key, confirm `devPortalApiKey` is set; refresh page — key is restored in the input
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add client/src/pages/public/DeveloperPortal.jsx
+git commit -m "feat: redesign developer portal with left sidebar nav and updated docs"
+```

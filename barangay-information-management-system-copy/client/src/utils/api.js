@@ -24,13 +24,12 @@ const processQueue = (error, token = null) => {
 
 const refreshToken = async () => {
   try {
-    const token = getToken();
-    if (!token) return null;
+    const { data } = await axios.post(
+      `${api.defaults.baseURL}/auth/refresh`,
+      {},
+      { withCredentials: true }
+    );
 
-    const { data } = await axios.post(`${api.defaults.baseURL}/auth/refresh`, {}, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    
     if (data.status === "success") {
       setToken(data.token);
       return data.token;
@@ -80,8 +79,9 @@ api.interceptors.response.use(
         } else {
           processQueue(error, null);
           removeToken();
-          const isAuthRoute = ["/admin/login", "/setup-account", "/forgot-password", "/reset-password"].some(path => window.location.pathname.startsWith(path));
-          if (!isAuthRoute) {
+          const isAdminRoute = window.location.pathname.startsWith("/admin") ||
+            ["/setup-account", "/forgot-password", "/reset-password"].some(path => window.location.pathname.startsWith(path));
+          if (isAdminRoute) {
             window.location.href = "/admin/login";
           }
           return Promise.reject(error);
@@ -89,8 +89,9 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         removeToken();
-        const isAuthRoute = ["/admin/login", "/setup-account", "/forgot-password", "/reset-password"].some(path => window.location.pathname.startsWith(path));
-        if (!isAuthRoute) {
+        const isAdminRoute = window.location.pathname.startsWith("/admin") ||
+          ["/setup-account", "/forgot-password", "/reset-password"].some(path => window.location.pathname.startsWith(path));
+        if (isAdminRoute) {
           window.location.href = "/admin/login";
         }
         return Promise.reject(refreshError);
