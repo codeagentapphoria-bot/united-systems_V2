@@ -20,6 +20,6 @@ export const generateRefreshToken = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
-export const hashRefreshToken = (token) => {
-  return crypto.createHash('sha256').update(token).digest('hex');
+export const hashRefreshToken = (rawToken) => {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
 };
